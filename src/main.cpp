@@ -1,6 +1,7 @@
 #include "main.h"
 #include "preview.h"
 #include <cstring>
+#include <cstdio>
 
 static std::string startTimeString;
 
@@ -72,7 +73,8 @@ int main(int argc, char** argv) {
     // GLFW main loop
     mainLoop();
 
-    return 0;
+	system("pause");
+    //return 0;
 }
 
 void saveImage() {
@@ -90,7 +92,7 @@ void saveImage() {
 
     std::string filename = renderState->imageName;
     std::ostringstream ss;
-    ss << filename << "." << startTimeString << "." << samples << "samp";
+    ss << "..\\img\\" << filename << "." << startTimeString << "." << samples << "samp";
     filename = ss.str();
 
     // CHECKITOUT
