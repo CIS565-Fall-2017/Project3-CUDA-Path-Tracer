@@ -155,7 +155,8 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 			);
 
 		segment.pixelIndex = index;
-		segment.remainingBounces = traceDepth;
+		//segment.remainingBounces = traceDepth;
+    segment.remainingBounces = 1;
 	}
 }
 
@@ -300,8 +301,8 @@ __global__ void shadeMaterial(
     ShadeableIntersection intersection = shadeableIntersections[idx];
     if (intersection.t > 0.0f) { // if the intersection exists...
                                  // Set up the RNG
-      thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
-      thrust::uniform_real_distribution<float> u01(0, 1);
+      thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
+      //thrust::uniform_real_distribution<float> u01(0, 1);
 
       Material material = materials[intersection.materialId];
       glm::vec3 materialColor = material.color;
@@ -487,8 +488,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
 
 
- // // Assemble this iteration and apply it to the image
- // dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
+  // Assemble this iteration and apply it to the image
+  // dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
 	//finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
 
   ///////////////////////////////////////////////////////////////////////////
