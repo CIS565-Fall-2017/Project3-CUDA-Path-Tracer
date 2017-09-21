@@ -302,7 +302,6 @@ __global__ void shadeMaterial(
     if (intersection.t > 0.0f) { // if the intersection exists...
                                  // Set up the RNG
       thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
-      //thrust::uniform_real_distribution<float> u01(0, 1);
 
       Material material = materials[intersection.materialId];
       glm::vec3 materialColor = material.color;
@@ -458,13 +457,13 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
     // TODO: compare between directly shading the path segments and shading
     // path segments that have been reshuffled to be contiguous in memory.
 
-    //shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>> (
-    //  iter,
-    //  num_paths,
-    //  dev_intersections,
-    //  dev_paths,
-    //  dev_materials
-    //);
+    shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>> (
+      iter,
+      num_paths,
+      dev_intersections,
+      dev_paths,
+      dev_materials
+    );
     //iterationComplete = true; // TODO: should be based off stream compaction results.
 
     shadeMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
@@ -489,9 +488,9 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
 
   // Assemble this iteration and apply it to the image
-  // dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
-	//finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
-
+  /*dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
+	finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
+*/
   ///////////////////////////////////////////////////////////////////////////
 
   // Send results to OpenGL buffer for rendering
