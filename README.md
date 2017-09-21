@@ -3,11 +3,36 @@ CUDA Path Tracer
 
 **University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 3**
 
-* (TODO) YOUR NAME HERE
-* Tested on: (TODO) Windows 22, i7-2222 @ 2.22GHz 22GB, GTX 222 222MB (Moore 2222 Lab)
+Sarah Forcier
 
-### (TODO: Your README)
+Tested on GeForce GTX 1070
 
-*DO NOT* leave the README to the last minute! It is a crucial part of the
-project, and we will not be able to grade you without a good README.
 
+### Overview
+
+#### Controls
+
+* Esc to save an image and exit.
+* S to save an image. Watch the console for the output filename.
+* Space to re-center the camera at the original scene lookAt point
+* left mouse button to rotate the camera
+* right mouse button on the vertical axis to zoom in/out
+* middle mouse button to move the LOOKAT point in the scene's X/Z plane
+
+### Features
+
+#### Materials
+
+##### Ideal Diffuse
+
+##### Perfectly Specular-reflective
+
+##### Transmissive
+
+#### Sorted Rays
+
+#### Arbitrary Mesh Loading
+
+#### Depth-of-Field
+
+#### Antialiasing

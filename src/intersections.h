@@ -142,3 +142,47 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
 
     return glm::length(r.origin - intersectionPoint);
 }
+
+// TODO
+/**
+* Test intersection between a ray and a transformed triangle. Untransformed,
+* the cube ranges from -0.5 to 0.5 in each axis and is centered at the origin.
+*
+* @param intersectionPoint  Output parameter for point of intersection.
+* @param normal             Output parameter for surface normal.
+* @param outside            Output param for whether the ray came from outside.
+* @return                   Ray parameter `t` value. -1 if no intersection.
+*/
+__host__ __device__ float triangleIntersectionTest(Geom tri, Ray r,
+	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) 
+{
+	// transform ray
+	Ray rt;
+	rt.origin = multiplyMV(tri.inverseTransform, glm::vec4(r.origin, 1.0f));
+	rt.direction = glm::normalize(multiplyMV(tri.inverseTransform, glm::vec4(r.direction, 0.0f)));
+
+	// ray-plane intersection
+	glm::vec3 p1 = tri.translation;
+	glm::vec3 p2 = tri.rotation;
+	glm::vec3 p3 = tri.scale;
+	glm::vec3 norm = glm::normalize(glm::cross(p2 - p1, p3 - p2));
+	float t = glm::dot(norm, (p1 - rt.origin)) / glm::dot(norm, rt.direction);
+	if (t < 0) return -1;
+
+	// barycentric test
+	glm::vec3 p = rt.origin + t * rt.direction;
+	float s = 0.5f * glm::length(glm::cross(p1 - p2, p1 - p3));
+	float s1 = 0.5f * glm::length(glm::cross(p - p2, p - p3)) / s;
+	float s2 = 0.5f * glm::length(glm::cross(p - p3, p - p1)) / s;
+	float s3 = 0.5f * glm::length(glm::cross(p - p1, p - p2)) / s;
+	float sum = s1 + s2 + s3;
+	if (s1 >= 0 && s1 <= 1 && s2 >= 0 && s2 <= 1 && s3 >= 0 && s3 <= 1 && sum == 1.0f) {
+		glm::vec3 objspaceIntersection = getPointOnRay(rt, t);
+		intersectionPoint = multiplyMV(tri.transform, glm::vec4(objspaceIntersection, 1.f));
+		normal = norm;
+		outside = (glm::dot(norm, rt.direction) > 0);
+		return t;
+	}
+	return -1;
+}
+
