@@ -64,6 +64,7 @@ struct PathSegment {
 	glm::vec3 color;
 	int pixelIndex;
 	int remainingBounces;
+  bool isRefract;
 
   __host__ __device__ bool isDone() const {
     return (remainingBounces <= 0);
