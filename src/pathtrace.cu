@@ -155,8 +155,8 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 			);
 
 		segment.pixelIndex = index;
-		//segment.remainingBounces = traceDepth;
-    segment.remainingBounces = 1;
+		segment.remainingBounces = traceDepth;
+    //segment.remainingBounces = 1;
 	}
 }
 
@@ -295,7 +295,7 @@ __global__ void shadeMaterial(
 )
 {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  PathSegment path_segment = pathSegments[idx];
+  PathSegment& path_segment = pathSegments[idx];
   if (idx < num_paths && pathSegments[idx].remainingBounces > 0)
   {
     ShadeableIntersection intersection = shadeableIntersections[idx];
@@ -457,13 +457,13 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
     // TODO: compare between directly shading the path segments and shading
     // path segments that have been reshuffled to be contiguous in memory.
 
-    shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>> (
+    /*shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>> (
       iter,
       num_paths,
       dev_intersections,
       dev_paths,
       dev_materials
-    );
+    );*/
     //iterationComplete = true; // TODO: should be based off stream compaction results.
 
     shadeMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
