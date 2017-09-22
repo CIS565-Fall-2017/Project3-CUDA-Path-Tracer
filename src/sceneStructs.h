@@ -74,5 +74,6 @@ struct PathSegment {
 struct ShadeableIntersection {
   float t;
   glm::vec3 surfaceNormal;
+  glm::vec3 surfacePoint;
   int materialId;
 };
