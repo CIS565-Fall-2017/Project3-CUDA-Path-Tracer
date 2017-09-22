@@ -286,19 +286,18 @@ __global__ void pathTraceBasic(int iter, int num_paths,
 
 			// If the material indicates that the object was a light, "light" the ray
 			if (material.emittance > 0.0f) {
-				pathSegments[idx].color *= (materialColor * material.emittance * 0.2f);
+				pathSegments[idx].color *= (materialColor * material.emittance);
 			}
 			// Otherwise, do some pseudo-lighting computation. This is actually more
 			// like what you would expect from shading in a rasterizer like OpenGL.
 			// TODO: replace this! you should be able to start with basically a one-liner
 			else {
 				//add the light from the material color
-				pathSegments[idx].color *= materialColor; 
 				//scatter the ray
 				scatterRay(pathSegment,
 					pathSegment.ray.origin + pathSegment.ray.direction * intersection.t,
 					intersection.surfaceNormal,
-					materials[idx],
+					material,
 					rng);
 			}
 			// If there was no intersection, color the ray black.
@@ -384,7 +383,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	// Shoot ray into scene, bounce between objects, push shading chunks
 
   bool iterationComplete = false;
-  int iterationCount = 4;
+  int iterationCount = 3;
 	while (!iterationComplete) {
 
 	// clean shading chunks
