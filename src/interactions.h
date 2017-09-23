@@ -6,10 +6,10 @@
 /**
  * Computes a cosine-weighted random direction in a hemisphere.
  * Used for diffuse lighting.
+ * I believe this is in worldspace
  */
-__host__ __device__
-glm::vec3 calculateRandomDirectionInHemisphere(
-        glm::vec3 normal, thrust::default_random_engine &rng) {
+__host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(glm::vec3 normal, thrust::default_random_engine &rng) 
+{
     thrust::uniform_real_distribution<float> u01(0, 1);
 
     float up = sqrt(u01(rng)); // cos(theta)
@@ -48,8 +48,7 @@ glm::vec3 calculateRandomDirectionInHemisphere(
  * In order to apply multiple effects to one surface, probabilistically choose
  * between them.
  * 
- * The visual effect you want is to straight-up add the diffuse and specular
- * components. You can do this in a few ways. This logic also applies to
+ * Thcan do this in a few ways. This logic also applies to
  * combining other types of materias (such as refractive).
  * 
  * - Always take an even (50/50) split between a each effect (a diffuse bounce
@@ -59,21 +58,71 @@ glm::vec3 calculateRandomDirectionInHemisphere(
  *   - This way is inefficient, but serves as a good starting point - it
  *     converges slowly, especially for pure-diffuse or pure-specular.
  * - Pick the split based on the intensity of each material color, and divide
- *   branch result by that branch's probability (whatever probability you use).
+ *   branch result by that branch's pe visual effect you want is to straight-up add the diffuse and specular
+ * components. You robability (whatever probability you use).
  *
  * This method applies its changes to the Ray parameter `ray` in place.
  * It also modifies the color `color` of the ray in place.
  *
  * You may need to change the parameter list for your purposes!
  */
-__host__ __device__
-void scatterRay(
-		PathSegment & pathSegment,
-        glm::vec3 intersect,
-        glm::vec3 normal,
-        const Material &m,
-        thrust::default_random_engine &rng) {
+__host__ __device__ void scatterRay( PathSegment & pathSegment,
+									glm::vec3 intersect,
+									glm::vec3 normal,
+									const Material &m,
+									thrust::default_random_engine &rng) 
+{
+	// Update the ray and color associated with the pathSegment
     // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
+
+	glm::vec3 wo = pathSegment.ray.direction;
+	glm::vec3 wi = glm::vec3(0.0f);
+	glm::vec3 color = pathSegment.color;
+	float pdf = 1.0f;
+	
+	// If the material indicates that the object was a light, "light" the ray
+	if (m.emittance > 0.0f)
+	{
+		pathSegment.color *= m.color *m.emittance*pdf;
+		//pathSegment.color = (m.color * m.emittance); //debug view of light bouncing and hitting the light
+		pathSegment.remainingBounces = 0; //equivalent of breaking out of the thread
+		return;
+	}
+
+	if (m.hasReflective == 1)
+	{
+		//specular component
+		wi = glm::reflect(wo, normal);
+		color = color*m.specular.color;
+		pdf = 0.0f;
+	}
+	else
+	{
+		//diffuse
+		wi = glm::normalize(calculateRandomDirectionInHemisphere(normal, rng));
+
+		pdf = INVPI;
+		//Update Color
+		color = color*m.color;// *glm::vec3(INVPI)*(1.0f / pdf);
+	}
+	
+	glm::vec3 originOffset = normal*2.0f*EPSILON;
+	originOffset = glm::dot(wi, normal) > 0 ? originOffset : -originOffset;
+
+	//if (pdf == 0.0f)
+	//{
+	//	color = m.color;
+	//	return;
+	//}
+
+	//set up new ray direction
+	pathSegment.ray.origin = intersect + originOffset;
+	pathSegment.ray.direction = wi;
+
+	color *= glm::abs(glm::dot(wi, normal));
+	pathSegment.color = color;
+
+	pathSegment.remainingBounces--;
 }

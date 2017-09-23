@@ -89,7 +89,8 @@ int Scene::loadGeom(string objectid) {
     }
 }
 
-int Scene::loadCamera() {
+int Scene::loadCamera() 
+{
     cout << "Loading Camera ..." << endl;
     RenderState &state = this->state;
     Camera &camera = state.camera;
