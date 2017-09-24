@@ -52,6 +52,7 @@ int Scene::loadGeom(string objectid) {
                 cout << "Creating new cube..." << endl;
                 newGeom.type = CUBE;
             }
+			//TODO: ADD MORE OBJ TYPES HERE
         }
 
         //link material

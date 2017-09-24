@@ -10,6 +10,7 @@
 enum GeomType {
     SPHERE,
     CUBE,
+	//TODO: add more
 };
 
 struct Ray {
@@ -63,6 +64,7 @@ struct PathSegment {
 	Ray ray;
 	glm::vec3 color;
 	int pixelIndex;
+	glm::ivec2 MSPaintPixel;
 	int remainingBounces;
 };
 

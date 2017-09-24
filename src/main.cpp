@@ -1,7 +1,7 @@
 #include "main.h"
 #include "preview.h"
 #include <cstring>
-#include <cstdio>
+//#include <cstdio> //neede for system("pause");
 
 static std::string startTimeString;
 
@@ -73,8 +73,8 @@ int main(int argc, char** argv) {
     // GLFW main loop
     mainLoop();
 
-	system("pause");
-    //return 0;
+	//system("pause");
+    return 0;
 }
 
 void saveImage() {
