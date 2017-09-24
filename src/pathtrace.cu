@@ -14,10 +14,12 @@
 #include "intersections.h"
 #include "interactions.h"
 
+#include "stream_compaction/EfficientStreamCompaction.h"
+
 #define ERRORCHECK 1
 
-#define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
-#define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
+// #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+// #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
 void checkCUDAErrorFn(const char *msg, const char *file, int line) {
 #if ERRORCHECK
     cudaDeviceSynchronize();
@@ -265,6 +267,69 @@ __global__ void shadeFakeMaterial (
   }
 }
 
+// First Version of Shade function
+__global__ void shadeMaterialNaive(
+	int iter
+	, int num_paths
+	, ShadeableIntersection * shadeableIntersections
+	, PathSegment * pathSegments
+	, Material * materials
+)
+{
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (idx < num_paths)
+	{
+		ShadeableIntersection intersection = shadeableIntersections[idx];
+		PathSegment& pathSegment = pathSegments[idx];
+
+		if (intersection.t > 0.0f) { // if the intersection exists...
+									 // Set up the RNG
+									 // LOOK: this is how you use thrust's RNG! Please look at
+									 // makeSeededRandomEngine as well.
+			thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
+			thrust::uniform_real_distribution<float> u01(0, 1);
+
+			Material material = materials[intersection.materialId];
+			glm::vec3 materialColor = material.color;
+
+			
+
+
+			// If the material indicates that the object was a light, "light" the ray
+			if (material.emittance > 0.0f) {
+				pathSegment.color *= (materialColor * material.emittance);
+				// Terminate the ray if it hist a light
+				pathSegment.remainingBounces = 0;
+			}
+			
+			else {
+				
+				scatterRay(pathSegment, 
+						   getPointOnRay(pathSegment.ray, intersection.t),
+						   intersection.surfaceNormal,
+					       material,
+						   rng);
+
+				pathSegment.remainingBounces--;
+			}
+
+			
+		}
+		// If there was no intersection, color the ray black.
+		// Lots of renderers use 4 channel color, RGBA, where A = alpha, often
+		// used for opacity, in which case they can indicate "no opacity".
+		// This can be useful for post-processing and image compositing.
+		else {
+			pathSegment.color = glm::vec3(0.0f);
+
+			pathSegment.remainingBounces = 0;
+		}
+	}
+}
+
+
+
+
 // Add the current iteration's output to the overall image
 __global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterationPaths)
 {
@@ -285,6 +350,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
     const int traceDepth = hst_scene->state.traceDepth;
     const Camera &cam = hst_scene->state.camera;
     const int pixelcount = cam.resolution.x * cam.resolution.y;
+
+
 
 	// 2D block for generating ray from camera
     const dim3 blockSize2d(8, 8);
@@ -336,49 +403,76 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	// --- PathSegment Tracing Stage ---
 	// Shoot ray into scene, bounce between objects, push shading chunks
 
-  bool iterationComplete = false;
+    bool iterationComplete = false;
 	while (!iterationComplete) {
 
-	// clean shading chunks
-	cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
+		// clean shading chunks
+		cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
-	// tracing
-	dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
-	computeIntersections <<<numblocksPathSegmentTracing, blockSize1d>>> (
-		depth
-		, num_paths
-		, dev_paths
-		, dev_geoms
-		, hst_scene->geoms.size()
-		, dev_intersections
+		// tracing
+		dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
+		computeIntersections <<<numblocksPathSegmentTracing, blockSize1d>>> (
+			depth
+			, num_paths
+			, dev_paths
+			, dev_geoms
+			, hst_scene->geoms.size()
+			, dev_intersections
+			);
+		checkCUDAError("trace one bounce");
+		cudaDeviceSynchronize();
+		depth++;
+		
+
+		// TODO:
+		// --- Shading Stage ---
+		// Shade path segments based on intersections and generate new rays by
+	    // evaluating the BSDF.
+	    // Start off with just a big kernel that handles all the different
+	    // materials you have in the scenefile.
+
+	    // TODO: compare between directly shading the path segments and shading
+	    // path segments that have been reshuffled to be contiguous in memory.
+
+	    /*shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>> (
+		  iter,
+		  num_paths,
+		  dev_intersections,
+		  dev_paths,
+		  dev_materials
+	    );*/
+
+		shadeMaterialNaive<<<numblocksPathSegmentTracing, blockSize1d>>> (
+			iter,
+			num_paths,
+			dev_intersections,
+			dev_paths,
+			dev_materials
 		);
-	checkCUDAError("trace one bounce");
-	cudaDeviceSynchronize();
-	depth++;
 
+		
+		
+		// actually, for the last path tracing, there is not need to 
+		// conduct stream compaction, because there is no following path-tracing
+		if (depth == traceDepth) {
+			iterationComplete = true; 
+			continue;
+		}
+		// num_paths : number of paths that we should still trace
 
-	// TODO:
-	// --- Shading Stage ---
-	// Shade path segments based on intersections and generate new rays by
-  // evaluating the BSDF.
-  // Start off with just a big kernel that handles all the different
-  // materials you have in the scenefile.
-  // TODO: compare between directly shading the path segments and shading
-  // path segments that have been reshuffled to be contiguous in memory.
+		// iterationComplete should be based off stream compaction results
+		num_paths = StreamCompaction::Efficient::compactDynamicShared(num_paths, dev_paths);
 
-  shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>> (
-    iter,
-    num_paths,
-    dev_intersections,
-    dev_paths,
-    dev_materials
-  );
-  iterationComplete = true; // TODO: should be based off stream compaction results.
+		// if there is no paths meet the requirement, we just end the loop
+		if (num_paths == 0) {
+			iterationComplete = true;
+		}
 	}
 
-  // Assemble this iteration and apply it to the image
-  dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
-	finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
+	// Assemble this iteration and apply it to the image
+	dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
+	//finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
+	finalGather << <numBlocksPixels, blockSize1d >> >(pixelcount, dev_image, dev_paths);
 
     ///////////////////////////////////////////////////////////////////////////
 

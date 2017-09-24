@@ -1,4 +1,6 @@
 set(SOURCE_FILES
+    "EfficientStreamCompaction.cu"
+    "EfficientStreamCompaction.h"
     )
 
 cuda_add_library(stream_compaction

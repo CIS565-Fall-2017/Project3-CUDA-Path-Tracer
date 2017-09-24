@@ -142,3 +142,9 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
 
     return glm::length(r.origin - intersectionPoint);
 }
+
+
+__host__ __device__ inline float AbsDot(const glm::vec3 &a, const glm::vec3 &b)
+{
+	return glm::abs(glm::dot(a, b));
+}
