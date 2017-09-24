@@ -112,8 +112,6 @@ void pathtraceInit(Scene *scene) {
 
 	// TODO: initialize any extra device memeory you need
 	cudaMalloc(&dev_indices, pixelcount * sizeof(int));
-	dim3 blocksPerGrid((pixelcount + blockSize - 1) / blockSize);
-	kernSetIndex << <blocksPerGrid, blockSize >> > (pixelcount, dev_indices);
 
 	checkCUDAError("pathtraceInit");
 }
@@ -138,7 +136,7 @@ void pathtraceFree() {
 * motion blur - jitter rays "in time"
 * lens effect - jitter ray origin positions based on a lens
 */
-__global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, PathSegment* pathSegments)
+__global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, PathSegment* pathSegments, int* indices)
 {
 	int x = (blockIdx.x * blockDim.x) + threadIdx.x;
 	int y = (blockIdx.y * blockDim.y) + threadIdx.y;
@@ -157,6 +155,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		);
 
 		segment.pixelIndex = index;
+		indices[index] = index + 1;
 		segment.remainingBounces = traceDepth;
 	}
 }
@@ -176,7 +175,7 @@ __global__ void computeIntersections(
 {
 	int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
-	if (path_index < num_paths && indices[path_index] > 0)
+	if (path_index < num_paths)
 	{
 		int index = indices[path_index] - 1;
 		PathSegment pathSegment = pathSegments[index];
@@ -299,12 +298,12 @@ __global__ void shadeMaterial(
 	Material * materials)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
-	if (idx < num_paths && indices[idx] > 0)
+	if (indices[idx] > 0)
 	{
 		int index = indices[idx] - 1;
 
 		ShadeableIntersection intersection = shadeableIntersections[index];
-		PathSegment pathSeg = pathSegments[index];
+		PathSegment *pathSeg = &pathSegments[index];
 		if (intersection.t > 0.0f) { // if the intersection exists...
 									 // Set up the RNG
 									 // LOOK: this is how you use thrust's RNG! Please look at
@@ -317,12 +316,13 @@ __global__ void shadeMaterial(
 
 			// If the material indicates that the object was a light, "light" the ray
 			if (material.emittance > 0.0f) {
-				pathSeg.color *= (materialColor * material.emittance);
-				pathSeg.remainingBounces = 0;
+				pathSeg->color *= (materialColor * material.emittance);
+				pathSeg->remainingBounces = 0;
 			}
 			// TODO : lighting computation
+		
 			else {
-				scatterRay(pathSeg, intersection.surfacePoint, intersection.surfaceNormal, material, rng);
+				scatterRay(*pathSeg, intersection.surfacePoint, intersection.surfaceNormal, material, rng);
 			}
 		}
 		// If there was no intersection, color the ray black.
@@ -330,10 +330,10 @@ __global__ void shadeMaterial(
 		// used for opacity, in which case they can indicate "no opacity".
 		// This can be useful for post-processing and image compositing.
 		else {
-			pathSeg.color = glm::vec3(0.0f);
-			pathSeg.remainingBounces = 0;
+			pathSeg->color = glm::vec3(0.0f);
+			pathSeg->remainingBounces = 0;
 		}
-		if (pathSeg.remainingBounces <= 0) {
+		if (pathSeg->remainingBounces <= 0) {
 			indices[idx] = 0;
 		}
 	}
@@ -408,7 +408,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
 	// TODO: perform one iteration of path tracing
 
-	generateRayFromCamera << <blocksPerGrid2d, blockSize2d >> >(cam, iter, traceDepth, dev_paths);
+	generateRayFromCamera << <blocksPerGrid2d, blockSize2d >> >(cam, iter, traceDepth, dev_paths, dev_indices);
 	checkCUDAError("generate camera ray");
 
 	int depth = 0;
@@ -463,10 +463,10 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 			int *new_end = thrust::remove_if(dev_indices, dev_indices + num_paths, dev_indices, isNotZero());
 			num_paths = new_end - dev_indices;
 #else
-			/*num_paths = StreamCompaction::Efficient::compact(num_paths, dev_indices, dev_indices);
+			num_paths = StreamCompaction::Efficient::compact(num_paths, dev_indices, dev_indices);
 			if (num_paths <= 0) {
 				iterationComplete = true;
-			}*/
+			}
 #endif // thrust if
 		}
 	}
