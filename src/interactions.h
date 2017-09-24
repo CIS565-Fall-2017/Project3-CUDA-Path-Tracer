@@ -80,12 +80,37 @@ void scatterRay(
   glm::vec3 col(1.f);
   glm::vec3 dir;
 
+  //if (m.emittance > 0.0f) {
+  //  col *= m.color * m.emittance;
+  //  pathSegment.remainingBounces = 0;
+  //}
+
   if (m.hasReflective) {
     dir = glm::reflect(pathSegment.ray.direction, normal); // pure specular reflection
-    col *= m.specular.color;
-  } else {
+    col *= m.specular.color * m.color;
+  }
+  else if (m.hasRefractive) {
+    // ..
+        // TODO: replace with Schlick's approximation or fresnel dielectric..
+    thrust::uniform_real_distribution<float> u01(0, 1);
+    if (u01(rng) > 0.5f) {
+      // DIFFUSE and specular split..
+          dir = calculateRandomDirectionInHemisphere(normal, rng);
+          col *= m.color * 2.f;
+      // REFRACTIVE
+          /*float ior = !pathSegment.refractEnter ? m.indexOfRefraction : 1.f / m.indexOfRefraction;
+          dir = glm::refract(pathSegment.ray.direction, normal, ior);
+          col *= m.color * 1.f;
+          pathSegment.refractEnter = !pathSegment.refractEnter;*/
+    }
+    else {
+      dir = glm::reflect(pathSegment.ray.direction, normal); // pure specular reflection
+      col *= m.specular.color * 2.f;
+    }
+  }
+  else {
     dir = calculateRandomDirectionInHemisphere(normal, rng);
-    col *= m.color;
+    col *= m.color;//*InvPI;
   }
 
   pathSegment.color *= fabs(glm::dot(normal, dir)) * col;

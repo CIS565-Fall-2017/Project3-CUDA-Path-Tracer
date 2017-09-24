@@ -277,14 +277,18 @@ __global__ void shadeBSDFMaterial(
 )
 {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx < num_paths)
-  {
+
+  PathSegment& pathSegment = pathSegments[idx];
+  if (pathSegment.remainingBounces <= 0) {
+    return;
+  }
+
+  if (idx < num_paths) {
     ShadeableIntersection intersection = shadeableIntersections[idx];
     if (intersection.t > 0.0f) {
       thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
-      thrust::uniform_real_distribution<float> u01(0, 1);
+      //thrust::uniform_real_distribution<float> u01(0, 1);
 
-      PathSegment& pathSegment = pathSegments[idx];
       Material& material = materials[intersection.materialId];
 
       // If the material indicates that the object was a light, "light" the ray
@@ -298,8 +302,8 @@ __global__ void shadeBSDFMaterial(
       }
     }
     else {
-      pathSegments[idx].color = glm::vec3(0.0f);
-      pathSegments[idx].remainingBounces = 0;
+      pathSegment.color = glm::vec3(0.0f);
+      pathSegment.remainingBounces = 0;
     }
   }
 }
@@ -413,13 +417,12 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
       dev_materials
     );*/
 
-    shadeBSDFMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
+    shadeBSDFMaterial<<<numblocksPathSegmentTracing, blockSize1d>>> (
       iter, num_paths, dev_intersections, dev_paths, dev_materials);
 
-    if (depth == 2) {
+    if (depth == 5) {
       iterationComplete = true; // TODO: should be based off stream compaction results.
     }
-
 	}
 
   // Assemble this iteration and apply it to the image

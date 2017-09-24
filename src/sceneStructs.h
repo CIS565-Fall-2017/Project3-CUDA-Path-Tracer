@@ -35,6 +35,7 @@ struct Material {
         glm::vec3 color;
     } specular;
     float hasReflective;
+    //float imperfectSpecular;
     float hasRefractive;
     float indexOfRefraction;
     float emittance;
@@ -64,6 +65,7 @@ struct PathSegment {
 	glm::vec3 color;
 	int pixelIndex;
 	int remainingBounces;
+  bool refractEnter = true;
 };
 
 // Use with a corresponding PathSegment to do:
