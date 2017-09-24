@@ -495,7 +495,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		// path segments that have been reshuffled to be contiguous in memory.
 
 		// At each iteration on the first bounce, use the cached intersection.
-		if (CACHE && depth == 0) {
+		if (CACHE && depth == 0 && iter == 1) {
 			// Sort paths by material
 			if (SORTBYMATERIAL) {
 				sortByMaterial << < numblocksPathSegmentTracing, blockSize1d >> > (num_paths, dev_intersections_cached, dev_pathIndicesByMaterial, dev_intersectionIndicesByMaterial);
@@ -511,11 +511,11 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 			// Sort paths by material
 			if (SORTBYMATERIAL) {
 				sortByMaterial << < numblocksPathSegmentTracing, blockSize1d >> > (num_paths, dev_intersections, dev_pathIndicesByMaterial, dev_intersectionIndicesByMaterial);
-			
+
 				thrust::sort_by_key(thrust::device, dev_pathIndicesByMaterial, dev_pathIndicesByMaterial + num_paths, dev_paths);
 				thrust::sort_by_key(thrust::device, dev_intersectionIndicesByMaterial, dev_intersectionIndicesByMaterial + num_paths, dev_intersections);
 			}
-			
+
 			shadeMaterial << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections, dev_paths, dev_materials);
 		}
 
@@ -534,7 +534,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		//cudaMemcpy(dev_indices, scanned, num_paths, cudaMemcpyHostToDevice);
 
 		//iterationComplete = (depth >= traceDepth || num_paths == 0);
-		
+
 		depth++;
 		// converges to something weird after 2 
 		iterationComplete = depth == 2; // TODO: should be based off stream compaction results.
@@ -557,5 +557,4 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
 	checkCUDAError("pathtrace");
 }
-
 
