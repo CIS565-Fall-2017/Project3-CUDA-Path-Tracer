@@ -18,7 +18,7 @@
 
 #include "../stream_compaction/efficient.h"
 
-#define CACHE true
+
 #define ERRORCHECK 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
@@ -80,8 +80,12 @@ static PathSegment * dev_paths = NULL;
 static ShadeableIntersection * dev_intersections = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
 
-static int * dev_indices = NULL;
-static ShadeableIntersection * dev_intersections_cached = NULL;
+static int *dev_indices = NULL;
+static ShadeableIntersection *dev_intersections_cached = NULL;
+
+// Sort by material
+static int *dev_pathIndicesByMaterial = NULL;
+static int *dev_intersectionIndicesByMaterial = NULL;
 
 void pathtraceInit(Scene *scene) {
 	hst_scene = scene;
@@ -111,6 +115,13 @@ void pathtraceInit(Scene *scene) {
 	cudaMalloc(&dev_intersections_cached, pixelcount * sizeof(ShadeableIntersection));
 	cudaMemset(dev_intersections_cached, 0, pixelcount * sizeof(ShadeableIntersection));
 
+	// Paths by material
+	cudaMalloc(&dev_pathIndicesByMaterial, pixelcount * sizeof(int));
+	cudaMemset(dev_pathIndicesByMaterial, 0, pixelcount * sizeof(int));
+	// Intersections by material
+	cudaMalloc(&dev_intersectionIndicesByMaterial, pixelcount * sizeof(int));
+	cudaMemset(dev_intersectionIndicesByMaterial, 0, pixelcount * sizeof(int));
+
 	checkCUDAError("pathtraceInit");
 }
 
@@ -123,6 +134,8 @@ void pathtraceFree() {
 	// TODO: clean up any extra device memory you created
 	cudaFree(dev_indices);
 	cudaFree(dev_intersections_cached);
+	cudaFree(dev_pathIndicesByMaterial);
+	cudaFree(dev_intersectionIndicesByMaterial);
 
 	checkCUDAError("pathtraceFree");
 }
@@ -363,6 +376,16 @@ __global__ void scanPaths(int num_paths, PathSegment *pathSegments, int *dev_ind
 	}
 }
 
+__global__ void sortByMaterial(int num_paths, ShadeableIntersection *intersections, int *pathIndices, int *intersectionIndices)
+{
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (idx < num_paths) {
+		int materialId = intersections[idx].materialId;
+		pathIndices[idx] = materialId;
+		intersectionIndices[idx] = materialId;
+	}
+}
+
 /**
 * Wrapper for the __global__ call that sets up the kernel calls and does a ton
 * of memory management
@@ -432,6 +455,9 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		// tracing
 		dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
 
+#define CACHE true
+#define SORTBYMATERIAL true
+
 		// Store the very first bounce into dev_intersections_cached.
 		if (CACHE && depth == 0 && iter == 1) {
 			computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
@@ -459,7 +485,6 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
 		cudaDeviceSynchronize();
 
-
 		// TODO:
 		// --- Shading Stage ---
 		// Shade path segments based on intersections and generate new rays by
@@ -471,28 +496,46 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
 		// At each iteration on the first bounce, use the cached intersection.
 		if (CACHE && depth == 0) {
+			// Sort paths by material
+			if (SORTBYMATERIAL) {
+				sortByMaterial << < numblocksPathSegmentTracing, blockSize1d >> > (num_paths, dev_intersections_cached, dev_pathIndicesByMaterial, dev_intersectionIndicesByMaterial);
+
+				thrust::sort_by_key(thrust::device, dev_pathIndicesByMaterial, dev_pathIndicesByMaterial + num_paths, dev_paths);
+				thrust::sort_by_key(thrust::device, dev_intersectionIndicesByMaterial, dev_intersectionIndicesByMaterial + num_paths, dev_intersections_cached);
+			}
+
 			shadeMaterial << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections_cached, dev_paths, dev_materials);
 		}
 		// Otherwise use the new ray.
 		else {
+			// Sort paths by material
+			if (SORTBYMATERIAL) {
+				sortByMaterial << < numblocksPathSegmentTracing, blockSize1d >> > (num_paths, dev_intersections, dev_pathIndicesByMaterial, dev_intersectionIndicesByMaterial);
+			
+				thrust::sort_by_key(thrust::device, dev_pathIndicesByMaterial, dev_pathIndicesByMaterial + num_paths, dev_paths);
+				thrust::sort_by_key(thrust::device, dev_intersectionIndicesByMaterial, dev_intersectionIndicesByMaterial + num_paths, dev_intersections);
+			}
+			
 			shadeMaterial << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections, dev_paths, dev_materials);
 		}
 
+		// TODO:
+		// Compact paths that have 0 remainingBounces
 		// Fill dev_indices with 0 and 1 based on remainingBounces
-		scanPaths << < numblocksPathSegmentTracing, blockSize1d >> > (num_paths, dev_paths, dev_indices);
+		//scanPaths << < numblocksPathSegmentTracing, blockSize1d >> > (num_paths, dev_paths, dev_indices);
 
-		int *scanned = new int[num_paths];
+		//int *scanned = new int[num_paths];
 		// Copy dev_indices into indices to perform Stream Compaction
-		cudaMemcpy(scanned, dev_indices, num_paths, cudaMemcpyDeviceToHost);
+		//cudaMemcpy(scanned, dev_indices, num_paths, cudaMemcpyDeviceToHost);
+		//checkCUDAError("copying dev_indices to scanned failed");
 
 		// Update number of paths
 		//num_paths = StreamCompaction::Efficient::compact(num_paths, scanned, scanned);
 		//cudaMemcpy(dev_indices, scanned, num_paths, cudaMemcpyHostToDevice);
 
 		//iterationComplete = (depth >= traceDepth || num_paths == 0);
-
+		
 		depth++;
-
 		// converges to something weird after 2 
 		iterationComplete = depth == 2; // TODO: should be based off stream compaction results.
 		//iterationComplete = (depth >= traceDepth); // TODO: should be based off stream compaction results.
