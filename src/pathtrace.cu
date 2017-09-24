@@ -331,14 +331,14 @@ __global__ void shadeMaterialNaive(
 
 
 // Add the current iteration's output to the overall image
-__global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterationPaths)
+__global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterationPaths, glm::vec3 ambientColor)
 {
 	int index = (blockIdx.x * blockDim.x) + threadIdx.x;
 
 	if (index < nPaths)
 	{
 		PathSegment iterationPath = iterationPaths[index];
-		image[iterationPath.pixelIndex] += iterationPath.color;
+		image[iterationPath.pixelIndex] += (iterationPath.color + ambientColor);
 	}
 }
 
@@ -471,8 +471,10 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
 	// Assemble this iteration and apply it to the image
 	dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
+	glm::vec3 ambientColor = glm::vec3(0.05f, 0.05f, 0.05f);
+
 	//finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
-	finalGather << <numBlocksPixels, blockSize1d >> >(pixelcount, dev_image, dev_paths);
+	finalGather << <numBlocksPixels, blockSize1d >> >(pixelcount, dev_image, dev_paths, ambientColor);
 
     ///////////////////////////////////////////////////////////////////////////
 
