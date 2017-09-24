@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "intersections.h"
 
@@ -67,10 +67,62 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(glm::vec3 nor
  * You may need to change the parameter list for your purposes!
  */
 
-__host__ __device__ int BxDFsMatchingFlags(const Material &m)
+__host__ __device__ glm::vec3 f_Lambert(const Material &m, glm::vec3& wo, glm::vec3& wi)
 {
-	if ((m.bxdfs[i] & BSDF_SPECULAR) ||
-		(m.bxdfs[i] & BSDF_LAMBERT))
+	return m.color*INVPI;
+}
+
+__host__ __device__ float pdf_Lambert(glm::vec3& wo, glm::vec3& wi)
+{
+	return utilityCore::AbsCosTheta(wi)*INVPI;
+}
+
+__host__ __device__ glm::vec3 sample_f_Lambert(const Material &m, thrust::default_random_engine &rng, 
+												glm::vec3& wo, glm::vec3& wi, float& pdf)
+{
+	wi = calculateRandomDirectionInHemisphere(m.normal, rng);
+
+	if (wo.z < 0.0f)
+	{
+		wi.z *= -1.0f;
+	}
+	pdf = pdf_Lambert(wo, wi);
+
+	return f_Lambert(m, wo, wi);
+}
+
+__host__ __device__ glm::vec3 f_SpecularBRDF(glm::vec3& wo, glm::vec3& wi)
+{
+	return Color3f(0.f); //This is because we will assume that ωi has a
+						 //zero percent chance of being randomly set to the exact mirror of ωo by
+						 //any other BxDF's Sample_f, hence a PDF of zero.
+}
+
+__host__ __device__ float pdf_SpecularBRDF(glm::vec3& wo, glm::vec3& wi)
+{
+	return 0.0f; //This is because we will assume that ωi has a
+				 //zero percent chance of being randomly set to the exact mirror of ωo by
+				 //any other BxDF's Sample_f, hence a PDF of zero.
+}
+
+__host__ __device__ glm::vec3 sample_f_SpecularBRDF(const Material &m, glm::vec3& wo, glm::vec3& wi, float& pdf)
+{
+	wi = Vector3f(-wo.x, -wo.y, wo.z);
+	pdf = 1.0f;
+	Color3f color = m.color;//DO FRENEL STUFF FOR ACCURATE COLORS
+	return color;
+}
+
+
+
+__host__ __device__ bool MatchesFlags(BxDFType sampledbxdf)
+{
+	if ( (sampledbxdf & BSDF_SPECULAR_BRDF) ||
+		 (sampledbxdf & BSDF_SPECULAR_BTDF) ||
+		 (sampledbxdf & BSDF_LAMBERT)        )
+	{
+		return true;
+	}
 }
 
 __host__ __device__ int BxDFsMatchingFlags(const Material &m)
@@ -80,27 +132,16 @@ __host__ __device__ int BxDFsMatchingFlags(const Material &m)
 
 	for (int i = 0; i < m.numBxDFs; ++i)
 	{
-		if ( (m.bxdfs[i] & BSDF_SPECULAR) ||
-			 (m.bxdfs[i] & BSDF_LAMBERT)   )
+		if (MatchesFlags(m.bxdfs[i]))
 		{
 			++num;
 		}
 	}
-		
+
 	return num;
 }
 
-__host__ __device__ glm::vec3 sample_f_Lambert(glm::vec3& wo, glm::vec3& wi, glm::vec2& uRemapped, float pdf, BxDFType& sampledType)
-{
-	return glm::vec3(0.0f);
-}
-
-__host__ __device__ glm::vec3 sample_f_Specular(glm::vec3& wo, glm::vec3& wi, glm::vec2& uRemapped, float pdf, BxDFType& sampledType)
-{
-	return glm::vec3(0.0f);
-}
-
-__host__ __device__ glm::vec3 sample_f(const Material &m, thrust::default_random_engine &rng, 
+__host__ __device__ glm::vec3 sample_f(const Material &m, thrust::default_random_engine &rng,
 									glm::vec3& woW, glm::vec3& wiW, float& pdf, BxDFType& sampledType)
 {
 	thrust::uniform_real_distribution<float> u01(0, 1);
@@ -127,15 +168,11 @@ __host__ __device__ glm::vec3 sample_f(const Material &m, thrust::default_random
 
 	for (int i = 0; i<m.numBxDFs; ++i)
 	{
-		if ( (m.bxdfs[i] & BSDF_SPECULAR) ||
-			 (m.bxdfs[i] & BSDF_LAMBERT)   )
-		{
-			// count is only decremented when a bxdfs[i] == mathcing flag
-			if (count-- == 0)
-			{
-				bxdf = m.bxdfs[i];
-				break;
-			}
+		// count is only decremented when a bxdfs[i] == mathcing flag
+		if ( MatchesFlags(m.bxdfs[i]) && count-- == 0)
+		{			
+			bxdf = m.bxdfs[i];
+			break;
 		}
 	}
 
@@ -161,13 +198,13 @@ __host__ __device__ glm::vec3 sample_f(const Material &m, thrust::default_random
 	}
 
 	Color3f Color = Color3f(0.0f);
-	if (bxdf == BSDF_SPECULAR)
+	if (bxdf == BSDF_SPECULAR_BRDF)
 	{
-		Color = sample_f_Lambert(wo, wi, uRemapped, pdf, sampledType);
+		Color = sample_f_SpecularBRDF(m, wo, wi, pdf);
 	}
 	else if (bxdf == BSDF_LAMBERT)
 	{
-		Color = sample_f_Lambert(wo, wi, uRemapped, pdf, sampledType);
+		Color = sample_f_Lambert(m, rng, wo, wi, pdf);
 	}
 		
 	if (pdf == 0)
@@ -180,26 +217,102 @@ __host__ __device__ glm::vec3 sample_f(const Material &m, thrust::default_random
 	//-------------------------------------------------------------------------
 	//compute overall pdf with all matching BxDFs
 
-	if ( (bxdf != BSDF_SPECULAR) && (matchingComps>1) )
+	if ( (bxdf != BSDF_SPECULAR_BRDF) && (matchingComps>1) )
 	{
 		for (int i = 0; i<m.numBxDFs; ++i)
 		{
-			if (m.bxdfs[i] != bxdf && bxdfs[i]->MatchesFlags(type))
+			if ( m.bxdfs[i] != bxdf && MatchesFlags(m.bxdfs[i]) )
 			{
 				//overall pdf!!!! so get all pdfs for the
 				//different bxdfs and average it out for the bsdf
-				pdf += bxdfs[i]->Pdf(wo, wi);
+				if (bxdf == BSDF_SPECULAR_BRDF)
+				{
+					pdf += pdf_SpecularBRDF(wo, wi);
+				}
+				else if (bxdf == BSDF_LAMBERT)
+				{
+					pdf += pdf_Lambert(wo, wi);
+				}
 			}
 		}
 	}
 	if (matchingComps > 1)
 	{
-		*pdf /= matchingComps;
+		pdf /= matchingComps;
 	}
 
+	//-------------------------------------------------------------------------
+	//compute value of BSDF for sampled direction
+	if( (bxdf != BSDF_SPECULAR_BRDF) && (matchingComps>1) )
+	{
+		bool reflect = (glm::dot(wiW, m.normal) * glm::dot(woW, m.normal)) > 0;
+		Color = Color3f(0.0); //because the material is reflective or
+							  //transmissive so doesn't have its own color
+		for (int i = 0; i<m.numBxDFs; ++i)
+		{
+			if ( MatchesFlags(m.bxdfs[i]) &&
+				 ( (reflect && m.reflective) ||
+				   (!reflect && m.refractive) ) )
+			{
+				if (bxdf == BSDF_SPECULAR_BRDF)
+				{
+					Color += f_SpecularBRDF(wo, wi);
+				}
+				else if (bxdf == BSDF_LAMBERT)
+				{
+					Color += f_Lambert(m, wo, wi);
+				}				
+			}
+		}
+	}
+
+	return Color;
 }
 
-__host__ __device__ void scatterRay( PathSegment & pathSegment,
+__host__ __device__ Ray spawnNewRay(const ShadeableIntersection& intersection, Vector3f wiW)
+{
+	Vector3f originOffset = intersection.surfaceNormal * EPSILON;
+	// Make sure to flip the direction of the offset so it's in the same general direction as the ray direction
+	originOffset = (glm::dot(wiW, intersection.surfaceNormal) > 0) ? originOffset : -originOffset;
+	Point3f o(intersection.intersectPoint + originOffset);
+	Ray r = Ray();
+	r.direction = wiW;
+	r.origin = o;
+	return r;
+}
+
+__host__ __device__ void scatterRay(PathSegment & pathSegment, const ShadeableIntersection& intersection,
+									const Material &m, thrust::default_random_engine &rng)
+{
+	// Update the ray and color associated with the pathSegment
+	// TODO: implement this.
+	// A basic implementation of pure-diffuse shading will just call the
+	// calculateRandomDirectionInHemisphere defined above.
+
+	glm::vec3 woW = -pathSegment.ray.direction;
+	glm::vec3 wiW;
+	float pdf;
+	BxDFType sampledType;
+	glm::vec3 f = Color3f(0.0f);
+
+	f = sample_f(m, rng, woW, wiW, pdf, sampledType); //returns a color, sets wi, sets pdf, sets sampledType
+	if (pdf == 0.0f)
+	{
+		pathSegment.color = Color3f(0.0f);
+	}
+
+	//set up new ray direction
+	pathSegment.ray = spawnNewRay(intersection, wiW);
+
+	float absDot = utilityCore::AbsDot(wiW, intersection.surfaceNormal);
+	Color3f emittedLight = m.emittance*m.color;
+
+	pathSegment.color = (emittedLight + f*pathSegment.color*absDot)/pdf;
+	pathSegment.remainingBounces--;
+}
+
+/*
+__host__ __device__ void scatterRayOLD( PathSegment & pathSegment,
 									glm::vec3 intersect,
 									glm::vec3 normal,
 									const Material &m,
@@ -259,3 +372,4 @@ __host__ __device__ void scatterRay( PathSegment & pathSegment,
 
 	pathSegment.remainingBounces--;
 }
+*/

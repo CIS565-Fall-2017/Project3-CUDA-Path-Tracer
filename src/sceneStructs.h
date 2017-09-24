@@ -4,6 +4,7 @@
 #include <vector>
 #include <cuda_runtime.h>
 #include "glm/glm.hpp"
+#include "utilities.h"
 
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
 
@@ -33,34 +34,38 @@ struct Geom
 
 enum BxDFType {
 	BSDF_LAMBERT = 1 << 0,      // This BxDF represents diffuse energy scattering, which is uniformly random
-	BSDF_SPECULAR = 1 << 1,     // This BxDF handles specular energy scattering, which has no element of randomness
-	BSDF_ALL = BSDF_LAMBERT | BSDF_SPECULAR
+	BSDF_SPECULAR_BRDF = 1 << 1,     // This BxDF handles specular energy scattering, which has no element of randomness
+	BSDF_SPECULAR_BTDF = 1 << 2, 
+	BSDF_ALL = BSDF_LAMBERT | BSDF_SPECULAR_BRDF | BSDF_SPECULAR_BTDF
 };
 
 struct Material 
 {
     glm::vec3 color;
+	float emittance;
     struct {
         float exponent;
         glm::vec3 color;
     } specular;
-    float hasReflective;
-    float hasRefractive;
 
 	bool transmissive;
-    float emittance;
+	bool reflective;
+	bool refractive;
+
+	float eta; // The ratio of indices of refraction at this surface point. Irrelevant for opaque surfaces.    
 
 	int numBxDFs; // How many BxDFs this BSDF currently contains (init. 0)
 	const static int MaxBxDFs = 8; // How many BxDFs a single BSDF can contain
 	BxDFType bxdfs[MaxBxDFs]; // The collection of BxDFs contained in this BSDF
 
+	// The PBRT BSDF stores normal and tangent data from the intersection that created it
+	// Our path tracer will pre-transform vectors before they've been passed into f()
 	glm::mat3 worldToTangent; // Transforms rays from world space into tangent space,
 							  // where the surface normal is always treated as (0, 0, 1)
 	glm::mat3 tangentToWorld; // Transforms rays from tangent space into world space.
 							  // This is the inverse of worldToTangent (incidentally, inverse(worldToTangent) = transpose(worldToTangent))
 	Normal3f normal;          // May be the geometric normal OR the shading normal at the point of intersection.
 							  // If the Material that created this BSDF had a normal map, then this will be the latter.
-	float eta; // The ratio of indices of refraction at this surface point. Irrelevant for opaque surfaces.
 };
 
 struct Camera 
