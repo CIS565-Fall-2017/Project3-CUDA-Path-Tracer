@@ -19,7 +19,6 @@
 
 // optimization flags
 #define THRUST 0
-#define COMPACT 1
 #define CONTIG_MAT 0
 #define CACHE_FIRST 0
 
@@ -75,7 +74,7 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution,
 }
 
 //Kernel that writes index (starting at 1)
-__global__ void kernSetIndex(int N, int *data) 
+__global__ void kernSetIndex(int N, int *data)
 {
 	int index = (blockIdx.x * blockDim.x) + threadIdx.x;
 	if (index >= N) return;
@@ -167,19 +166,20 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 // Generating new rays is handled in your shader(s).
 // Feel free to modify the code below.
 __global__ void computeIntersections(
-	int depth
-	, int num_paths
-	, PathSegment * pathSegments
-	, Geom * geoms
-	, int geoms_size
-	, ShadeableIntersection * intersections
-)
+	int depth,
+	int num_paths,
+	PathSegment * pathSegments,
+	int * indices,
+	Geom * geoms,
+	int geoms_size,
+	ShadeableIntersection * intersections)
 {
 	int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
-	if (path_index < num_paths)
+	if (path_index < num_paths && indices[path_index] > 0)
 	{
-		PathSegment pathSegment = pathSegments[path_index];
+		int index = indices[path_index] - 1;
+		PathSegment pathSegment = pathSegments[index];
 
 		float t;
 		glm::vec3 intersect_point;
@@ -223,15 +223,15 @@ __global__ void computeIntersections(
 
 		if (hit_geom_index == -1)
 		{
-			intersections[path_index].t = -1.0f;
+			intersections[index].t = -1.0f;
 		}
 		else
 		{
 			//The ray hits something
-			intersections[path_index].t = t_min;
-			intersections[path_index].materialId = geoms[hit_geom_index].materialid;
-			intersections[path_index].surfaceNormal = normal;
-			intersections[path_index].surfacePoint = intersect_point;
+			intersections[index].t = t_min;
+			intersections[index].materialId = geoms[hit_geom_index].materialid;
+			intersections[index].surfaceNormal = normal;
+			intersections[index].surfacePoint = intersect_point;
 		}
 	}
 }
@@ -295,13 +295,13 @@ __global__ void shadeMaterial(
 	int num_paths,
 	ShadeableIntersection * shadeableIntersections,
 	PathSegment * pathSegments,
-	int * dev_indices,
+	int * indices,
 	Material * materials)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
-	if (idx < num_paths)
+	if (idx < num_paths && indices[idx] > 0)
 	{
-		int index = dev_indices[idx] - 1; 
+		int index = indices[idx] - 1;
 
 		ShadeableIntersection intersection = shadeableIntersections[index];
 		PathSegment pathSeg = pathSegments[index];
@@ -314,14 +314,12 @@ __global__ void shadeMaterial(
 
 			Material material = materials[intersection.materialId];
 			glm::vec3 materialColor = material.color;
-			
+
 			// If the material indicates that the object was a light, "light" the ray
 			if (material.emittance > 0.0f) {
 				pathSeg.color *= (materialColor * material.emittance);
 				pathSeg.remainingBounces = 0;
-				dev_indices[idx] = 0;
 			}
-
 			// TODO : lighting computation
 			else {
 				scatterRay(pathSeg, intersection.surfacePoint, intersection.surfaceNormal, material, rng);
@@ -334,7 +332,9 @@ __global__ void shadeMaterial(
 		else {
 			pathSeg.color = glm::vec3(0.0f);
 			pathSeg.remainingBounces = 0;
-			dev_indices[idx] = 0;
+		}
+		if (pathSeg.remainingBounces <= 0) {
+			indices[idx] = 0;
 		}
 	}
 }
@@ -353,10 +353,10 @@ __global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterati
 
 struct isNotZero
 {
-    __host__ __device__
-    bool operator()(const int & a) {
+	__host__ __device__
+		bool operator()(const int & a) {
 		return a != 0;
-    }
+	}
 };
 
 /**
@@ -430,13 +430,13 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 			depth,
 			num_paths,
 			dev_paths,
+			dev_indices,
 			dev_geoms,
 			hst_scene->geoms.size(),
 			dev_intersections);
 		checkCUDAError("trace one bounce");
 		cudaDeviceSynchronize();
 		depth++;
-
 
 		// TODO:
 		// --- Shading Stage ---
@@ -458,21 +458,17 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
 		if (depth >= traceDepth) {
 			iterationComplete = true;
-		}
-		else {
-#if COMPACT
+		} else {
 #if THRUST
 			int *new_end = thrust::remove_if(dev_indices, dev_indices + num_paths, dev_indices, isNotZero());
 			num_paths = new_end - dev_indices;
 #else
-			num_paths = StreamCompaction::Efficient::compact(num_paths, dev_indices, dev_indices);
+			/*num_paths = StreamCompaction::Efficient::compact(num_paths, dev_indices, dev_indices);
 			if (num_paths <= 0) {
 				iterationComplete = true;
-		}
+			}*/
 #endif // thrust if
-#endif // compact if
 		}
-
 	}
 
 	// Assemble this iteration and apply it to the image

@@ -79,7 +79,7 @@ void scatterRay(
     // calculateRandomDirectionInHemisphere defined above.
 	glm::vec3 newdirection;
 
-	if (m.hasReflective) {
+	/*if (m.hasReflective) {
 		newdirection = glm::reflect(pathSegment.ray.direction, normal);
 		pathSegment.color *= m.specular.color;
 	}
@@ -93,10 +93,10 @@ void scatterRay(
 		newdirection = glm::refract(pathSegment.ray.direction, normal, et);
 		pathSegment.color *= m.specular.color;
 	} 
-	else {
+	else {*/
 		newdirection = glm::normalize(calculateRandomDirectionInHemisphere(normal, rng));
-		pathSegment.color *= glm::abs(glm::dot(pathSegment.ray.direction, normal)) * m.color;
-	}
+		pathSegment.color *= glm::abs(glm::dot(newdirection, normal)) * m.color;
+	//}
 
 	pathSegment.ray.origin = intersect + newdirection * EPSILON;
 	pathSegment.ray.direction = newdirection;
