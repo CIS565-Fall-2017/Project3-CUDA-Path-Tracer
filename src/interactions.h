@@ -66,6 +66,139 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(glm::vec3 nor
  *
  * You may need to change the parameter list for your purposes!
  */
+
+__host__ __device__ int BxDFsMatchingFlags(const Material &m)
+{
+	if ((m.bxdfs[i] & BSDF_SPECULAR) ||
+		(m.bxdfs[i] & BSDF_LAMBERT))
+}
+
+__host__ __device__ int BxDFsMatchingFlags(const Material &m)
+{
+	BxDFType flags = BSDF_ALL;
+	int num = 0;
+
+	for (int i = 0; i < m.numBxDFs; ++i)
+	{
+		if ( (m.bxdfs[i] & BSDF_SPECULAR) ||
+			 (m.bxdfs[i] & BSDF_LAMBERT)   )
+		{
+			++num;
+		}
+	}
+		
+	return num;
+}
+
+__host__ __device__ glm::vec3 sample_f_Lambert(glm::vec3& wo, glm::vec3& wi, glm::vec2& uRemapped, float pdf, BxDFType& sampledType)
+{
+	return glm::vec3(0.0f);
+}
+
+__host__ __device__ glm::vec3 sample_f_Specular(glm::vec3& wo, glm::vec3& wi, glm::vec2& uRemapped, float pdf, BxDFType& sampledType)
+{
+	return glm::vec3(0.0f);
+}
+
+__host__ __device__ glm::vec3 sample_f(const Material &m, thrust::default_random_engine &rng, 
+									glm::vec3& woW, glm::vec3& wiW, float& pdf, BxDFType& sampledType)
+{
+	thrust::uniform_real_distribution<float> u01(0, 1);
+
+	float xi0 = u01(rng);
+	float xi1 = u01(rng);
+
+	//----------------------------------------------
+
+	//choose which BxDF to sample
+	int matchingComps = BxDFsMatchingFlags(m);
+	if (matchingComps == 0)
+	{
+		pdf = 0.0f; //because we don't have a material to sample
+		return Color3f(0.0f); //return black
+	}
+
+	//----------------------------------------------
+
+	// random bxdf choosing
+	BxDFType bxdf;
+	int comp = glm::min((int)glm::floor(xi0 * matchingComps), matchingComps - 1);	
+	int count = comp;
+
+	for (int i = 0; i<m.numBxDFs; ++i)
+	{
+		if ( (m.bxdfs[i] & BSDF_SPECULAR) ||
+			 (m.bxdfs[i] & BSDF_LAMBERT)   )
+		{
+			// count is only decremented when a bxdfs[i] == mathcing flag
+			if (count-- == 0)
+			{
+				bxdf = m.bxdfs[i];
+				break;
+			}
+		}
+	}
+
+	//----------------------------------------------
+
+	//Remap BxDF sample u to [0,1)
+	Point2f uRemapped = Point2f(glm::min(xi0 * matchingComps - comp, OneMinusEpsilon), xi1);
+	//so that we can sample the entire hemisphere and not just a subsection of it;
+	//xi[1] is independent of the bxdf, and so the bxdf cant bias it
+
+	//----------------------------------------------
+
+	//Sample chosen BxDF
+	Vector3f wo = m.worldToTangent * woW;
+	Vector3f wi = Vector3f(0.0f);
+	pdf = 0.0f;
+	if (sampledType)
+	{
+		//this is because its a recurring call; we are shooting a ray that bounces off
+		//many materials on its, journey, so if it was sampled before, then sampledType
+		//will exist and we have to reequate it to the type of the material hit
+		sampledType = BSDF_ALL;
+	}
+
+	Color3f Color = Color3f(0.0f);
+	if (bxdf == BSDF_SPECULAR)
+	{
+		Color = sample_f_Lambert(wo, wi, uRemapped, pdf, sampledType);
+	}
+	else if (bxdf == BSDF_LAMBERT)
+	{
+		Color = sample_f_Lambert(wo, wi, uRemapped, pdf, sampledType);
+	}
+		
+	if (pdf == 0)
+	{
+		//we dont interact with the material sampled, ie pdf is zero, therefore color returned should be black
+		return Color3f(0.0f);
+	}
+	wiW = m.tangentToWorld * wi;
+
+	//-------------------------------------------------------------------------
+	//compute overall pdf with all matching BxDFs
+
+	if ( (bxdf != BSDF_SPECULAR) && (matchingComps>1) )
+	{
+		for (int i = 0; i<m.numBxDFs; ++i)
+		{
+			if (m.bxdfs[i] != bxdf && bxdfs[i]->MatchesFlags(type))
+			{
+				//overall pdf!!!! so get all pdfs for the
+				//different bxdfs and average it out for the bsdf
+				pdf += bxdfs[i]->Pdf(wo, wi);
+			}
+		}
+	}
+	if (matchingComps > 1)
+	{
+		*pdf /= matchingComps;
+	}
+
+}
+
 __host__ __device__ void scatterRay( PathSegment & pathSegment,
 									glm::vec3 intersect,
 									glm::vec3 normal,
