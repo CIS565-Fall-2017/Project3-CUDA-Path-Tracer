@@ -71,7 +71,8 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
 static Scene * hst_scene = NULL;
 static glm::vec3 * dev_image = NULL;
 static Geom * dev_geoms = NULL;
-static Material * dev_materials = NULL;
+static Material * dev_GlobalMaterialsList = NULL;
+static matPropertiesPerIntersection * dev_matProperties = NULL;
 static PathSegment * dev_paths = NULL;
 static ShadeableIntersection * dev_intersections = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
@@ -91,9 +92,12 @@ void pathtraceInit(Scene *scene)
   	cudaMalloc(&dev_geoms, scene->geoms.size() * sizeof(Geom));
   	cudaMemcpy(dev_geoms, scene->geoms.data(), scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
 
-  	cudaMalloc(&dev_materials, scene->materials.size() * sizeof(Material));
-  	cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
+  	cudaMalloc(&dev_GlobalMaterialsList, scene->materials.size() * sizeof(Material));
+  	cudaMemcpy(dev_GlobalMaterialsList, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
 
+	cudaMalloc(&dev_matProperties, pixelcount * sizeof(matPropertiesPerIntersection));
+	cudaMemset(dev_matProperties, 0, pixelcount * sizeof(matPropertiesPerIntersection));
+	
   	cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
   	cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
@@ -107,7 +111,8 @@ void pathtraceFree()
     cudaFree(dev_image);  // no-op if dev_image is null
   	cudaFree(dev_paths);
   	cudaFree(dev_geoms);
-  	cudaFree(dev_materials);
+  	cudaFree(dev_GlobalMaterialsList);
+	cudaFree(dev_matProperties);
   	cudaFree(dev_intersections);
     // TODO: clean up any extra device memory you created
 
@@ -214,6 +219,57 @@ __global__ void computeIntersections(int depth,
 	}
 }
 
+// Create a set of axes to form the basis of a coordinate system
+// given a single vector v1.
+__host__ __device__ void CoordinateSystem(const Vector3f& v1, Vector3f& v2, Vector3f& v3)
+{
+	if (glm::abs(v1.x) > glm::abs(v1.y))
+	{
+		v2 = Vector3f(-v1.z, 0, v1.x) / glm::sqrt(v1.x * v1.x + v1.z * v1.z);
+	}
+	else
+	{
+		v2 = Vector3f(0, v1.z, -v1.y) / glm::sqrt(v1.y * v1.y + v1.z * v1.z);
+	}
+	v3 = glm::cross(v1, v2);
+}
+
+__host__ __device__ void UpdateTangentSpaceMatrices(glm::mat3& tangentToWorld, glm::mat3& worldToTangent,
+	const Normal3f& n, const Vector3f& t, const Vector3f& b)
+{
+	tangentToWorld = glm::mat3(t, b, n);
+	worldToTangent = glm::transpose(tangentToWorld);
+}
+
+//generate a BSDF by setting material properties sucha s normal, and tbn matrices
+__global__ void produceBSDF(int num_paths, PathSegment * pathSegments, 
+							ShadeableIntersection * intersections, Material * materials, 
+							matPropertiesPerIntersection* matProperties)
+{
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (idx < num_paths)
+	{
+		ShadeableIntersection intersection = intersections[idx];
+		Material material = materials[intersection.materialId];
+		if (bool(material.numBxDFs > 0))
+		{
+			//initialize the default values for tbn and normal
+			matProperties[idx].normal = intersection.surfaceNormal;
+			//Update bsdf's TBN matrices to support the new normal
+			Vector3f tangent, bitangent;
+			CoordinateSystem(matProperties[idx].normal, tangent, bitangent);
+			UpdateTangentSpaceMatrices(matProperties[idx].tangentToWorld, matProperties[idx].worldToTangent,
+														matProperties[idx].normal, tangent, bitangent);
+		}
+		else
+		{
+			matProperties[idx].worldToTangent = glm::mat3(); //identity mat3
+			matProperties[idx].tangentToWorld = glm::mat3(); //identity mat3
+			matProperties[idx].normal = glm::vec3(0, 1, 0); //world up
+		}
+	}
+}
+
 // LOOK: "fake" shader demonstrating what you might do with the info in
 // a ShadeableIntersection, as well as how to use thrust's random number
 // generator. Observe that since the thrust random number generator basically
@@ -265,7 +321,8 @@ __global__ void shadeFakeMaterial (int iter, int num_paths,
 
 __global__ void shadeMaterials(int iter, int num_paths,
 	ShadeableIntersection * shadeableIntersections,
-	PathSegment * pathSegments, Material * materials)
+	PathSegment * pathSegments, Material * materials, 
+	matPropertiesPerIntersection * materialProperties)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (idx < num_paths)
@@ -277,6 +334,7 @@ __global__ void shadeMaterials(int iter, int num_paths,
 
 		ShadeableIntersection intersection = shadeableIntersections[idx];	
 		Material material = materials[intersection.materialId];
+		matPropertiesPerIntersection matProperty = materialProperties[idx];
 
 		if (intersection.t < 0.0f)
 		{
@@ -303,7 +361,7 @@ __global__ void shadeMaterials(int iter, int num_paths,
 		thrust::uniform_real_distribution<float> u01(0, 1);
 			
 		//deal with the material and end up changing the pathSegment color and its ray direction
-		scatterRay(pathSegments[idx], intersection, material, rng);
+		scatterRay(pathSegments[idx], intersection, material, matProperty, rng);
 	}
 }
 
@@ -368,7 +426,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 
     // TODO: perform one iteration of path tracing
 
-	generateRayFromCamera <<<blocksPerGrid2d, blockSize2d >>>(cam, iter, traceDepth, dev_paths);
+	generateRayFromCamera <<<blocksPerGrid2d, blockSize2d>>>(cam, iter, traceDepth, dev_paths);
 	checkCUDAError("generate camera ray");
 
 	int depth = 0;
@@ -392,8 +450,14 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 																			dev_geoms, 
 																			hst_scene->geoms.size(), 
 																			dev_intersections);
-		checkCUDAError("trace one bounce");
+		checkCUDAError("computeIntersections Failed!");
 		cudaDeviceSynchronize();
+
+		//set some material properties --> tbn matrices and normal
+		produceBSDF <<<numblocksPathSegmentTracing, blockSize1d>>> (num_paths, dev_paths, dev_intersections, dev_GlobalMaterialsList, dev_matProperties);
+		checkCUDAError("produceBSDF Failed!");
+		cudaDeviceSynchronize();
+
 		depth++;
 
 		// TODO:
@@ -404,17 +468,16 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 		// materials you have in the scenefile.
 		// TODO: compare between directly shading the path segments and shading
 		// path segments that have been reshuffled to be contiguous in memory.
-
+	
 		shadeMaterials <<<numblocksPathSegmentTracing, blockSize1d>>> (iter, num_paths,
 																	   dev_intersections,
-																	   dev_paths, dev_materials);
+																	   dev_paths, dev_GlobalMaterialsList,
+																	   dev_matProperties);
 
-		if (depth >= 3)
+		if (depth >= 3)// TODO: should be based off stream compaction results.
 		{
 			iterationComplete = true;
 		}
-
-		//iterationComplete = true; // TODO: should be based off stream compaction results.
 	}
 
 	// Assemble this iteration and apply it to the image
