@@ -95,7 +95,7 @@ void scatterRay(
 	} 
 	else {
 		newdirection = glm::normalize(calculateRandomDirectionInHemisphere(normal, rng));
-		pathSegment.color *= glm::abs(glm::dot(newdirection, normal)) * m.color;
+		pathSegment.color *= glm::abs(glm::dot(pathSegment.ray.direction, normal)) * m.color;
 	}
 
 	pathSegment.ray.origin = intersect + newdirection * EPSILON;
