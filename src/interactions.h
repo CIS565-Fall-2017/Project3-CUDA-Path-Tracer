@@ -7,9 +7,15 @@
  * Computes a cosine-weighted random direction in a hemisphere.
  * Used for diffuse lighting.
  */
+#define pushoutTolerance 0.01f;
+__host__ __device__ float cosWeightedHemispherePdf(
+	const glm::vec3 &normal, const glm::vec3 &dir)
+{
+	return fmax(0.f, glm::dot(normal, dir)) / PI;
+}
 __host__ __device__
 glm::vec3 calculateRandomDirectionInHemisphere(
-        glm::vec3 normal, thrust::default_random_engine &rng) {
+        glm::vec3 normal, thrust::default_random_engine &rng, float& pdf) {
     thrust::uniform_real_distribution<float> u01(0, 1);
 
     float up = sqrt(u01(rng)); // cos(theta)
@@ -35,10 +41,11 @@ glm::vec3 calculateRandomDirectionInHemisphere(
         glm::normalize(glm::cross(normal, directionNotNormal));
     glm::vec3 perpendicularDirection2 =
         glm::normalize(glm::cross(normal, perpendicularDirection1));
-
-    return up * normal
-        + cos(around) * over * perpendicularDirection1
-        + sin(around) * over * perpendicularDirection2;
+	glm::vec3 dir = glm::normalize(up * normal
+		+ cos(around) * over * perpendicularDirection1
+		+ sin(around) * over * perpendicularDirection2);
+	pdf = cosWeightedHemispherePdf(normal, dir);
+	return dir;
 }
 
 /**
@@ -76,4 +83,11 @@ void scatterRay(
     // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
+	//lambert
+	float pdf = 0;
+	glm::vec3 lambertBrdf = m.color / PI;
+	pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng, pdf);
+	pathSegment.ray.origin = intersect + pathSegment.ray.direction*pushoutTolerance;
+	pathSegment.color *= lambertBrdf * fmax(0.f, glm::dot(normal, pathSegment.ray.direction)) / (pdf + FLT_EPSILON);
+	pathSegment.remainingBounces--;
 }
