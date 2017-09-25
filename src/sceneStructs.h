@@ -39,18 +39,6 @@ enum BxDFType {
 	BSDF_ALL = BSDF_LAMBERT | BSDF_SPECULAR_BRDF | BSDF_SPECULAR_BTDF
 };
 
-struct matPropertiesPerIntersection
-{
-	// The PBRT BSDF stores normal and tangent data from the intersection that created it
-	// Our path tracer will pre-transform vectors before they've been passed into f()
-	glm::mat3 worldToTangent; // Transforms rays from world space into tangent space,
-							  // where the surface normal is always treated as (0, 0, 1)
-	glm::mat3 tangentToWorld; // Transforms rays from tangent space into world space.
-							  // This is the inverse of worldToTangent (incidentally, inverse(worldToTangent) = transpose(worldToTangent))
-	Normal3f normal;          // May be the geometric normal OR the shading normal at the point of intersection.
-							  // If the Material that created this BSDF had a normal map, then this will be the latter.
-};
-
 struct Material 
 {
     glm::vec3 color;
@@ -68,8 +56,16 @@ struct Material
 
 	int numBxDFs; // How many BxDFs this BSDF currently contains (init. 0)
 	const static int MaxBxDFs = 8; // How many BxDFs a single BSDF can contain
-	BxDFType bxdfs[MaxBxDFs]; // The collection of BxDFs contained in this BSDF(in our implementation there isn't a
-							  //practical difference between a material and a BSDF)
+	BxDFType bxdfs[MaxBxDFs]; // The collection of BxDFs contained in this BSDF
+
+	// The PBRT BSDF stores normal and tangent data from the intersection that created it
+	// Our path tracer will pre-transform vectors before they've been passed into f()
+	glm::mat3 worldToTangent; // Transforms rays from world space into tangent space,
+							  // where the surface normal is always treated as (0, 0, 1)
+	glm::mat3 tangentToWorld; // Transforms rays from tangent space into world space.
+							  // This is the inverse of worldToTangent (incidentally, inverse(worldToTangent) = transpose(worldToTangent))
+	Normal3f normal;          // May be the geometric normal OR the shading normal at the point of intersection.
+							  // If the Material that created this BSDF had a normal map, then this will be the latter.
 };
 
 struct Camera 

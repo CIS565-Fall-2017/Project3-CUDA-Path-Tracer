@@ -72,17 +72,17 @@ namespace utilityCore
 	extern inline float CosTheta(const Vector3f &w) { return w.z; }
 	extern inline float Cos2Theta(const Vector3f &w) { return w.z * w.z; }
 	extern inline float AbsCosTheta(const Vector3f &w) { return std::abs(w.z); }
-	extern inline float Sin2Theta(const Vector3f &w)
+	extern inline float Sin2Theta(const Vector3f &w) 
 	{
 		return std::max((float)0, (float)1 - Cos2Theta(w));
 	}
 
-	extern inline float SinTheta(const Vector3f &w)
+	extern inline float SinTheta(const Vector3f &w) 
 	{ 
 		return std::sqrt(Sin2Theta(w)); 
 	}
 
-	extern inline float TanTheta(const Vector3f &w)
+	extern inline float TanTheta(const Vector3f &w) 
 	{ 
 		return SinTheta(w) / CosTheta(w);
 	}
@@ -103,17 +103,17 @@ namespace utilityCore
 		return (sinTheta == 0) ? 0 : glm::clamp(w.y / sinTheta, -1.f, 1.f);
 	}
 
-	extern inline float Cos2Phi(const Vector3f &w)
+	extern inline float Cos2Phi(const Vector3f &w) 
 	{ 
 		return CosPhi(w) * CosPhi(w); 
 	}
 
-	extern inline float Sin2Phi(const Vector3f &w)
+	extern inline float Sin2Phi(const Vector3f &w) 
 	{ 
 		return SinPhi(w) * SinPhi(w); 
 	}
 	
-	extern inline bool Refract(const Vector3f &wi, const Normal3f &n, float eta, Vector3f *wt)
+	extern inline bool Refract(const Vector3f &wi, const Normal3f &n, float eta, Vector3f *wt) 
 	{
 		// Compute cos theta using Snell's law
 		float cosThetaI = glm::dot(n, wi);
@@ -127,8 +127,24 @@ namespace utilityCore
 		return true;
 	}
 	
-	extern inline Normal3f Faceforward(const Normal3f &n, const Vector3f &v)
+	extern inline Normal3f Faceforward(const Normal3f &n, const Vector3f &v) 
 	{
 		return (glm::dot(n, v) < 0.f) ? -n : n;
 	}
+	
+	// Create a set of axes to form the basis of a coordinate system
+	// given a single vector v1.
+	extern inline void CoordinateSystem(const Vector3f& v1, Vector3f* v2, Vector3f* v3)
+	{
+		if (std::abs(v1.x) > std::abs(v1.y))
+		{
+			*v2 = Vector3f(-v1.z, 0, v1.x) / std::sqrt(v1.x * v1.x + v1.z * v1.z);
+		}			
+		else
+		{
+			*v2 = Vector3f(0, v1.z, -v1.y) / std::sqrt(v1.y * v1.y + v1.z * v1.z);
+		}
+		*v3 = glm::cross(v1, *v2);
+	}
+
 }
