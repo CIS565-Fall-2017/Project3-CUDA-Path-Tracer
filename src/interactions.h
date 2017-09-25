@@ -66,11 +66,23 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(glm::vec3 nor
  *
  * You may need to change the parameter list for your purposes!
  */
+
+__host__ __device__ Ray spawnNewRay(const ShadeableIntersection& intersection, Vector3f& wiW)
+{
+	Vector3f originOffset = intersection.surfaceNormal * EPSILON;
+	// Make sure to flip the direction of the offset so it's in the same general direction as the ray direction
+	originOffset = (glm::dot(wiW, intersection.surfaceNormal) > 0) ? originOffset : -originOffset;
+	Point3f o(intersection.intersectPoint + originOffset);
+	Ray r = Ray();
+	r.direction = wiW;
+	r.origin = o;
+	return r;
+}
+
 __host__ __device__ void scatterRay( PathSegment & pathSegment,
-									glm::vec3 intersect,
-									glm::vec3 normal,
-									const Material &m,
-									thrust::default_random_engine &rng) 
+									 ShadeableIntersection& intersection,
+									 const Material &m,
+									 thrust::default_random_engine &rng) 
 {
 	// Update the ray and color associated with the pathSegment
     // TODO: implement this.
@@ -81,48 +93,27 @@ __host__ __device__ void scatterRay( PathSegment & pathSegment,
 	glm::vec3 wi = glm::vec3(0.0f);
 	glm::vec3 color = pathSegment.color;
 	float pdf = 1.0f;
-	
-	// If the material indicates that the object was a light, "light" the ray
-	if (m.emittance > 0.0f)
-	{
-		pathSegment.color *= m.color *m.emittance*pdf;
-		//pathSegment.color = (m.color * m.emittance); //debug view of light bouncing and hitting the light
-		pathSegment.remainingBounces = 0; //equivalent of breaking out of the thread
-		return;
-	}
 
 	if (m.hasReflective == 1)
 	{
 		//specular component
-		wi = glm::reflect(wo, normal);
+		wi = glm::reflect(wo, intersection.surfaceNormal);
 		color = color*m.specular.color;
 		pdf = 0.0f;
 	}
 	else
 	{
 		//diffuse
-		wi = glm::normalize(calculateRandomDirectionInHemisphere(normal, rng));
+		wi = glm::normalize(calculateRandomDirectionInHemisphere(intersection.surfaceNormal, rng));
 
 		pdf = INVPI;
 		//Update Color
 		color = color*m.color;// *glm::vec3(INVPI)*(1.0f / pdf);
 	}
 	
-	glm::vec3 originOffset = normal*2.0f*EPSILON;
-	originOffset = glm::dot(wi, normal) > 0 ? originOffset : -originOffset;
-
-	//if (pdf == 0.0f)
-	//{
-	//	color = m.color;
-	//	return;
-	//}
-
-	//set up new ray direction
-	pathSegment.ray.origin = intersect + originOffset;
-	pathSegment.ray.direction = wi;
-
-	color *= glm::abs(glm::dot(wi, normal));
+	//color *= glm::abs(glm::dot(wi, intersection.surfaceNormal));
 	pathSegment.color = color;
 
+	pathSegment.ray = spawnNewRay(intersection, wi);
 	pathSegment.remainingBounces--;
 }
