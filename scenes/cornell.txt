@@ -115,3 +115,19 @@ material 4
 TRANS       -1 4 -1
 ROTAT       0 0 0
 SCALE       3 3 3
+
+// Sphere 2
+OBJECT 7
+sphere
+material 2
+TRANS       1 2 1
+ROTAT       0 0 0 
+SCALE       2 2 2
+
+// Light 2
+OBJECT 8
+cube
+material 0
+TRANS       0 0 0
+ROTAT       0 0 0
+SCALE       3 .3 3
