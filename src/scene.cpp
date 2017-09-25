@@ -186,7 +186,7 @@ int Scene::loadMaterial(string materialid) {
             } else if (strcmp(tokens[0].c_str(), "REFRACTIVE_INDEX") == 0) {
                 newMaterial.eta = atof(tokens[1].c_str());
             } else if (strcmp(tokens[0].c_str(), "LAMBERT") == 0) {
-				newMaterial.bxdfs[bxdfcounter] = BSDF_LAMBERT;
+				newMaterial.bxdfs[bxdfcounter] = BSDF_LAMBERT;// | BSDF_SPECULAR_BRDF;
 				bxdfcounter++;
 			} else if (strcmp(tokens[0].c_str(), "SPECULAR_BRDF") == 0) {
 				newMaterial.bxdfs[bxdfcounter] = BSDF_SPECULAR_BRDF;

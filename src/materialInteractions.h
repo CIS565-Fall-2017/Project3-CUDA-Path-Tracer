@@ -34,10 +34,9 @@ __host__ __device__ glm::vec3 sample_f(const Material &m, const matPropertiesPer
 			thrust::default_random_engine &rng, glm::vec3& woW, glm::vec3& wiW, float& pdf, BxDFType& sampledType)
 {
 	thrust::uniform_real_distribution<float> u01(0, 1);
-	thrust::uniform_real_distribution<float> u02(0, 1);
 
 	float xi0 = u01(rng);
-	float xi1 = u02(rng);
+	float xi1 = u01(rng);
 
 	//----------------------------------------------
 
@@ -135,12 +134,14 @@ __host__ __device__ glm::vec3 sample_f(const Material &m, const matPropertiesPer
 	//compute value of BSDF for sampled direction
 	if ((bxdf != BSDF_SPECULAR_BRDF) && (matchingComps>1))
 	{
-		//bool reflect = (glm::dot(wiW, mproperties.normal) * glm::dot(woW, mproperties.normal)) > 0;
-		//Color = Color3f(0.0); //because the material is reflective or
-		//					  //transmissive so doesn't have its own color
+		bool reflect = (glm::dot(wiW, mproperties.normal) * glm::dot(woW, mproperties.normal)) > 0;
+		Color = Color3f(0.0); //because the material is reflective or
+							  //transmissive so doesn't have its own color
 		for (int i = 0; i<m.numBxDFs; ++i)
 		{
-			if (m.bxdfs[i] != bxdf && MatchesFlags(m.bxdfs[i]))
+			if (MatchesFlags(m.bxdfs[i]) &&
+				((reflect && m.reflective) ||
+				(!reflect && m.refractive)))
 			{
 				if (bxdf == BSDF_SPECULAR_BRDF)
 				{
