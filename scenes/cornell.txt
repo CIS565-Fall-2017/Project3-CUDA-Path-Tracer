@@ -68,6 +68,8 @@ FILE        cornell
 EYE         0.0 5 10.5
 LOOKAT      0 5 0
 UP          0 1 0
+LENSRADIUS  .1
+FOCALDIST   5
 
 
 // Ceiling light
