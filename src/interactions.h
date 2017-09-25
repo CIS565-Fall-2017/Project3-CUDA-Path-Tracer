@@ -65,6 +65,12 @@ float getPdf(glm::vec3 &wo, glm::vec3 &wi, glm::vec3 &n)
 }
 
 __host__ __device__
+float AbsDot(const glm::vec3 n, const glm::vec3 wi)
+{
+	return glm::abs(glm::dot(n, wi));
+}
+
+__host__ __device__
 glm::vec3 fresnelDielectric(glm::vec3 &wo, glm::vec3 &wi, glm::vec3 &normal, float etaI, float etaT)
 {
 	float cosThetaI = glm::clamp(CosTheta(wi, normal), -1.f, 1.f);
@@ -247,8 +253,7 @@ void scatterRay(
 		pathSegment.color *= color;
 	}
 
-	float absdot = glm::abs(glm::dot(wi, normal));
-	pathSegment.color *= absdot;
+	pathSegment.color *= AbsDot(normal, wi);
 }
 
 

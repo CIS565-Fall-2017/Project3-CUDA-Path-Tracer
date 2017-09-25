@@ -148,6 +148,53 @@ void pathtraceFree() {
 	checkCUDAError("pathtraceFree");
 }
 
+#define PI 3.14159265358979323846f
+
+__host__ __device__ 
+glm::vec3 ConcentricSampleDisk(float sampleX, float sampleY)
+{
+	float phi = 0.f;
+
+	float r = 0.f;
+	float u = 0.f;
+	float v = 0.f;
+
+	float a = 2.f * sampleX - 1.f;
+	float b = 2.f * sampleY - 1.f;
+
+	if (a > -b) {
+		if (a > b) {
+			r = a;
+			phi = (PI / 4.f) * (b / a);
+		}
+		else {
+			r = b;
+			phi = (PI / 4.f) * (2.f - (a / b));
+		}
+	}
+	else {
+		if (a < b) {
+			r = -a;
+			phi = (PI / 4.f) * (4.f + (b / a));
+		}
+		else {
+			r = -b;
+
+			if (b != 0.f) {
+				phi = (PI / 4.f) * (6.f - (a / b));
+			}
+			else {
+				phi = 0.f;
+			}
+		}
+	}
+
+	u = r * cos(phi);
+	v = r * sin(phi);
+
+	return glm::vec3(u, v, 0.f);
+}
+
 /**
 * Generate PathSegments with rays from the camera through the screen into the
 * scene, which is the first bounce of rays.
@@ -173,6 +220,22 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 			- cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
 			- cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
 		);
+
+		// Depth of Field
+		if (cam.lensRadius > 0.f) {
+			// Sample point on lens
+			thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
+			thrust::uniform_real_distribution<float> u01(0, 1);
+			glm::vec3 pLens = cam.lensRadius * ConcentricSampleDisk(u01(rng), u01(rng)); 
+
+			// Compute point on plane of focus
+			glm::vec3 pFocus = cam.focalDistance * segment.ray.direction + segment.ray.origin;
+			glm::vec3 aperaturePoint = segment.ray.origin + (cam.up * pLens.y) + (cam.right + pLens.x);
+
+			// Update ray
+			segment.ray.origin = aperaturePoint;
+			segment.ray.direction = glm::normalize(pFocus - aperaturePoint);
+		}
 
 		segment.pixelIndex = index;
 		segment.remainingBounces = traceDepth;

@@ -49,6 +49,9 @@ struct Camera {
     glm::vec3 right;
     glm::vec2 fov;
     glm::vec2 pixelLength;
+	// Thin Lens properties for Depth of Field
+	float lensRadius;
+	float focalDistance;
 };
 
 struct RenderState {
