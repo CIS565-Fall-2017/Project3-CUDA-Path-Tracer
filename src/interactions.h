@@ -44,6 +44,9 @@ glm::vec3 calculateRandomDirectionInHemisphere(
 }
 
 #define INVPI 0.31830988618379067154f
+// TODO
+#define etaI 0.f
+#define etaT 0.f
 
 __host__ __device__
 bool SameHemisphere(glm::vec3 &w, glm::vec3 &wp)
@@ -63,6 +66,41 @@ float getPdf(glm::vec3 &wo, glm::vec3 &wi, glm::vec3 &n)
 {
 	return SameHemisphere(wo, wi) ? AbsCosTheta(wi, n) * INVPI : 0;
 }
+
+//__host__ __device__
+//glm::vec3 fresnelDielectric(glm::vec3 &wo, glm::vec3 &wi, glm::vec3 &normal)
+//{
+//	float cosThetaI = glm::clamp(CosTheta(wi, normal), -1.f, 1.f);
+//
+//	bool entering = cosThetaI > 0.f;
+//
+//	if (!entering) {
+//		cosThetaI = glm::abs(cosThetaI);
+//	}
+//
+//	float sinThetaI = glm::sqrt(glm::max(0.f, 1 - cosThetaI * cosThetaI));
+//
+//	float sinThetaT = etaI / etaT * sinThetaI;
+//
+//	if (!entering) {
+//		sinThetaT = etaT / etaI * sinThetaI;
+//	}
+//
+//	if (sinThetaT >= 1.f) {
+//		return glm::vec3(1.f);
+//	}
+//
+//	float cosThetaT = glm::sqrt(glm::max(0.f, 1 - sinThetaT * sinThetaT));
+//
+//	float Rparl = ((etaT * cosThetaI) - (etaI * cosThetaT)) / ((etaT * cosThetaI) + (etaI * cosThetaT));
+//	float Rperp = ((etaI * cosThetaI) - (etaT * cosThetaT)) / ((etaI * cosThetaI) + (etaT * cosThetaT));
+//
+//	float fr = Rparl * Rparl;
+//	fr += Rperp * Rperp;
+//	fr /= 2.f;
+//
+//	return glm::vec3(fr);
+//}
 
 /**
 * Scatter a ray with some probabilities according to the material properties.
@@ -108,9 +146,12 @@ void scatterRay(
 
 	// Reflective Surface
 	if (m.hasReflective == 1) {
-		wi = glm::reflect(wo, normal);
+		wi = glm::reflect(-wo, normal);
 
+		pdf = 1.f;
 		color *= m.specular.color;
+
+		//color *= fresnelDielectric(wo, wi, normal) * m.specular.color / AbsCosTheta(wi, normal);
 	}
 	// Diffuse Surface
 	else {

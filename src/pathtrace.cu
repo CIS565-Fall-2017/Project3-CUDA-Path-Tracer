@@ -328,8 +328,12 @@ __global__ void shadeMaterial(
 
 		// Check if the ray hits anything
 		ShadeableIntersection intersection = shadeableIntersections[idx];
-		if (intersection.t > 0.0f) { 
-			thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
+		if (intersection.t > 0.0f) {
+
+			thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
+			// Use this without stream compaction
+			//thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
+
 			thrust::uniform_real_distribution<float> u01(0, 1);
 
 			Material material = materials[intersection.materialId];
@@ -383,6 +387,14 @@ __global__ void sortByMaterial(int num_paths, ShadeableIntersection *intersectio
 		intersectionIndices[idx] = materialId;
 	}
 }
+
+struct endPath
+{
+	__host__ __device__ bool operator()(const PathSegment &pathSegment)
+	{
+		return pathSegment.remainingBounces > 0;
+	}
+};
 
 /**
 * Wrapper for the __global__ call that sets up the kernel calls and does a ton
@@ -440,6 +452,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	PathSegment* dev_path_end = dev_paths + pixelcount;
 	int num_paths = dev_path_end - dev_paths;
 
+	int numActivePaths = num_paths;
+
 	// --- PathSegment Tracing Stage ---
 	// Shoot ray into scene, bounce between objects, push shading chunks
 
@@ -453,8 +467,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		// tracing
 		dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
 
-#define CACHE false
-#define SORTBYMATERIAL false
+#define CACHE true
+#define SORTBYMATERIAL true
 
 		// Store the very first bounce into dev_intersections_cached.
 		if (CACHE && depth == 0 && iter == 1) {
@@ -517,27 +531,14 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 			shadeMaterial << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections, dev_paths, dev_materials, depth);
 		}
 
-		// TODO:
-		// Compact paths that have 0 remainingBounces
-		// Fill dev_indices with 0 and 1 based on remainingBounces
-		//scanPaths << < numblocksPathSegmentTracing, blockSize1d >> > (num_paths, dev_paths, dev_indices);
-
-		//int *scanned = new int[num_paths];
-		// Copy dev_indices into indices to perform Stream Compaction
-		//cudaMemcpy(scanned, dev_indices, num_paths, cudaMemcpyDeviceToHost);
-		//checkCUDAError("copying dev_indices to scanned failed");
-
-		// Update number of paths
-		//num_paths = StreamCompaction::Efficient::compact(num_paths, scanned, scanned);
-		//cudaMemcpy(dev_indices, scanned, num_paths, cudaMemcpyHostToDevice);
-
-		//iterationComplete = (depth >= traceDepth || num_paths == 0);
-
 		depth++;
-		// converges to something weird after 2 
-		//iterationComplete = depth == 2; // TODO: should be based off stream compaction results.
-		iterationComplete = (depth >= traceDepth); // TODO: should be based off stream compaction results.
-		//iterationComplete = num_paths == 0;
+
+		// Puts all the paths with bounces > 0 towards the front of the array
+		PathSegment *activePaths = thrust::partition(thrust::device, dev_paths, dev_paths + numActivePaths, endPath());
+		// Update the number of active paths so we can only operate on those the next loop.
+		numActivePaths = activePaths - dev_paths;
+		
+		iterationComplete = (depth >= traceDepth || numActivePaths == 0); // TODO: should be based off stream compaction results.
 	}
 
 	// Assemble this iteration and apply it to the image
@@ -555,4 +556,3 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
 	checkCUDAError("pathtrace");
 }
-
