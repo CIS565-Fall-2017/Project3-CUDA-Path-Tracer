@@ -13,6 +13,7 @@
 #include "pathtrace.h"
 #include "intersections.h"
 #include "interactions.h"
+#include "../stream_compaction/efficient.h"
 
 #define ERRORCHECK 1
 
@@ -285,8 +286,12 @@ __global__ void pathTraceBasic(int iter, int num_paths,
 			glm::vec3 materialColor = material.color;
 
 			// If the material indicates that the object was a light, "light" the ray
-			if (material.emittance > 0.0f) {
-				pathSegments[idx].color *= (materialColor * material.emittance);
+			if (material.emittance > 0.0f ) {
+				if (pathSegment.remainingBounces == 0) {
+					return;
+				}
+				pathSegments[idx].color *= (materialColor * material.emittance * 3.0f);
+				pathSegments[idx].remainingBounces = 0;
 			}
 			// Otherwise, do some pseudo-lighting computation. This is actually more
 			// like what you would expect from shading in a rasterizer like OpenGL.
@@ -294,11 +299,16 @@ __global__ void pathTraceBasic(int iter, int num_paths,
 			else {
 				//add the light from the material color
 				//scatter the ray
+				if (pathSegment.remainingBounces == 0) {
+					pathSegments[idx].color = glm::vec3(0.0f);
+					return;
+				}
 				scatterRay(pathSegment,
 					pathSegment.ray.origin + pathSegment.ray.direction * intersection.t,
 					intersection.surfaceNormal,
 					material,
 					rng);
+				pathSegment.remainingBounces--;
 			}
 			// If there was no intersection, color the ray black.
 			// Lots of renderers use 4 channel color, RGBA, where A = alpha, often
@@ -307,6 +317,7 @@ __global__ void pathTraceBasic(int iter, int num_paths,
 		}
 		else {
 			pathSegments[idx].color = glm::vec3(0.0f);
+			pathSegment.remainingBounces = 0;
 		}
 	}
 }
@@ -383,7 +394,6 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	// Shoot ray into scene, bounce between objects, push shading chunks
 
   bool iterationComplete = false;
-  int iterationCount = 3;
 	while (!iterationComplete) {
 
 	// clean shading chunks
@@ -420,8 +430,9 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
     dev_paths,
     dev_materials
   );
-  iterationCount--;
-  if (iterationCount == 0) iterationComplete = true; // TODO: should be based off stream compaction results.
+  //Stream Compaction
+  //Compact dev_paths. 
+  if (depth > 8) iterationComplete = true; // TODO: should be based off stream compaction results.
 	}
 
   // Assemble this iteration and apply it to the image
