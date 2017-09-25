@@ -79,12 +79,12 @@ void scatterRay(
 	thrust::uniform_real_distribution<float> u01(0, 1);
 	float probability = (m.hasReflective > 0) ? u01(rng) : 1.0f;
 	Ray& ray = pathSegment.ray;
-	if (probability > 0.5f) {
+	if (probability > 0.99f) {
 		ray.direction = glm::normalize(calculateRandomDirectionInHemisphere(normal, rng));
 	} else {
 		ray.direction = glm::reflect(ray.direction, normal);
 	}
-	pathSegment.color *= m.color * glm::abs(glm::clamp(glm::dot(ray.direction, normal), 0.0f, 1.0f)) * 0.5f;
+	pathSegment.color *= m.color * glm::abs(glm::clamp(glm::dot(ray.direction, normal), 0.0f, 1.0f));
 	ray.origin = EPSILON * ray.direction + intersect;	
 
 

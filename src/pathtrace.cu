@@ -287,7 +287,7 @@ __global__ void pathTraceBasic(int iter, int num_paths,
 
 			// If the material indicates that the object was a light, "light" the ray
 			if (material.emittance > 0.0f ) {
-				pathSegments[idx].color *= (materialColor * material.emittance * 3.0f);
+				pathSegments[idx].color *= (materialColor * material.emittance);
 				pathSegments[idx].remainingBounces = 0;
 			}
 			// Otherwise, do some pseudo-lighting computation. This is actually more
