@@ -46,22 +46,19 @@ namespace StreamCompaction {
 		}
 
 
-		__global__ void kernScanDynamicShared(int N, int n, int *g_odata, int *g_idata, int *OriRoot) {
+		__global__ void kernScanDynamicShared(int n, int *g_odata, int *g_idata, int *OriRoot) {
 			extern __shared__ int temp[];
 
-			int index = threadIdx.x + (blockIdx.x * blockDim.x);
-			if (index >= N) {
-				return;
-			}
 
 			int thid = threadIdx.x;
 			// assume it's always a 1D block
-			int blockOffset = blockDim.x * blockIdx.x;
+			int blockOffset = 2 * blockDim.x * blockIdx.x;
 			int offset = 1;
 
-			temp[thid] = g_idata[blockOffset + thid];
+			temp[2 * thid] = g_idata[blockOffset + 2 * thid];
+			temp[2 * thid + 1] = g_idata[blockOffset + 2 * thid + 1];
 
-			// UP-sweep
+			// Up-sweep
 			for (int d = n >> 1; d > 0; d >>= 1) {
 				__syncthreads();
 				if (thid < d) {
@@ -79,6 +76,7 @@ namespace StreamCompaction {
 				temp[n - 1] = 0;
 			}
 
+			// Down-sweep
 			for (int d = 1; d < n; d *= 2) {
 				offset >>= 1;
 				__syncthreads();
@@ -92,7 +90,8 @@ namespace StreamCompaction {
 				}
 			}
 			__syncthreads();
-			g_odata[blockOffset + thid] = temp[thid];
+			g_odata[blockOffset + 2 * thid] = temp[2 * thid];
+			g_odata[blockOffset + 2 * thid + 1] = temp[2 * thid + 1];
 		}
 
 		__global__ void kernAddOriRoot(int N, int stride, int* OriRoot, int* dev_odata) {
@@ -159,7 +158,7 @@ namespace StreamCompaction {
 			checkCUDAError("cudaMemcpy failed!");
 
 			// Step 2 : exclusive scan indices
-			kernScanDynamicShared << <gridDim, blockDim, sharedMemoryPerBlockInBytes >> > (size, blockDim.x, indices, indices, ori_root);
+			kernScanDynamicShared << <gridDim, dim3(blockDim.x / 2), sharedMemoryPerBlockInBytes >> > (blockDim.x, indices, indices, ori_root);
 			checkCUDAError("kernScanDynamicShared 1 failed!");
 
 			// Step 2.5 : scans of scan
@@ -169,6 +168,7 @@ namespace StreamCompaction {
 			int ori_root_of_ori_root_size = ori_root_size / blockSize;
 			ori_root_of_ori_root_size = (ori_root_of_ori_root_size + blockSize - 1) / blockSize;
 			ori_root_of_ori_root_size *= blockSize; 
+
 			cudaMalloc((void**)&ori_root_of_ori_root, sizeof(int) * ori_root_of_ori_root_size);
 			checkCUDAError("cudaMalloc ori_root_of_ori_root failed!");
 			int stride = 1;
@@ -178,7 +178,7 @@ namespace StreamCompaction {
 				kernSetZero << < dim3((ori_root_of_ori_root_size + blockDim.x - 1) / blockDim.x), blockDim >> > (ori_root_of_ori_root_size, ori_root_of_ori_root);
 				checkCUDAError("kernSetZero failed!");
 
-				kernScanDynamicShared << < dim3(ori_root_size / blockSize), blockDim, sharedMemoryPerBlockInBytes >> > (ori_root_size, blockDim.x, ori_root, ori_root, ori_root_of_ori_root);
+				kernScanDynamicShared << < dim3(ori_root_size / blockSize), dim3(blockDim.x / 2), sharedMemoryPerBlockInBytes >> > (blockDim.x, ori_root, ori_root, ori_root_of_ori_root);
 				checkCUDAError("kernScanDynamicShared 2 failed!");
 
 				kernAddOriRoot << <gridDim, blockDim >> > (size, stride, ori_root, indices);
