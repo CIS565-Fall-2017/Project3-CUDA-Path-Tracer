@@ -316,21 +316,20 @@ __global__ void shadeMaterial(
 	int num_paths,
 	ShadeableIntersection * shadeableIntersections,
 	PathSegment * pathSegments,
-	Material * materials)
+	Material * materials,
+	int depth)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (idx < num_paths)
 	{
-		if (pathSegments[idx].remainingBounces <= 0) {
+		if (pathSegments[idx].remainingBounces == 0) {
 			return;
 		}
 
+		// Check if the ray hits anything
 		ShadeableIntersection intersection = shadeableIntersections[idx];
-		if (intersection.t > 0.0f) { // if the intersection exists...
-									 // Set up the RNG
-									 // LOOK: this is how you use thrust's RNG! Please look at
-									 // makeSeededRandomEngine as well.
-			thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
+		if (intersection.t > 0.0f) { 
+			thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
 			thrust::uniform_real_distribution<float> u01(0, 1);
 
 			Material material = materials[intersection.materialId];
@@ -341,11 +340,10 @@ __global__ void shadeMaterial(
 				pathSegments[idx].color *= (materialColor * material.emittance);
 				pathSegments[idx].remainingBounces = 0;
 			}
-			// Otherwise, do some pseudo-lighting computation. This is actually more
-			// like what you would expect from shading in a rasterizer like OpenGL.
-			// TODO: replace this! you should be able to start with basically a one-liner
+			// Scatter the ray based on the material
 			else {
-				scatterRay(pathSegments[idx],
+				scatterRay(
+					pathSegments[idx],
 					intersection.intersectPoint,
 					intersection.surfaceNormal,
 					material,
@@ -366,7 +364,7 @@ __global__ void shadeMaterial(
 __global__ void scanPaths(int num_paths, PathSegment *pathSegments, int *dev_indices)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
-	if (idx > num_paths) {
+	if (idx < num_paths) {
 		if (pathSegments[idx].remainingBounces > 0) {
 			dev_indices[idx] = 1;
 		}
@@ -455,8 +453,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		// tracing
 		dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
 
-#define CACHE true
-#define SORTBYMATERIAL true
+#define CACHE false
+#define SORTBYMATERIAL false
 
 		// Store the very first bounce into dev_intersections_cached.
 		if (CACHE && depth == 0 && iter == 1) {
@@ -504,7 +502,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 				thrust::sort_by_key(thrust::device, dev_intersectionIndicesByMaterial, dev_intersectionIndicesByMaterial + num_paths, dev_intersections_cached);
 			}
 
-			shadeMaterial << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections_cached, dev_paths, dev_materials);
+			shadeMaterial << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections_cached, dev_paths, dev_materials, depth);
 		}
 		// Otherwise use the new ray.
 		else {
@@ -516,7 +514,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 				thrust::sort_by_key(thrust::device, dev_intersectionIndicesByMaterial, dev_intersectionIndicesByMaterial + num_paths, dev_intersections);
 			}
 
-			shadeMaterial << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections, dev_paths, dev_materials);
+			shadeMaterial << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections, dev_paths, dev_materials, depth);
 		}
 
 		// TODO:
@@ -537,8 +535,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
 		depth++;
 		// converges to something weird after 2 
-		iterationComplete = depth == 2; // TODO: should be based off stream compaction results.
-		//iterationComplete = (depth >= traceDepth); // TODO: should be based off stream compaction results.
+		//iterationComplete = depth == 2; // TODO: should be based off stream compaction results.
+		iterationComplete = (depth >= traceDepth); // TODO: should be based off stream compaction results.
 		//iterationComplete = num_paths == 0;
 	}
 

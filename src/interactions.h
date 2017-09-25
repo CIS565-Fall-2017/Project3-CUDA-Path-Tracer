@@ -43,6 +43,27 @@ glm::vec3 calculateRandomDirectionInHemisphere(
 		+ sin(around) * over * perpendicularDirection2;
 }
 
+#define INVPI 0.31830988618379067154f
+
+__host__ __device__
+bool SameHemisphere(glm::vec3 &w, glm::vec3 &wp)
+{
+	return w.z * wp.z > 0;
+}
+
+__host__ __device__ float CosTheta(glm::vec3 wi, glm::vec3 n) {
+	return glm::dot(n, wi) / (glm::length(wi) * glm::length(n));
+}
+
+__host__ __device__ float AbsCosTheta(glm::vec3 wi, glm::vec3 n) {
+	return glm::abs(CosTheta(wi, n));
+}
+__host__ __device__
+float getPdf(glm::vec3 &wo, glm::vec3 &wi, glm::vec3 &n)
+{
+	return SameHemisphere(wo, wi) ? AbsCosTheta(wi, n) * INVPI : 0;
+}
+
 /**
 * Scatter a ray with some probabilities according to the material properties.
 * For example, a diffuse surface scatters in a cosine-weighted hemisphere.
@@ -80,9 +101,10 @@ void scatterRay(
 	// A basic implementation of pure-diffuse shading will just call the
 	// calculateRandomDirectionInHemisphere defined above.
 
-	glm::vec3 wo = pathSegment.ray.direction;
+	glm::vec3 wo = -pathSegment.ray.direction;
 	glm::vec3 wi(0.f);
 	glm::vec3 color(1.f);
+	float pdf;
 
 	// Reflective Surface
 	if (m.hasReflective == 1) {
@@ -94,7 +116,8 @@ void scatterRay(
 	else {
 		wi = glm::normalize(calculateRandomDirectionInHemisphere(normal, rng));
 		
-		color *= m.color;
+		pdf = getPdf(wo, wi, normal);
+		color *= INVPI * m.color;
 	}
 
 	glm::vec3 originOffset = normal * EPSILON;
@@ -106,6 +129,14 @@ void scatterRay(
 	// Update color
 	float absdot = glm::abs(glm::dot(wi, normal));
 	pathSegment.color *= color * absdot;
+
+	if (pdf > 0.f) {
+		pathSegment.color /= pdf;
+	}
+	else {
+		pathSegment.color = glm::vec3(0.f);
+	}
+
 	// Update bounces
 	pathSegment.remainingBounces--;
 }
