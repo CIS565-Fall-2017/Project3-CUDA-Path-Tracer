@@ -223,7 +223,6 @@ namespace StreamCompaction {
 			/////////////////////////////
 			int gridDim = (pow2roundedsize + blockSize - 1) / blockSize;
 			kernZeroExcessLeaves<<<gridDim, blockSize>>>(pow2roundedsize, n, dev_idata);
-			//kernZeroExcessLeaves<<<gridDim, blockSize>>>(pow2roundedsize, n, dev_odata);
 
 			////////////////////////
 			//// RECURSIVE SCAN ////
@@ -294,6 +293,60 @@ namespace StreamCompaction {
 			//find the size of our new compacted array
 			cudaDeviceSynchronize();
 			const int size = indicesLAST + (boolsLAST == 0 ? 0 : 1);
+
+			//free everything
+			cudaFree(dev_boolsThenIndices);
+			checkCUDAError("cudaFree of dev_bools failed!");
+
+			return size;
+		}
+
+		///////////////////////////////////////////
+		//////////////// PATH SEGMENT /////////////
+		///////////////////////////////////////////
+        __global__ void kernMapToBoolean_PathSegment(const int n, int* bools, const PathSegment* idata) {
+			const int index = blockIdx.x * blockDim.x + threadIdx.x;
+			if (index >= n) return;
+			bools[index] = (0 >= idata[index].remainingBounces ? 0 : 1);
+        }
+
+        __global__ void kernScatter_PathSegment(const int n, PathSegment* idata, const int* indices) {
+			const int index = blockIdx.x * blockDim.x + threadIdx.x;
+			if (index >= n || 0 == idata[index].remainingBounces) return;
+			idata[indices[index]] = idata[index];
+        }
+
+
+		int compactNoMalloc_PathSegment(const int n, PathSegment* dev_idata) {
+			const int pow2roundedsize = 1 << ilog2ceil(n);
+			const int numbytes_pow2roundedsize = pow2roundedsize * sizeof(int);
+			int* dev_boolsThenIndices;
+
+
+			cudaMalloc((void**)&dev_boolsThenIndices, numbytes_pow2roundedsize);
+			checkCUDAError("cudaMalloc dev_bools failed!");
+
+
+			int boolsLAST;
+			cudaMemcpyAsync(&boolsLAST, &(dev_idata[n - 1].remainingBounces), sizeof(int), cudaMemcpyDeviceToHost);
+			checkCUDAError("cudaMemcpy dev_bools to boolsLAST failed!");
+
+			const int gridDim = (n + blockSize - 1) / blockSize;
+
+			//scanNoMalloc zero's the excess leaves
+
+			StreamCompaction::SharedAndBank::kernMapToBoolean_PathSegment<<<gridDim, blockSize>>>(n, dev_boolsThenIndices, dev_idata);
+
+			StreamCompaction::SharedAndBank::scanNoMalloc(pow2roundedsize, dev_boolsThenIndices);
+			int indicesLAST;
+			cudaMemcpyAsync(&indicesLAST, dev_boolsThenIndices + n - 1, sizeof(int), cudaMemcpyDeviceToHost);
+			checkCUDAError("cudaMemcpy dev_indices to indicesLAST failed!");
+
+			StreamCompaction::SharedAndBank::kernScatter_PathSegment<<<gridDim, blockSize>>>(n, dev_idata, dev_boolsThenIndices);
+
+			//find the size of our new compacted array
+			cudaDeviceSynchronize();
+			const int size = indicesLAST + (0 >= boolsLAST ? 0 : 1);
 
 			//free everything
 			cudaFree(dev_boolsThenIndices);

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "stream_compaction/common.h"
 #include "intersections.h"
 
 __host__ __device__ bool isBlack(const glm::vec3 c) {
@@ -112,77 +113,9 @@ glm::vec3 calculateRandomDirectionInHemisphere(
         + sin(around) * over * perpendicularDirection2;
 }
 
-
-//from 561:
-//bool entering = CosTheta(wo) > 0.f;
-//float etaI = entering ? etaA : etaB;
-//float etaT = entering ? etaB : etaA;
-////compute ray direction for specular transmission, return 0 if total internal reflection
-//if(!Refract(wo, Faceforward(Normal3f(0,0,1), wo), etaI / etaT, wi)) {
-//    return Color3f(0.f);
-//}
-//*pdf = 1;
-//Color3f t = this->T * (1.f - this->fresnel->Evaluate(CosTheta(*wi)));
-//return t / AbsCosTheta(*wi);
 __host__ __device__
-void chooseTransmission(
-	PathSegment & path,
-	const ShadeableIntersection& isect,
-	const Material& m,
-	float& bxdfPDF,
-	glm::vec3& bxdfColor,
-	thrust::default_random_engine &rng, const bool isDielectric, const float probR) 
-{
-	//Determine if incoming or outgoing, adjust accordingly
-	const glm::vec3 normal = isect.surfaceNormal;
-	const glm::vec3 wo = -path.ray.direction;
-	const bool entering = cosTheta(normal, wo) > 0.f;
-	const glm::vec3 norm = (entering ? normal : -normal);
-	const float etaA = 1.f;
-	const float etaB = m.indexOfRefraction;
-	const float etaI = entering ? etaA : etaB;
-	const float etaT = entering ? etaB : etaA;
-
-	//Get wi.
-	glm::vec3 wi;
-	//wi = glm::refract(wo, norm, etaI / etaT);//refract expects ray pointing to where it came from?
-	//glm::refract
-	const float eta = etaI / etaT;
-    float k = 1.f - eta * eta * (1.f - glm::dot(norm, wo) * glm::dot(norm, wo));
-	if (k < 0.f) {
-		wi = glm::vec3(0.f);
-	} else {
-		wi = eta * wo - (eta * glm::dot(norm, wo) + sqrtf(k)) * norm;
-	}
-
-	//if(!Refract(-wo, Faceforward(normal, wo), etaI / etaT, wi)) {//Why is this -wo change neccessary(not in 561 code above)
-	//	bxdfColor = glm::vec3(0.f);//total internal reflection
-	//	bxdfPDF = 1.f;
-	//	return;
-	//}
-
-	//Set Color and PDF and path ray
-	const bool exiting = cosTheta(normal, wi) > 0.f;
-	path.ray.origin += (exiting ? normal*EPSILON : -normal*EPSILON);
-	path.ray.direction = wi;
-	const glm::vec3 colorT = m.specular.color;
-	if (isDielectric) {
-		bxdfColor = colorT * (1.f - evaluateFresnelDielectric(cosTheta(norm, wi), etaI, etaT)) / absCosTheta(norm, wi);
-		bxdfPDF = 1.f - probR;
-	} else {
-		bxdfColor = colorT / absCosTheta(norm, wi);
-		bxdfPDF = 1.f;
-	}
-}
-
-__host__ __device__
-void chooseReflection(
-	PathSegment & path,
-	const ShadeableIntersection& isect,
-	const Material& m,
-	float& bxdfPDF,
-	glm::vec3& bxdfColor,
-	thrust::default_random_engine &rng, const bool isDielectric, const float probR) 
+void chooseReflection( PathSegment & path, const ShadeableIntersection& isect, const Material& m,
+	float& bxdfPDF, glm::vec3& bxdfColor, thrust::default_random_engine &rng, const bool isDielectric, const float probR) 
 {
 	const glm::vec3 normal = isect.surfaceNormal;
 	const glm::vec3 wo = -path.ray.direction;
@@ -207,6 +140,48 @@ void chooseReflection(
 	}
 }
 
+//from 561:
+//bool entering = CosTheta(wo) > 0.f;
+//float etaI = entering ? etaA : etaB;
+//float etaT = entering ? etaB : etaA;
+////compute ray direction for specular transmission, return 0 if total internal reflection
+//if(!Refract(wo, Faceforward(Normal3f(0,0,1), wo), etaI / etaT, wi)) {
+//    return Color3f(0.f);
+//}
+//*pdf = 1;
+//Color3f t = this->T * (1.f - this->fresnel->Evaluate(CosTheta(*wi)));
+//return t / AbsCosTheta(*wi);
+__host__ __device__
+void chooseTransmission( PathSegment & path, const ShadeableIntersection& isect, const Material& m,
+	float& bxdfPDF, glm::vec3& bxdfColor, thrust::default_random_engine &rng, const bool isDielectric, const float probR) 
+{
+	//Determine if incoming or outgoing, adjust accordingly
+	const glm::vec3 normal = isect.surfaceNormal;
+	const glm::vec3 wo = -path.ray.direction;
+	const bool entering = cosTheta(normal, wo) > 0.f;
+	const glm::vec3 norm = (entering ? normal : -normal);
+	const float etaA = 1.f;
+	const float etaB = m.indexOfRefraction;
+	const float etaI = entering ? etaA : etaB;
+	const float etaT = entering ? etaB : etaA;
+
+	//Get wi.
+	glm::vec3 wi;
+	wi = glm::refract(wo, norm, etaI / etaT);
+
+	//Set Color and PDF and path ray
+	const bool exiting = glm::dot(normal, wi) > 0.f;
+	path.ray.origin += (exiting ? normal*EPSILON : -normal*EPSILON);
+	path.ray.direction = wi;
+	const glm::vec3 colorT = m.specular.color;
+	if (isDielectric) {
+		bxdfColor = colorT * (1.f - evaluateFresnelDielectric(cosTheta(norm, wi), etaI, etaT)) / absCosTheta(normal, wi);
+		bxdfPDF = 1.f - probR;
+	} else {
+		bxdfColor = colorT / absCosTheta(normal, wi);
+		bxdfPDF = 1.f;
+	}
+}
 /**
  * Scatter a ray with some probabilities according to the material properties.
  * For example, a diffuse surface scatters in a cosine-weighted hemisphere.
@@ -259,20 +234,21 @@ void scatterRayNaive(
 	path.ray.origin = getPointOnRay(path.ray, isect.t);
 	float avepdf = 0.f;
 	glm::vec3 avecolor(0.f);
+
+
 	if (!m.hasReflective && !m.hasRefractive) {//just diffuse
 		path.ray.origin += normal*EPSILON;
 		path.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
 		const glm::vec3 wi = path.ray.direction;
-		bxdfPDF = sameHemisphere(wo, wi) ? cosTheta(normal, wi)*InvPi: 0.f;
+		bxdfPDF = sameHemisphere(wo, wi) ? cosTheta(normal, wi)*InvPi : 0.f;
 		bxdfColor = m.color * InvPi;
-
 	} else if ( m.hasReflective && !m.hasRefractive) {//just reflective
 		chooseReflection(path, isect, m, bxdfPDF, bxdfColor, rng, false, 1.f);
 
-	} else if (!m.hasReflective &&  m.hasRefractive) {//just refraction
-		chooseTransmission(path, isect, m, bxdfPDF, bxdfColor, rng, true, 0);
+	} else if (!m.hasReflective &&  m.hasRefractive) {//just transmissive
+		chooseTransmission(path, isect, m, bxdfPDF, bxdfColor, rng, false, 0.f);
 		
-	} else if (m.hasReflective &&  m.hasRefractive) {//relective and refractive
+	} else if (m.hasReflective &&  m.hasRefractive) {//relective and transmissive
 		//determine reflect probability based on luminance 
 		const glm::vec3 colorR = m.color;
 		const glm::vec3 colorT = m.specular.color;
@@ -281,11 +257,38 @@ void scatterRayNaive(
 		const float probR = colorRLum / (colorRLum + colorTLum);
 
 		thrust::uniform_real_distribution<float> u01(0, 1);
-		if (u01(rng) < probR) {//reflect
+		if (u01(rng) < probR) {
 			chooseReflection(path, isect, m, bxdfPDF, bxdfColor, rng, true, probR);
-		} else {//refract
+
+		} else {
 			chooseTransmission(path, isect, m, bxdfPDF, bxdfColor, rng, true, probR);
 		}
 	}
 	path.ray.direction = glm::normalize(path.ray.direction);
+}
+
+//MIS light sampling
+__host__ __device__
+glm::vec3 sampleLight( const Geom& randLight, const Material& mlight,
+	const glm::vec3& isectpoint,
+	thrust::default_random_engine &rng,
+	glm::vec3& widirect, float& pdfdirect) 
+{
+
+	glm::vec3 lightsamplepoint; glm::vec3 lightsamplenormal;
+	if (randLight.type == GeomType::SPHERE) {//sphere has its own way of getting pdf
+		//glm::vec3 lightsamplepoint = surfaceSampleShere(
+		//	randLight, lightsamplenormal, isectpoint, rng, pdfdirect);
+	} else {
+		//glm::vec3 lightsamplepoint = surfaceSamplePlanarShapes(
+		//	randLight, lightsamplenormal, isectpoint, rng, pdfdirect);
+	}
+
+	if ( 0.f >= pdfdirect || glm::all(glm::equal(isectpoint, lightsamplepoint)) ) {
+		pdfdirect = 0;
+		return glm::vec3(0.f);
+	}
+	widirect = glm::normalize(lightsamplepoint - isectpoint);
+	return (glm::dot(lightsamplenormal, -widirect)) > 0.f ? 
+		mlight.color*mlight.emittance : glm::vec3(0.f);
 }

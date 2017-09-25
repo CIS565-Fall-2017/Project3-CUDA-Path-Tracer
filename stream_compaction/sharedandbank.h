@@ -1,8 +1,7 @@
-
 #pragma once
 
 #include "common.h"
-
+#include "src/sceneStructs.h"
 namespace StreamCompaction {
     namespace SharedAndBank {
         StreamCompaction::Common::PerformanceTimer& timer();
@@ -15,5 +14,12 @@ namespace StreamCompaction {
         void scanNoMalloc(const int n, int *dev_idata);
         int compact(const int n, int *odata, const int *idata);
         int compactNoMalloc(const int n, int *idata);
+
+		///////////////////////////////////////////
+		//////////////// PATH SEGMENT /////////////
+		///////////////////////////////////////////
+		__global__ void kernMapToBoolean_PathSegment(const int n, int* bools, const PathSegment* idata);
+		__global__ void kernScatter_PathSegment(const int n, PathSegment* idata,  const int *indices);
+        int compactNoMalloc_PathSegment(const int n, PathSegment* idata);
     }
 }

@@ -136,7 +136,7 @@ void runCuda() {
 
         // execute the kernel
         int frame = 0;
-        pathtrace(pbo_dptr, frame, iteration);
+		pathtrace(pbo_dptr, frame, iteration);// , renderState->traceDepth);
 
         // unmap buffer object
         cudaGLUnmapBufferObject(pbo);
@@ -184,7 +184,7 @@ void mousePositionCallback(GLFWwindow* window, double xpos, double ypos) {
     camchanged = true;
   }
   else if (rightMousePressed) {
-    zoom += (ypos - lastY) / height;
+    zoom += 20.f * (ypos - lastY) / height;
     zoom = std::fmax(0.1f, zoom);
     camchanged = true;
   }

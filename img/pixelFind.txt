@@ -1,4 +1,0 @@
-x = 799 - mspaintPixel;
-y = mspaintPixel
-
-top of sphere 400,350
