@@ -290,7 +290,7 @@ __global__ void pathTraceBasic(int iter, int num_paths,
 				if (pathSegment.remainingBounces == 0) {
 					return;
 				}
-				pathSegments[idx].color *= (materialColor * material.emittance * 3.0f);
+				pathSegments[idx].color *= (materialColor * material.emittance);
 				pathSegments[idx].remainingBounces = 0;
 			}
 			// Otherwise, do some pseudo-lighting computation. This is actually more
@@ -333,6 +333,35 @@ __global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterati
 		image[iterationPath.pixelIndex] += iterationPath.color;
 	}
 }
+
+//kernel to map pathSegments to boolean array
+
+__global__ void identifyValidPaths(int numPaths, PathSegment *pathSegments, int *bools)
+{
+	int idx = (blockIdx.x * blockDim.x) + threadIdx.x;
+	if (idx >= numPaths) {
+		return;
+	}
+	bools[idx] = (pathSegments[idx].remainingBounces > 0) ? 1 : 0;
+}
+
+//kernel to copy pathSegment indices to int array 
+__global__ void createPathSegmentIndicesArray(int numPaths, int *indices) {
+	int idx = threadIdx.x + (blockDim.x * blockIdx.x);
+	if (idx >= numPaths) {
+		return;
+	}
+	indices[idx] = idx;
+}
+
+
+
+//kernel to scatter pathSegments based on scanned boolean array
+
+
+//stream compaction function that calls the above 2 kernels 
+//calls the scan algorithm on the boolean array 
+//and returns the number of paths left
 
 /**
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
@@ -431,7 +460,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
     dev_materials
   );
   //Stream Compaction
-  //Compact dev_paths. 
+  //Compact dev_paths
   if (depth > 8) iterationComplete = true; // TODO: should be based off stream compaction results.
 	}
 

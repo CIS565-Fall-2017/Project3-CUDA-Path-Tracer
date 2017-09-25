@@ -85,7 +85,7 @@ void scatterRay(
 		ray.direction = glm::reflect(ray.direction, normal);
 	}
 	pathSegment.color *= m.color * glm::abs(glm::clamp(glm::dot(ray.direction, normal), 0.0f, 1.0f)) * 0.5f;
-	ray.origin = intersect;	
+	ray.origin = EPSILON * ray.direction + intersect;	
 
 
 }
