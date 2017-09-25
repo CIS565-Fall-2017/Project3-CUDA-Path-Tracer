@@ -31,12 +31,6 @@ struct Geom
     glm::mat4 invTranspose;
 };
 
-enum BxDFType {
-	BSDF_LAMBERT = 1 << 0,      // This BxDF represents diffuse energy scattering, which is uniformly random
-	BSDF_SPECULAR = 1 << 1,     // This BxDF handles specular energy scattering, which has no element of randomness
-	BSDF_ALL = BSDF_LAMBERT | BSDF_SPECULAR
-};
-
 struct Material 
 {
     glm::vec3 color;
@@ -46,21 +40,8 @@ struct Material
     } specular;
     float hasReflective;
     float hasRefractive;
-
-	bool transmissive;
+    float indexOfRefraction;
     float emittance;
-
-	int numBxDFs; // How many BxDFs this BSDF currently contains (init. 0)
-	const static int MaxBxDFs = 8; // How many BxDFs a single BSDF can contain
-	BxDFType bxdfs[MaxBxDFs]; // The collection of BxDFs contained in this BSDF
-
-	glm::mat3 worldToTangent; // Transforms rays from world space into tangent space,
-							  // where the surface normal is always treated as (0, 0, 1)
-	glm::mat3 tangentToWorld; // Transforms rays from tangent space into world space.
-							  // This is the inverse of worldToTangent (incidentally, inverse(worldToTangent) = transpose(worldToTangent))
-	Normal3f normal;          // May be the geometric normal OR the shading normal at the point of intersection.
-							  // If the Material that created this BSDF had a normal map, then this will be the latter.
-	float eta; // The ratio of indices of refraction at this surface point. Irrelevant for opaque surfaces.
 };
 
 struct Camera 

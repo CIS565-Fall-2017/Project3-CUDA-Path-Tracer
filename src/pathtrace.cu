@@ -402,7 +402,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 																	   dev_intersections,
 																	   dev_paths, dev_materials);
 
-		if (depth >= 3)
+		if (depth >= traceDepth)
 		{
 			iterationComplete = true;
 		}
