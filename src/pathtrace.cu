@@ -87,6 +87,10 @@ static ShadeableIntersection *dev_intersections_cached = NULL;
 static int *dev_pathIndicesByMaterial = NULL;
 static int *dev_intersectionIndicesByMaterial = NULL;
 
+static Geom *dev_lights = NULL;
+
+
+
 void pathtraceInit(Scene *scene) {
 	hst_scene = scene;
 	const Camera &cam = hst_scene->state.camera;
@@ -122,6 +126,9 @@ void pathtraceInit(Scene *scene) {
 	cudaMalloc(&dev_intersectionIndicesByMaterial, pixelcount * sizeof(int));
 	cudaMemset(dev_intersectionIndicesByMaterial, 0, pixelcount * sizeof(int));
 
+	// Get lights
+	cudaMalloc(&dev_lights, scene->geoms.size() * sizeof(Geom));
+
 	checkCUDAError("pathtraceInit");
 }
 
@@ -136,6 +143,7 @@ void pathtraceFree() {
 	cudaFree(dev_intersections_cached);
 	cudaFree(dev_pathIndicesByMaterial);
 	cudaFree(dev_intersectionIndicesByMaterial);
+	cudaFree(dev_lights);
 
 	checkCUDAError("pathtraceFree");
 }
@@ -311,12 +319,58 @@ __global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterati
 // Shading kernel with BSDF evaluations for:
 //		- Ideal diffuse surfaces (cosine-weighted scattering)
 //		- Perfectly specular-reflective surfaces
-__global__ void shadeMaterial(
+__global__ void shadeMaterialNaive(
 	int iter,
 	int num_paths,
 	ShadeableIntersection * shadeableIntersections,
 	PathSegment * pathSegments,
 	Material * materials,
+	int depth)
+{
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (idx < num_paths)
+	{
+		if (pathSegments[idx].remainingBounces == 0) {
+			return;
+		}
+
+		// Check if the ray hits anything
+		ShadeableIntersection intersection = shadeableIntersections[idx];
+		if (intersection.t <= 0.0f) {
+			pathSegments[idx].color = glm::vec3(0.0f);
+			pathSegments[idx].remainingBounces = 0;
+		}
+
+		// Use this without stream compaction
+		//thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
+		thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
+		thrust::uniform_real_distribution<float> u01(0, 1);
+
+		// See what kind of object the ray hit.
+		Material material = materials[intersection.materialId];
+		glm::vec3 materialColor = material.color;
+
+		// Ray hits the light.
+		if (material.emittance > 0.0f) {
+			pathSegments[idx].color *= (materialColor * material.emittance);
+			pathSegments[idx].remainingBounces = 0;
+		}
+		// Ray hits an object.
+		// Scatter the ray to get a new ray and update the color
+		else {
+			scatterRay(pathSegments[idx], intersection.intersectPoint, intersection.surfaceNormal, material, rng);
+			pathSegments[idx].remainingBounces--;
+		}
+	}
+}
+
+__global__ void shadeMaterialDirect(
+	int iter,
+	int num_paths,
+	ShadeableIntersection *shadeableIntersections,
+	PathSegment *pathSegments,
+	Material *materials,
+	Geom *geoms,
 	int depth)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -346,6 +400,27 @@ __global__ void shadeMaterial(
 			}
 			// Scatter the ray based on the material
 			else {
+				float pdf;
+				glm::vec3 wi;
+
+				// Pick a random light in the scene
+				// Cornell has 1 light at geoms[0]
+				int numLights = 1;
+
+				// Sample light
+				// Might have to convert point 
+				glm::vec3 li = Sample_Li(intersection, geoms[0].translation, wi, pdf, rng);
+
+				pdf /= numLights;
+
+				if (pdf == 0.f) {
+					// pathSegments[idx].color = light
+				}
+
+				// Instead of Sample_f, use f to get material color
+
+				// Test for shadows
+
 				scatterRay(
 					pathSegments[idx],
 					intersection.intersectPoint,
@@ -390,11 +465,27 @@ __global__ void sortByMaterial(int num_paths, ShadeableIntersection *intersectio
 
 struct endPath
 {
-	__host__ __device__ bool operator()(const PathSegment &pathSegment)
+	__host__ __device__ 
+	bool operator()(const PathSegment &pathSegment)
 	{
 		return pathSegment.remainingBounces > 0;
 	}
 };
+
+struct isLight
+{
+	__host__ __device__
+		bool operator()(const Geom &geometry)
+	{
+		//return dev_materials[geometry.materialid].emittance > 0;
+		return false;
+	}
+};
+
+//__global__ void getLights(Geom *geoms, Material *materials, Geom *lights)
+//{
+//
+//}
 
 /**
 * Wrapper for the __global__ call that sets up the kernel calls and does a ton
@@ -451,14 +542,21 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	int depth = 0;
 	PathSegment* dev_path_end = dev_paths + pixelcount;
 	int num_paths = dev_path_end - dev_paths;
-
 	int numActivePaths = num_paths;
+
+	// TODO
+	// Get lights from scene
+	//thrust::copy_if(thrust::device, dev_geoms, dev_geoms + hst_scene->geoms.size(), dev_lights, isLight());
+	//Geom *geoms = thrust::remove_if(thrust::device, dev_geoms, dev_geoms + 4, isLight());
+	//Geom *lights = new Geom[hst_scene->geoms.size()];
 
 	// --- PathSegment Tracing Stage ---
 	// Shoot ray into scene, bounce between objects, push shading chunks
 
 	bool iterationComplete = false;
+	//while (depth < traceDepth || numActivePaths > 0) {
 	while (!iterationComplete) {
+		
 		// clean shading chunks
 		cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
@@ -516,7 +614,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 				thrust::sort_by_key(thrust::device, dev_intersectionIndicesByMaterial, dev_intersectionIndicesByMaterial + num_paths, dev_intersections_cached);
 			}
 
-			shadeMaterial << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections_cached, dev_paths, dev_materials, depth);
+			shadeMaterialNaive << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections_cached, dev_paths, dev_materials, depth);
 		}
 		// Otherwise use the new ray.
 		else {
@@ -528,17 +626,17 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 				thrust::sort_by_key(thrust::device, dev_intersectionIndicesByMaterial, dev_intersectionIndicesByMaterial + num_paths, dev_intersections);
 			}
 
-			shadeMaterial << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections, dev_paths, dev_materials, depth);
+			shadeMaterialNaive << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections, dev_paths, dev_materials, depth);
 		}
 
-		depth++;
-
+		// Compact paths
 		// Puts all the paths with bounces > 0 towards the front of the array
 		PathSegment *activePaths = thrust::partition(thrust::device, dev_paths, dev_paths + numActivePaths, endPath());
 		// Update the number of active paths so we can only operate on those the next loop.
 		numActivePaths = activePaths - dev_paths;
 		
-		iterationComplete = (depth >= traceDepth || numActivePaths == 0); // TODO: should be based off stream compaction results.
+		depth++;
+		iterationComplete = (depth >= traceDepth || numActivePaths == 0);
 	}
 
 	// Assemble this iteration and apply it to the image

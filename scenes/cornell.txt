@@ -48,6 +48,16 @@ REFR        0
 REFRIOR     0
 EMITTANCE   0
 
+// Transmissive white
+MATERIAL 5
+RGB         .98 .98 .98
+SPECEX      0
+SPECRGB     .98 .98 .98
+REFL        0
+REFR        1
+REFRIOR     2
+EMITTANCE   0
+
 // Camera
 CAMERA
 RES         800 800
@@ -111,7 +121,7 @@ SCALE       .01 10 10
 // Sphere
 OBJECT 6
 sphere
-material 1
+material 5
 TRANS       -1 4 -1
 ROTAT       0 0 0
 SCALE       3 3 3

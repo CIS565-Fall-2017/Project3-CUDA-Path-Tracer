@@ -44,9 +44,6 @@ glm::vec3 calculateRandomDirectionInHemisphere(
 }
 
 #define INVPI 0.31830988618379067154f
-// TODO
-#define etaI 0.f
-#define etaT 0.f
 
 __host__ __device__
 bool SameHemisphere(glm::vec3 &w, glm::vec3 &wp)
@@ -55,7 +52,7 @@ bool SameHemisphere(glm::vec3 &w, glm::vec3 &wp)
 }
 
 __host__ __device__ float CosTheta(glm::vec3 wi, glm::vec3 n) {
-	return glm::dot(n, wi) / (glm::length(wi) * glm::length(n));
+	return glm::dot(n, wi);
 }
 
 __host__ __device__ float AbsCosTheta(glm::vec3 wi, glm::vec3 n) {
@@ -67,40 +64,71 @@ float getPdf(glm::vec3 &wo, glm::vec3 &wi, glm::vec3 &n)
 	return SameHemisphere(wo, wi) ? AbsCosTheta(wi, n) * INVPI : 0;
 }
 
-//__host__ __device__
-//glm::vec3 fresnelDielectric(glm::vec3 &wo, glm::vec3 &wi, glm::vec3 &normal)
-//{
-//	float cosThetaI = glm::clamp(CosTheta(wi, normal), -1.f, 1.f);
-//
-//	bool entering = cosThetaI > 0.f;
-//
-//	if (!entering) {
-//		cosThetaI = glm::abs(cosThetaI);
-//	}
-//
-//	float sinThetaI = glm::sqrt(glm::max(0.f, 1 - cosThetaI * cosThetaI));
-//
-//	float sinThetaT = etaI / etaT * sinThetaI;
-//
-//	if (!entering) {
-//		sinThetaT = etaT / etaI * sinThetaI;
-//	}
-//
-//	if (sinThetaT >= 1.f) {
-//		return glm::vec3(1.f);
-//	}
-//
-//	float cosThetaT = glm::sqrt(glm::max(0.f, 1 - sinThetaT * sinThetaT));
-//
-//	float Rparl = ((etaT * cosThetaI) - (etaI * cosThetaT)) / ((etaT * cosThetaI) + (etaI * cosThetaT));
-//	float Rperp = ((etaI * cosThetaI) - (etaT * cosThetaT)) / ((etaI * cosThetaI) + (etaT * cosThetaT));
-//
-//	float fr = Rparl * Rparl;
-//	fr += Rperp * Rperp;
-//	fr /= 2.f;
-//
-//	return glm::vec3(fr);
-//}
+__host__ __device__
+glm::vec3 fresnelDielectric(glm::vec3 &wo, glm::vec3 &wi, glm::vec3 &normal, float etaI, float etaT)
+{
+	float cosThetaI = glm::clamp(CosTheta(wi, normal), -1.f, 1.f);
+
+	bool entering = cosThetaI > 0.f;
+	if (!entering) {
+		float temp = etaI;
+		etaI = etaT;
+		etaT = temp;
+
+		cosThetaI = glm::abs(cosThetaI);
+	}
+
+	// Snell's law
+	float sinThetaI = glm::sqrt(glm::max(0.f, 1 - cosThetaI * cosThetaI));
+	float sinThetaT = etaI / etaT * sinThetaI;
+
+	// Total internal reflection
+	if (sinThetaT >= 1.f) {
+		return glm::vec3(1.f);
+	}
+
+	float cosThetaT = glm::sqrt(glm::max(0.f, 1 - sinThetaT * sinThetaT));
+
+	float Rparl = ((etaT * cosThetaI) - (etaI * cosThetaT)) / ((etaT * cosThetaI) + (etaI * cosThetaT));
+	float Rperp = ((etaI * cosThetaI) - (etaT * cosThetaT)) / ((etaI * cosThetaI) + (etaT * cosThetaT));
+
+	float fr = Rparl * Rparl;
+	fr += Rperp * Rperp;
+	fr /= 2.f;
+
+	return glm::vec3(fr);
+}
+
+__host__ __device__
+bool Refract(glm::vec3 &wi, glm::vec3 &n, float eta, glm::vec3 &wt)
+{
+	// Compute cos theta using Snell's law
+	float cosThetaI = glm::dot(n, wi);
+	float sin2ThetaI = glm::max(float(0), float(1 - cosThetaI * cosThetaI));
+	float sin2ThetaT = eta * eta * sin2ThetaI;
+
+	// Handle total internal reflection for transmission
+	if (sin2ThetaT >= 1) return false;
+	float cosThetaT = std::sqrt(1 - sin2ThetaT);
+	wt = eta * -wi + (eta * cosThetaI - cosThetaT) * glm::vec3(n);
+
+	return true;
+}
+
+__host__ __device__
+glm::vec3 Faceforward(const glm::vec3 &n, const glm::vec3 &v)
+{
+	return (glm::dot(n, v) < 0.f) ? -n : n;
+}
+
+__host__ __device__
+void spawnRay(PathSegment &pathSegment, const glm::vec3 &normal, const glm::vec3 &wi, const glm::vec3 &intersect)
+{
+	glm::vec3 originOffset = normal * EPSILON;
+	originOffset = (glm::dot(wi, normal) > 0) ? originOffset : -originOffset;
+	pathSegment.ray.origin = intersect + originOffset;
+	pathSegment.ray.direction = wi;
+}
 
 /**
 * Scatter a ray with some probabilities according to the material properties.
@@ -145,13 +173,58 @@ void scatterRay(
 	float pdf;
 
 	// Reflective Surface
-	if (m.hasReflective == 1) {
+	if (m.hasReflective) {
 		wi = glm::reflect(-wo, normal);
 
 		pdf = 1.f;
 		color *= m.specular.color;
 
-		//color *= fresnelDielectric(wo, wi, normal) * m.specular.color / AbsCosTheta(wi, normal);
+		// Set up ray direction for next bounce
+		spawnRay(pathSegment, normal, wi, intersect);
+
+		// Update color
+		pathSegment.color *= color;
+	}
+	// Refractive Surface
+	else if (m.hasRefractive) {
+		// Needa fix PBRT implementation
+		//bool entering = CosTheta(wo, normal) > 0;
+
+		//float etaA = 1.f;
+		//float etaB = m.indexOfRefraction;
+		//float etaI = entering ? etaA : etaB;
+		//float etaT = entering ? etaB : etaA;
+
+		//if (!Refract(wo, Faceforward(glm::vec3(0, 0, 1), wo), etaI / etaT, wi)) {
+		//	pdf = 0.f;
+		//	color = glm::vec3(0.f);
+		//}
+		//else {
+		//	pdf = 1.f;
+		//	color = m.color * (glm::vec3(1.f) - fresnelDielectric(wo, wi, normal, etaI, etaT)) / AbsCosTheta(wi, normal);
+		//	//color = m.color / AbsCosTheta(nor, wi);
+		//}
+
+		float n1 = 1.f;					// air
+		float n2 = m.indexOfRefraction;	// material
+
+		// CosTheta > 0 --> ray outside
+		// CosTheta < 0 --> ray inside
+		bool entering = CosTheta(normal, -wo) > 0;
+		if (!entering) {
+			n2 = 1.f / m.indexOfRefraction;
+		}
+
+		// Schlick's Approximation
+		float r0 = powf((1 - n1) / (1 + n2), 2.f);
+		float rTheta = r0 + (1 - r0) * powf(1 - CosTheta(-wo, normal), 5.f);
+		
+		// Snell's Law
+		wi = glm::normalize(glm::refract(-wo, normal, n2));
+		// spawnRay() doesn't work?
+		pathSegment.ray.direction = wi;
+		// Update color
+		pathSegment.color *= m.specular.color;
 	}
 	// Diffuse Surface
 	else {
@@ -159,25 +232,36 @@ void scatterRay(
 		
 		pdf = getPdf(wo, wi, normal);
 		color *= INVPI * m.color;
+
+		if (pdf > 0.f) {
+			pathSegment.color /= pdf;
+		}
+		else {
+			pathSegment.color = glm::vec3(0.f);
+		}
+
+		// Set up ray direction for next bounce
+		spawnRay(pathSegment, normal, wi, intersect);
+
+		// Update color
+		pathSegment.color *= color;
 	}
 
-	glm::vec3 originOffset = normal * EPSILON;
-	originOffset = (glm::dot(wi, normal) > 0) ? originOffset : -originOffset;
-
-	// Set up the new ray
-	pathSegment.ray.origin = intersect + originOffset;
-	pathSegment.ray.direction = wi;
-	// Update color
 	float absdot = glm::abs(glm::dot(wi, normal));
-	pathSegment.color *= color * absdot;
+	pathSegment.color *= absdot;
+}
 
-	if (pdf > 0.f) {
-		pathSegment.color /= pdf;
-	}
-	else {
-		pathSegment.color = glm::vec3(0.f);
-	}
 
-	// Update bounces
-	pathSegment.remainingBounces--;
+// TODO
+// Diffuse Area Light
+__host__ __device__
+glm::vec3 Sample_Li(const ShadeableIntersection &ref, 
+					const glm::vec3 &lightPos,
+					glm::vec3 &wi,
+					float &pdf,
+					thrust::default_random_engine &rng)
+{
+	wi = glm::normalize(lightPos - ref.intersectPoint);
+
+	return glm::vec3(0.f);
 }
