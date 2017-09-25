@@ -115,6 +115,28 @@ void pathtraceFree()
     checkCUDAError("pathtraceFree");
 }
 
+__host__ __device__ Point3f sampling_SquareToDiskConcentric(const Point2f &sample)
+{
+	glm::vec2 sampleOffset = 2.0f*sample - glm::vec2(1, 1);
+	if (sampleOffset.x == 0 && sampleOffset.y == 0)
+	{
+		return Point3f(0.0f, 0.0f, 0.0f);
+	}
+
+	float theta, r;
+	if (std::abs(sampleOffset.x) > std::abs(sampleOffset.y))
+	{
+		r = sampleOffset.x;
+		theta = (PI / 4.0f) * (sampleOffset.y / sampleOffset.x);
+	}
+	else
+	{
+		r = sampleOffset.y;
+		theta = (PI / 2.0f) - (PI / 4.0f) * (sampleOffset.x / sampleOffset.y);
+	}
+	return r*Point3f(std::cos(theta), std::sin(theta), 0.0f);
+}
+
 /**
 * Generate PathSegments with rays from the camera through the screen into the
 * scene, which is the first bounce of rays.
@@ -141,10 +163,24 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		thrust::uniform_real_distribution<float> u01(-1, 1);
 		float x_offset = u01(rng);
 		float y_offset = u01(rng);
+
 		segment.ray.direction = glm::normalize(cam.view
 											   - cam.right * cam.pixelLength.x * ((float)x - x_offset - (float)cam.resolution.x * 0.5f)
 											   - cam.up * cam.pixelLength.y * ((float)y - y_offset - (float)cam.resolution.y * 0.5f)
 											  );
+
+		// Dynamically adjustable Depth of Field
+		if (cam.lensRadius>EPSILON)
+		{
+			//picking a samplepoint on the lens and then changing it according to the lens properties
+			Point2f xi = Point2f(u01(rng), u01(rng));
+			Point3f pLens = cam.lensRadius * sampling_SquareToDiskConcentric(xi);
+			Point3f pFocus = cam.focalDistance * segment.ray.direction + segment.ray.origin;
+			Point3f aperaturePoint = segment.ray.origin + (cam.up * pLens.y) + (cam.right * pLens.x);
+
+			segment.ray.origin = aperaturePoint;
+			segment.ray.direction = glm::normalize(pFocus - aperaturePoint);
+		}
 
 		segment.pixelIndex = index;
 		segment.remainingBounces = traceDepth;

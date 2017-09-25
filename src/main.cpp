@@ -18,6 +18,8 @@ static glm::vec3 cammove;
 float zoom, theta, phi;
 glm::vec3 cameraPosition;
 glm::vec3 ogLookAt; // for recentering the camera
+static float cam_lensRadius;
+static float cam_focalDistance;
 
 Scene *scene;
 RenderState *renderState;
@@ -49,6 +51,9 @@ int main(int argc, char** argv) {
     Camera &cam = renderState->camera;
     width = cam.resolution.x;
     height = cam.resolution.y;
+
+	cam_lensRadius = 0.1f;
+	cam_focalDistance = 5.0f;
 
     glm::vec3 view = cam.view;
     glm::vec3 up = cam.up;
@@ -98,8 +103,10 @@ void saveImage() {
     //img.saveHDR(filename);  // Save a Radiance HDR file
 }
 
-void runCuda() {
-    if (camchanged) {
+void runCuda() 
+{
+    if (camchanged) 
+	{
         iteration = 0;
         Camera &cam = renderState->camera;
         cameraPosition.x = zoom * sin(phi) * sin(theta);
@@ -116,6 +123,10 @@ void runCuda() {
         cam.position = cameraPosition;
         cameraPosition += cam.lookAt;
         cam.position = cameraPosition;
+
+		cam.lensRadius = cam_lensRadius;
+		cam.focalDistance = cam_focalDistance;
+
         camchanged = false;
       }
 
@@ -147,22 +158,44 @@ void runCuda() {
 }
 
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-    if (action == GLFW_PRESS) {
-      switch (key) {
-      case GLFW_KEY_ESCAPE:
-        saveImage();
-        glfwSetWindowShouldClose(window, GL_TRUE);
-        break;
-      case GLFW_KEY_S:
-        saveImage();
-        break;
-      case GLFW_KEY_SPACE:
-        camchanged = true;
-        renderState = &scene->state;
-        Camera &cam = renderState->camera;
-        cam.lookAt = ogLookAt;
-        break;
-      }
+    if (action == GLFW_PRESS) 
+	{
+		renderState = &scene->state;
+		Camera cam = renderState->camera;
+		switch (key) 
+		{
+			case GLFW_KEY_ESCAPE:
+				saveImage();
+				glfwSetWindowShouldClose(window, GL_TRUE);
+				break;
+			case GLFW_KEY_S:
+				saveImage();
+				break;
+			case GLFW_KEY_SPACE:
+				camchanged = true;
+				cam.lookAt = ogLookAt;
+				break;
+			case GLFW_KEY_W:
+				camchanged = true;
+				cam_lensRadius += 0.1f;
+				printf("lens Radius: %f\n", cam.lensRadius);
+				break;
+			case GLFW_KEY_Q:
+				camchanged = true;
+				cam_lensRadius = cam_lensRadius > 0.1f ? cam_lensRadius - 0.1f : 0.0f;
+				printf("lens Radius: %f\n", cam.lensRadius);
+				break;
+			case GLFW_KEY_R:
+				camchanged = true;
+				cam_focalDistance += 0.1f;
+				printf("focal Distance: %f\n", cam.focalDistance);
+				break;
+			case GLFW_KEY_E:
+				camchanged = true;
+				cam_focalDistance = cam_focalDistance > 0.1f ? cam_focalDistance - 0.1f : 0.0f;
+				printf("focal Distance: %f\n", cam.focalDistance);
+				break;
+		}
     }
 }
 
