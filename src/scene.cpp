@@ -95,6 +95,9 @@ int Scene::loadCamera() {
     Camera &camera = state.camera;
     float fovy;
 
+	camera.focusDistance = 5.0f;
+	camera.lensRadius = 0.1f;
+
     //load static properties
     for (int i = 0; i < 5; i++) {
         string line;
