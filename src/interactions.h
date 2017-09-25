@@ -41,6 +41,76 @@ glm::vec3 calculateRandomDirectionInHemisphere(
         + sin(around) * over * perpendicularDirection2;
 }
 
+// squareToDiskConcentric sampling from CIS 561
+__host__ __device__
+glm::vec2 squareToDiskConcentric(const glm::vec2 &sample)
+{
+  float phi, r, u, v;
+  float a = 2.0f * sample[0] - 1.0f; // a and b are in range [-1,1]
+  float b = 2.0f * sample[1] - 1.0f;
+  if (a > -b) // region 1 or 2
+  {
+    if (a > b) // region 1, also |a| > |b|
+    {
+      r = a;
+      phi = PiOver4 * (b / a);
+    }
+    else // region 2, also |b| > |a|
+    {
+      r = b;
+      phi = PiOver4 * (2.0f - (a / b));
+    }
+  }
+  else // region 3 or 4
+  {
+    if (a < b) // region 3, also |a| >= |b|, a != 0
+    {
+      r = -a;
+      phi = PiOver4 * (4.0f + (b / a));
+    }
+    else // region 4, |b| >= |a|, but a==0 and b==0 could occur.
+    {
+      r = -b;
+      if (b != 0.0f)
+        phi = PiOver4 * (6.0f - (a / b));
+      else
+        phi = 0.0f;
+    }
+  }
+  u = r*std::cos(phi);
+  v = r*std::sin(phi);
+  return glm::vec2(u, v);
+}
+
+// PBRT like Thin Lens Camera..
+__host__ __device__
+void applyDof(Ray &ray, thrust::default_random_engine &rng, Camera cam)
+{
+  if (cam.lensRadius > 0)
+  {
+    //    Generate Sample
+    thrust::uniform_real_distribution<float> u01(0, 1);
+    glm::vec2 p(u01(rng),u01(rng));
+   
+    // FIX THIS
+   /* WarpFunctions wf;
+    p = Point2f(wf.squareToDiskConcentric(p));*/
+    p = squareToDiskConcentric(p);
+
+    //    scale to get a point on lens
+    glm::vec2 pLens = cam.lensRadius * p;
+
+    //    Compute point on plane of focus
+    glm::vec3 pFocus = cam.focalLength * ray.direction + ray.origin;
+
+    //    Update ray for effect of lens
+    ray.origin = ray.origin + (cam.up*pLens.y) + (cam.right*pLens.x);
+    ray.direction = glm::normalize(pFocus - ray.origin);
+  }
+}
+
+
+
 /**
  * Scatter a ray with some probabilities according to the material properties.
  * For example, a diffuse surface scatters in a cosine-weighted hemisphere.
@@ -80,14 +150,10 @@ void scatterRay(
   glm::vec3 col(1.f);
   glm::vec3 dir;
 
-  //if (m.emittance > 0.0f) {
-  //  col *= m.color * m.emittance;
-  //  pathSegment.remainingBounces = 0;
-  //}
-
   if (m.hasReflective) {
     dir = glm::reflect(pathSegment.ray.direction, normal); // pure specular reflection
     col *= m.specular.color * m.color;
+    pathSegment.ray.origin = intersect + normal * EPSILON; // double check this..
   }
   else if (m.hasRefractive) {
     // ..
@@ -98,22 +164,28 @@ void scatterRay(
           dir = calculateRandomDirectionInHemisphere(normal, rng);
           col *= m.color * 2.f;
       // REFRACTIVE
-          /*float ior = !pathSegment.refractEnter ? m.indexOfRefraction : 1.f / m.indexOfRefraction;
-          dir = glm::refract(pathSegment.ray.direction, normal, ior);
-          col *= m.color * 1.f;
-          pathSegment.refractEnter = !pathSegment.refractEnter;*/
+          //float ior = pathSegment.refractEnter ? m.indexOfRefraction : 1.f / m.indexOfRefraction;
+          //dir = glm::refract(pathSegment.ray.direction, normal, ior);
+          //col *= m.color * 1.f;
+
+          //glm::vec3 nor = pathSegment.refractEnter ? normal : -normal;
+          pathSegment.ray.origin = intersect + normal * EPSILON; // double check this..
+
+          //pathSegment.refractEnter = !pathSegment.refractEnter;
     }
     else {
       dir = glm::reflect(pathSegment.ray.direction, normal); // pure specular reflection
       col *= m.specular.color * 2.f;
+      pathSegment.ray.origin = intersect + normal * EPSILON; // double check this..
     }
   }
   else {
     dir = calculateRandomDirectionInHemisphere(normal, rng);
     col *= m.color;//*InvPI;
+    pathSegment.ray.origin = intersect + normal * EPSILON; // double check this..
   }
 
   pathSegment.color *= fabs(glm::dot(normal, dir)) * col;
   pathSegment.ray.direction = glm::normalize(dir);
-  pathSegment.ray.origin = intersect + normal * EPSILON; // double check this..
+  //pathSegment.ray.origin = intersect + normal * EPSILON; // double check this..
 }

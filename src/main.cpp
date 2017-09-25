@@ -117,6 +117,9 @@ void runCuda() {
         cameraPosition += cam.lookAt;
         cam.position = cameraPosition;
         camchanged = false;
+
+        /*cam.focalLength = 5.0f;
+        cam.lensRadius = 0.2f;*/
       }
 
     // Map OpenGL buffer object for writing from CUDA on a single GPU

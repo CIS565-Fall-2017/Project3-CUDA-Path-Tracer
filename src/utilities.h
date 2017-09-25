@@ -15,6 +15,7 @@
 #define EPSILON           0.00001f
 
 #define InvPi 0.31830988618379067154f
+#define PiOver4 0.78539816339744830961f
 
 #ifndef imax
 #define imax( a, b ) ( ((a) > (b)) ? (a) : (b) )
