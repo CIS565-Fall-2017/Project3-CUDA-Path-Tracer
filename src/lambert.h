@@ -45,6 +45,8 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(glm::vec3 nor
 		+ sin(around) * over * perpendicularDirection2;
 }
 
+__host__ __device__ float AbsCosTheta(const Vector3f &w) { return std::abs(w.z); }
+
 __host__ __device__ glm::vec3 f_Lambert(const Material &m, glm::vec3& wo, glm::vec3& wi)
 {
 	return m.color*INVPI;
@@ -52,7 +54,7 @@ __host__ __device__ glm::vec3 f_Lambert(const Material &m, glm::vec3& wo, glm::v
 
 __host__ __device__ float pdf_Lambert(glm::vec3& wo, glm::vec3& wi)
 {
-	return utilityCore::AbsCosTheta(wi)*INVPI;
+	return AbsCosTheta(wi)*INVPI;
 }
 
 __host__ __device__ glm::vec3 sample_f_Lambert(const Material &m, const matPropertiesPerIntersection &mproperties,

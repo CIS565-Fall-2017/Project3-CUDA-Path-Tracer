@@ -241,8 +241,8 @@ __host__ __device__ void UpdateTangentSpaceMatrices(glm::mat3& tangentToWorld, g
 	worldToTangent = glm::transpose(tangentToWorld);
 }
 
-//generate a BSDF by setting material properties sucha s normal, and tbn matrices
-__global__ void produceBSDF(int num_paths, PathSegment * pathSegments, 
+//Setting material properties such as normal, and tbn matrices
+__global__ void setTBN(int num_paths, PathSegment * pathSegments, 
 							ShadeableIntersection * intersections, Material * materials, 
 							matPropertiesPerIntersection* matProperties)
 {
@@ -254,7 +254,7 @@ __global__ void produceBSDF(int num_paths, PathSegment * pathSegments,
 		if (bool(material.numBxDFs > 0))
 		{
 			//initialize the default values for tbn and normal
-			matProperties[idx].normal = intersection.surfaceNormal;
+			matProperties[idx].normal = glm::vec3(0, 0, 1);//intersection.surfaceNormal;//
 			//Update bsdf's TBN matrices to support the new normal
 			Vector3f tangent, bitangent;
 			CoordinateSystem(matProperties[idx].normal, tangent, bitangent);
@@ -265,58 +265,9 @@ __global__ void produceBSDF(int num_paths, PathSegment * pathSegments,
 		{
 			matProperties[idx].worldToTangent = glm::mat3(); //identity mat3
 			matProperties[idx].tangentToWorld = glm::mat3(); //identity mat3
-			matProperties[idx].normal = glm::vec3(0, 1, 0); //world up
+			matProperties[idx].normal = glm::vec3(0, 0, 1); //world up
 		}
 	}
-}
-
-// LOOK: "fake" shader demonstrating what you might do with the info in
-// a ShadeableIntersection, as well as how to use thrust's random number
-// generator. Observe that since the thrust random number generator basically
-// adds "noise" to the iteration, the image should start off noisy and get
-// cleaner as more iterations are computed.
-//
-// Note that this shader does NOT do a BSDF evaluation!
-// Your shaders should handle that - this can allow techniques such as
-// bump mapping.
-__global__ void shadeFakeMaterial (int iter, int num_paths, 
-					ShadeableIntersection * shadeableIntersections, 
-					PathSegment * pathSegments, Material * materials)
-{
-  int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx < num_paths)
-  {
-    ShadeableIntersection intersection = shadeableIntersections[idx];
-    if (intersection.t > 0.0f) { // if the intersection exists...
-      // Set up the RNG
-      // LOOK: this is how you use thrust's RNG! Please look at
-      // makeSeededRandomEngine as well.
-      thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
-      thrust::uniform_real_distribution<float> u01(0, 1);
-
-      Material material = materials[intersection.materialId];
-      glm::vec3 materialColor = material.color;
-
-      // If the material indicates that the object was a light, "light" the ray
-      if (material.emittance > 0.0f) {
-        pathSegments[idx].color *= (materialColor * material.emittance);
-      }
-      // Otherwise, do some pseudo-lighting computation. This is actually more
-      // like what you would expect from shading in a rasterizer like OpenGL.
-      // TODO: replace this! you should be able to start with basically a one-liner
-      else {
-        float lightTerm = glm::dot(intersection.surfaceNormal, glm::vec3(0.0f, 1.0f, 0.0f));
-        pathSegments[idx].color *= (materialColor * lightTerm) * 0.3f + ((1.0f - intersection.t * 0.02f) * materialColor) * 0.7f;
-        pathSegments[idx].color *= u01(rng); // apply some noise because why not
-      }
-	// If there was no intersection, color the ray black.
-	// Lots of renderers use 4 channel color, RGBA, where A = alpha, often
-	// used for opacity, in which case they can indicate "no opacity".
-	// This can be useful for post-processing and image compositing.
-	} else {
-		pathSegments[idx].color = glm::vec3(0.0f);
-	}
-  }
 }
 
 __global__ void shadeMaterials(int iter, int num_paths,
@@ -352,14 +303,13 @@ __global__ void shadeMaterials(int iter, int num_paths,
 			pathSegments[idx].color *= material.color*material.emittance;
 			pathSegments[idx].remainingBounces = 0; //equivalent of breaking out of the thread
 			return;
-		}
-
-		// if the intersection exists and the itersection is not a light then
+		}		
 		
 		// Set up the RNG
 		thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
 		thrust::uniform_real_distribution<float> u01(0, 1);
-			
+
+		// if the intersection exists and the itersection is not a light then
 		//deal with the material and end up changing the pathSegment color and its ray direction
 		scatterRay(pathSegments[idx], intersection, material, matProperty, rng);
 	}
@@ -441,6 +391,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 	{
 		// clean shading chunks
 		cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
+		cudaMemset(dev_matProperties, 0, pixelcount * sizeof(matPropertiesPerIntersection));
 
 		// tracing
 		dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
@@ -454,8 +405,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 		cudaDeviceSynchronize();
 
 		//set some material properties --> tbn matrices and normal
-		produceBSDF <<<numblocksPathSegmentTracing, blockSize1d>>> (num_paths, dev_paths, dev_intersections, dev_GlobalMaterialsList, dev_matProperties);
-		checkCUDAError("produceBSDF Failed!");
+		setTBN <<<numblocksPathSegmentTracing, blockSize1d>>> (num_paths, dev_paths, dev_intersections, dev_GlobalMaterialsList, dev_matProperties);
+		checkCUDAError("setTBN Failed!");
 		cudaDeviceSynchronize();
 
 		depth++;
@@ -464,8 +415,6 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 		// --- Shading Stage ---
 		// Shade path segments based on intersections and generate new rays by
 		// evaluating the BSDF.
-		// Start off with just a big kernel that handles all the different
-		// materials you have in the scenefile.
 		// TODO: compare between directly shading the path segments and shading
 		// path segments that have been reshuffled to be contiguous in memory.
 	
@@ -474,7 +423,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 																	   dev_paths, dev_GlobalMaterialsList,
 																	   dev_matProperties);
 
-		if (depth >= 3)// TODO: should be based off stream compaction results.
+		if (depth >= traceDepth)// TODO: should be based off stream compaction results.
 		{
 			iterationComplete = true;
 		}

@@ -46,7 +46,6 @@ __host__ __device__ void scatterRay(PathSegment & pathSegment, const ShadeableIn
 									thrust::default_random_engine &rng)
 {
 	// Update the ray and color associated with the pathSegment
-
 	glm::vec3 woW = -pathSegment.ray.direction;
 	glm::vec3 wiW;
 	float pdf;
@@ -54,17 +53,18 @@ __host__ __device__ void scatterRay(PathSegment & pathSegment, const ShadeableIn
 	glm::vec3 f = Color3f(0.0f);
 
 	f = sample_f(m, mproperties, rng, woW, wiW, pdf, sampledType); //returns a color, sets wi, sets pdf, sets sampledType
-	if (pdf == 0.0f)
-	{
-		pathSegment.color = Color3f(0.0f);
-	}
 
 	//set up new ray direction
 	pathSegment.ray = spawnNewRay(intersection, wiW);
 
-	float absDot = utilityCore::AbsDot(wiW, intersection.surfaceNormal);
+	if (pdf == 0.0f)
+	{
+		return;
+	}
+
+	float absDot = glm::abs(glm::dot(wiW, intersection.surfaceNormal));
 	Color3f emittedLight = m.emittance*m.color;
 
-	pathSegment.color = (emittedLight + f*pathSegment.color*absDot)/pdf;
+	pathSegment.color = (emittedLight + f*pathSegment.color*absDot) / pdf;// f / pdf;// 
 	pathSegment.remainingBounces--;
 }
