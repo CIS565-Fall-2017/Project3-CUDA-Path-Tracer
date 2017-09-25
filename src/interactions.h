@@ -89,10 +89,11 @@ void scatterRay(
 		float ei = 1.0f;
 		float eo = m.indexOfRefraction;
 
-		bool isInside = (glm::dot(pathSegment.ray.direction, normal) > 0);
-		float et = isInside ? eo / ei : ei / eo;
+		bool isOutside = glm::dot(pathSegment.ray.direction, normal) < 0;
+		float et = isOutside ? eo / ei : ei / eo;
+		float n = isOutside ? 1 : -1;
 
-		newdirection = glm::refract(pathSegment.ray.direction, normal, et);
+		newdirection = glm::refract(pathSegment.ray.direction, n * normal, et);
 		pathSegment.color *= m.specular.color * m.hasRefractive;
 	} 
 	else {

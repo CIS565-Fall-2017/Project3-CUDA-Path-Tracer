@@ -3,7 +3,9 @@
 #include <cmath>
 #include <thrust/execution_policy.h>
 #include <thrust/random.h>
-//#include <thrust/remove.h>
+#include <thrust/remove.h>
+#include <thrust/partition.h>
+#include <thrust/device_ptr.h>
 
 #include "stream_compaction\efficient.h"
 #include "sceneStructs.h"
@@ -17,10 +19,13 @@
 
 #define ERRORCHECK 1
 
-// optimization flags
+// option flags
 #define THRUST 0
+#define COMPACT 1
 #define CONTIG_MAT 0
 #define CACHE_FIRST 0
+
+#define ANTI_ALIAS 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -142,16 +147,28 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 	int y = (blockIdx.y * blockDim.y) + threadIdx.y;
 
 	if (x < cam.resolution.x && y < cam.resolution.y) {
+
 		int index = x + (y * cam.resolution.x);
 		PathSegment & segment = pathSegments[index];
+
+		float dx = 0;
+		float dy = 0;
+
+#if ANTI_ALIAS
+		thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, segment.remainingBounces);
+		thrust::uniform_real_distribution<float> u01(0, 1);
+
+		dx = u01(rng) - 0.5;
+		dy = u01(rng) - 0.5;
+#endif
 
 		segment.ray.origin = cam.position;
 		segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
 		// TODO: implement antialiasing by jittering the ray
 		segment.ray.direction = glm::normalize(cam.view
-			- cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
-			- cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
+			- cam.right * cam.pixelLength.x * ((float)x + dx - (float)cam.resolution.x * 0.5f)
+			- cam.up * cam.pixelLength.y * ((float)y + dy - (float)cam.resolution.y * 0.5f)
 		);
 
 		segment.pixelIndex = index;
@@ -351,11 +368,11 @@ __global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterati
 	}
 }
 
-struct isNotZero
+struct is_zero
 {
 	__host__ __device__
-		bool operator()(const int & a) {
-		return a != 0;
+	bool operator()(const int &a) {
+		return a > 0;
 	}
 };
 
@@ -453,21 +470,24 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 			dev_intersections,
 			dev_paths,
 			dev_indices,
-			dev_materials
-			);
+			dev_materials);
 
 		if (depth >= traceDepth) {
 			iterationComplete = true;
 		} else {
+#if COMPACT
 #if THRUST
-			int *new_end = thrust::remove_if(dev_indices, dev_indices + num_paths, dev_indices, isNotZero());
+
+			int* new_end = thrust::partition(dev_indices, dev_indices + num_paths, is_zero());
 			num_paths = new_end - dev_indices;
 #else
 			num_paths = StreamCompaction::Efficient::compact(num_paths, dev_indices, dev_indices);
+			
+#endif // end thrust if
 			if (num_paths <= 0) {
 				iterationComplete = true;
-			}
-#endif // thrust if
+		}
+#endif // end compact if
 		}
 	}
 
