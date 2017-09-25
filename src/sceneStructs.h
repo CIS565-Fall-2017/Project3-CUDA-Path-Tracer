@@ -26,6 +26,7 @@ struct Geom {
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+    glm::vec3 motion;
 };
 
 struct Material {
@@ -49,7 +50,6 @@ struct Camera {
     glm::vec3 right;
     glm::vec2 fov;
     glm::vec2 pixelLength;
-
     float dofX;
     float dofY;
 };

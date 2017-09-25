@@ -19,11 +19,13 @@
 #include "stream_compaction/efficient.h"
 
 #define ERRORCHECK 1
+
 // Toggle features
-#define COMPACT 0
-#define DOF 0
+#define COMPACT 1
 #define FIRSTBOUNCE 1
-#define SORTBYMATERIAL 1
+#define SORTBYMATERIAL 0
+#define DOF 1
+#define MOTIONBLUR 0
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -150,20 +152,40 @@ __device__ void concentricSampleDisk(float u1, float u2, float *dx, float *dy) {
   float sx = 2.0f * u1 - 1.0f;
   float sy = 2.0f * u2 - 1.0f;
 
-  // Map square to (r, theta)
-  if (u1 > u2) {
-    r = sy;
-    theta = PI / 2.0f - PI / 4.0f * sx / r;
+  if (sx == 0.0f && sy == 0.0f) {
+    *dx = 0.0f;
+    *dy = 0.0f;
   }
   else {
-    r = sx;
-    theta = sy / r * PI / 4.0f;
+	  // Map square to (r, theta)
+    if (sx >= -sy) {
+      if (sx > sy) {
+        r = sx;
+        if (sy > 0.0f) theta = sy / r;
+        else theta = 8.0f + sy / r;
+      }
+      else {
+        r = sy;
+        theta = 2.0f - sx / r;
+      }
+    }
+    else {
+      if (sx <= sy) {
+        r = -sx;
+        theta = 4.0f - sy / r;
+      }
+      else {
+        r = -sy;
+        theta = 6.0f + sx / r;
+      }
+    }
+
+    theta *= PI / 4.0f;
+
+	  *dx = r * std::cosf(theta);
+	  *dy = r * std::sinf(theta);
   }
 
-  //theta *=  PI / 4.0f;
-
-  *dx = r * std::cosf(theta);
-  *dy = r * std::sinf(theta);
 }
 
 /**
@@ -192,25 +214,28 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 			- cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
 			);
 
-		segment.pixelIndex = index;
-		segment.remainingBounces = traceDepth;
-
     // Depth of Field
 #if DOF
-    thrust::default_random_engine rng = makeSeededRandomEngine(iter, x, 0);
-    thrust::uniform_real_distribution<float> udof(0, 0.1);
+    thrust::default_random_engine rngx = makeSeededRandomEngine(iter, x, 0);
+    thrust::default_random_engine rngy = makeSeededRandomEngine(iter, y, 0);
+
+    thrust::uniform_real_distribution<float> udof(-1.0, 1.0);
 
     float lensU; float lensV;
-    concentricSampleDisk(udof(rng), udof(rng), &lensU, &lensV);
+    //concentricSampleDisk(udof(rng), udof(rng), &lensU, &lensV);
 
-    lensU *= cam.dofX;
-    lensV *= cam.dofX;
-
-    float t = std::abs(cam.dofY / cam.view.z);
-    glm::vec3 focal = t * segment.ray.direction + segment.ray.origin;
+    lensU = (udof(rngx)) / (80.0f);
+    lensV = (udof(rngy)) / (80.0f);
+    //printf("%f %f\n", lensU, lensV);
+    //float t = std::abs(cam.dofY / cam.view.z);
+    float t = 1.0f;
+    glm::vec3 focus = t * segment.ray.direction + segment.ray.origin;
     segment.ray.origin += cam.right * lensU + cam.up * lensV;
-    segment.ray.direction - glm::normalize(focal - segment.ray.origin);
+    segment.ray.direction = glm::normalize(focus - segment.ray.origin);
 #endif
+
+    segment.pixelIndex = index;
+    segment.remainingBounces = traceDepth;
 	}
 }
 
@@ -421,6 +446,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
   const int traceDepth = hst_scene->state.traceDepth;
   const Camera &cam = hst_scene->state.camera;
   const int pixelcount = cam.resolution.x * cam.resolution.y;
+  const Geom *hst_scene_geoms = &(hst_scene->geoms)[0];
+  Geom *motionBlurGeoms = &(hst_scene->geoms)[0];
 
 	// 2D block for generating ray from camera
   const dim3 blockSize2d(8, 8);
@@ -543,10 +570,12 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
       dev_image
       );
 
+#if COMPACT
     // Thrust compact
     thrust::device_ptr<PathSegment> thrust_dev_paths_ptr(dev_paths);
     auto thrust_end = thrust::remove_if(thrust::device, thrust_dev_paths_ptr, thrust_dev_paths_ptr + num_paths_active, isPathDone());
     num_paths_active = thrust_end - thrust_dev_paths_ptr;
+#endif
 
     depth++;
     iterationComplete = num_paths_active <= 0 || traceDepth < depth; // TODO: should be based off stream compaction results.
