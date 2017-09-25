@@ -299,6 +299,52 @@ __global__ void shadeFakeMaterial(
 	}
 }
 
+__global__ void shadeDebugMaterial(
+	int iter
+	, int num_paths
+	, ShadeableIntersection * shadeableIntersections
+	, PathSegment * pathSegments
+	, Material * materials
+)
+{
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (idx < num_paths)
+	{
+		ShadeableIntersection intersection = shadeableIntersections[idx];
+		if (intersection.t > 0.0f) { // if the intersection exists...
+									 // Set up the RNG
+									 // LOOK: this is how you use thrust's RNG! Please look at
+									 // makeSeededRandomEngine as well.
+			thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
+			thrust::uniform_real_distribution<float> u01(0, 1);
+
+			Material material = materials[intersection.materialId];
+			glm::vec3 materialColor = material.color;
+
+			// If the material indicates that the object was a light, "light" the ray
+			if (material.emittance > 0.0f) {
+				pathSegments[idx].color *= (materialColor * material.emittance);
+				pathSegments[idx].remainingBounces = 0;
+			}
+			// Otherwise, do some pseudo-lighting computation. This is actually more
+			// like what you would expect from shading in a rasterizer like OpenGL.
+			// TODO: replace this! you should be able to start with basically a one-liner
+			else {
+				pathSegments[idx].color *= 0.9f;
+				pathSegments[idx].remainingBounces--;
+			}
+			// If there was no intersection, color the ray black.
+			// Lots of renderers use 4 channel color, RGBA, where A = alpha, often
+			// used for opacity, in which case they can indicate "no opacity".
+			// This can be useful for post-processing and image compositing.
+		}
+		else {
+			pathSegments[idx].color = glm::vec3(0.0f);
+			pathSegments[idx].remainingBounces = 0;
+		}
+	}
+}
+
 __global__ void shadeAnyMaterial(
 	int iter
 	, int num_paths
@@ -331,10 +377,7 @@ __global__ void shadeAnyMaterial(
 			// If the material indicates that the object was a light, "light" the ray
 			if (material.emittance > 0.0f) {
 				pathSegments[idx].color *= (materialColor * material.emittance);
-				pathSegments[idx].remainingBounces = 0; 
-				if (pixelIdx == 160300) {
-					printf("hit light!\n\n");
-				}
+				pathSegments[idx].remainingBounces = 0;
 			}
 			// Otherwise, do some pseudo-lighting computation. This is actually more
 			// like what you would expect from shading in a rasterizer like OpenGL.
@@ -350,7 +393,7 @@ __global__ void shadeAnyMaterial(
 				else {
 					float test = u01(rng);
 					new_dir = glm::normalize(calculateRandomDirectionInHemisphere(norm, rng));
-					pathSegments[idx].color *= fabsf(glm::dot(norm,new_dir)) * materialColor;
+					pathSegments[idx].color *= /*fabsf(glm::dot(norm,new_dir)) **/ materialColor;
 				}
 				glm::vec3 old_inter = old_ray.origin + (old_ray.direction * t);
 				Ray new_ray = { old_inter + norm * 0.0001f, new_dir };
@@ -391,6 +434,12 @@ __global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterati
 	}
 }
 
+
+struct has_bounces {
+	__host__ __device__ bool operator() (const PathSegment& pathSegment) {
+		return (pathSegment.remainingBounces > 0);
+	}
+};
 /**
 * Wrapper for the __global__ call that sets up the kernel calls and does a ton
 * of memory management
@@ -487,11 +536,14 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 			dev_paths,
 			dev_materials
 			);
-		if (depth > 2){
+		PathSegment* compacted = thrust::partition(thrust::device, dev_paths, dev_paths + num_paths, has_bounces());
+		num_paths = compacted - dev_paths;
+		printf("num paths: %i , depth: %i \n", num_paths, depth);
+		if (num_paths == 0){
 			iterationComplete = true; // TODO: should be based off stream compaction results.
 		}
 	}
-
+	num_paths = dev_path_end - dev_paths;
 	// Assemble this iteration and apply it to the image
 	dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
 	finalGather << <numBlocksPixels, blockSize1d >> >(num_paths, dev_image, dev_paths);
