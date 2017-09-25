@@ -42,11 +42,13 @@ int main(int argc, char** argv) {
 
     // Load scene file
     scene = new Scene(sceneFile);
-
     // Set up camera stuff from loaded path tracer settings
     iteration = 0;
     renderState = &scene->state;
     Camera &cam = renderState->camera;
+	cam.dof = false;
+	cam.lensrad = 2.f;
+	cam.focal_dist = 10.5f;
     width = cam.resolution.x;
     height = cam.resolution.y;
 
