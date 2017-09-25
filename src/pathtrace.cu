@@ -287,10 +287,7 @@ __global__ void pathTraceBasic(int iter, int num_paths,
 
 			// If the material indicates that the object was a light, "light" the ray
 			if (material.emittance > 0.0f ) {
-				if (pathSegment.remainingBounces == 0) {
-					return;
-				}
-				pathSegments[idx].color *= (materialColor * material.emittance);
+				pathSegments[idx].color *= (materialColor * material.emittance * 3.0f);
 				pathSegments[idx].remainingBounces = 0;
 			}
 			// Otherwise, do some pseudo-lighting computation. This is actually more
@@ -299,10 +296,6 @@ __global__ void pathTraceBasic(int iter, int num_paths,
 			else {
 				//add the light from the material color
 				//scatter the ray
-				if (pathSegment.remainingBounces == 0) {
-					pathSegments[idx].color = glm::vec3(0.0f);
-					return;
-				}
 				scatterRay(pathSegment,
 					pathSegment.ray.origin + pathSegment.ray.direction * intersection.t,
 					intersection.surfaceNormal,
@@ -418,6 +411,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	int depth = 0;
 	PathSegment* dev_path_end = dev_paths + pixelcount;
 	int num_paths = dev_path_end - dev_paths;
+	int numPathsActive = num_paths;
 
 	// --- PathSegment Tracing Stage ---
 	// Shoot ray into scene, bounce between objects, push shading chunks
@@ -429,10 +423,10 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
 	// tracing
-	dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
+	dim3 numblocksPathSegmentTracing = (numPathsActive + blockSize1d - 1) / blockSize1d;
 	computeIntersections <<<numblocksPathSegmentTracing, blockSize1d>>> (
 		depth
-		, num_paths
+		, numPathsActive
 		, dev_paths
 		, dev_geoms
 		, hst_scene->geoms.size()
@@ -454,14 +448,19 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
   pathTraceBasic<<<numblocksPathSegmentTracing, blockSize1d>>> (
     iter,
-    num_paths,
+    numPathsActive,
     dev_intersections,
     dev_paths,
     dev_materials
   );
   //Stream Compaction
   //Compact dev_paths
-  if (depth > 8) iterationComplete = true; // TODO: should be based off stream compaction results.
+
+  PathSegment * newEnd = thrust::partition(thrust::device, dev_paths, dev_paths + num_paths, PathSegment::is_active());
+
+  numPathsActive = newEnd - dev_paths;
+
+  if (depth > traceDepth || numPathsActive == 0) iterationComplete = true; // TODO: should be based off stream compaction results.
 	}
 
   // Assemble this iteration and apply it to the image
