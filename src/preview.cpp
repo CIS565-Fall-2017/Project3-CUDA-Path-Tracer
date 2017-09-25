@@ -2,6 +2,7 @@
 #include <ctime>
 #include "main.h"
 #include "preview.h"
+#include "efficient.h"
 
 GLuint positionLocation = 0;
 GLuint texcoordsLocation = 1;
@@ -169,7 +170,8 @@ bool init() {
 }
 
 void mainLoop() {
-    while (!glfwWindowShouldClose(window)) {
+	
+	while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
         runCuda();
 
@@ -185,6 +187,9 @@ void mainLoop() {
         glDrawElements(GL_TRIANGLES, 6,  GL_UNSIGNED_SHORT, 0);
         glfwSwapBuffers(window);
     }
+
+	
+
     glfwDestroyWindow(window);
     glfwTerminate();
 }

@@ -66,6 +66,8 @@ glm::vec3 calculateRandomDirectionInHemisphere(
  *
  * You may need to change the parameter list for your purposes!
  */
+#define Shift_Bias 0.02f
+
 __host__ __device__
 void scatterRay(
 		PathSegment & pathSegment,
@@ -76,4 +78,37 @@ void scatterRay(
     // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
+	if (glm::dot(pathSegment.ray.direction, normal) > 0.0f && m.hasRefractive <= 0.001f)
+	{
+		pathSegment.color = glm::vec3(0.0f);
+		pathSegment.remainingBounces = 0;
+		return;
+	}
+	if (m.emittance > 0.0f) {
+		// emittance
+		pathSegment.remainingBounces = 0;
+		pathSegment.color *= (m.color * m.emittance);
+		return;
+	}
+	else if (m.hasReflective > 0.0f) {
+		// Reflective
+		pathSegment.remainingBounces--;
+		pathSegment.ray.direction = glm::normalize(glm::reflect(pathSegment.ray.direction, normal));
+		pathSegment.ray.origin = intersect + Shift_Bias * pathSegment.ray.direction;
+		pathSegment.color *= m.specular.color;
+		pathSegment.color *= glm::abs(glm::dot(pathSegment.ray.direction, normal)) * m.color;
+	}
+	else if (m.hasRefractive > 0.0f) {
+		// Refractive
+	}
+	else{
+		// Diffuse
+		pathSegment.remainingBounces--;
+
+		pathSegment.ray.direction = glm::normalize(calculateRandomDirectionInHemisphere(normal, rng));
+		pathSegment.ray.origin = intersect + Shift_Bias * pathSegment.ray.direction;
+		//pathSegment.ray.origin = intersect + Shift_Bias * normal;
+		pathSegment.color *= glm::abs(glm::clamp(glm::dot(pathSegment.ray.direction, normal), 0.88f, 1.0f)) * m.color;
+		//pathSegment.color *= m.color;
+	}
 }
