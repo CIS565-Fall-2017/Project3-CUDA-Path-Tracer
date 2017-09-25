@@ -1,57 +1,52 @@
 // Emissive material (light)
 MATERIAL 0
-RGB               1 1 1
-EMITTANCE         5
-SPECEX            0
-SPECRGB           0 0 0
-TRANSMISSIVE      0
-REFLECTIVE        0
-REFRACTIVE        0
-REFRACTIVE_INDEX  0
+RGB         1 1 1
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   5
 
 // Diffuse white
 MATERIAL 1
-RGB               .98 .98 .98
-EMITTANCE         0
-SPECEX            0
-SPECRGB           0 0 0
-TRANSMISSIVE      0
-REFLECTIVE        0
-REFRACTIVE        0
-REFRACTIVE_INDEX  0
+RGB         .98 .98 .98
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   0
 
 // Diffuse red
 MATERIAL 2
-RGB               .85 .35 .35
-EMITTANCE         0
-SPECEX            0
-SPECRGB           0 0 0
-TRANSMISSIVE      0
-REFLECTIVE        0
-REFRACTIVE        0
-REFRACTIVE_INDEX  0
+RGB         .85 .35 .35
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   0
 
 // Diffuse green
 MATERIAL 3
-RGB               .35 .85 .35
-EMITTANCE         0
-SPECEX            0
-SPECRGB           0 0 0
-TRANSMISSIVE      0
-REFLECTIVE        0
-REFRACTIVE        0
-REFRACTIVE_INDEX  0
+RGB         .35 .85 .35
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   0
 
 // Specular white
 MATERIAL 4
-RGB               .98 .98 .98
-EMITTANCE         0
-SPECEX            0
-SPECRGB           .98 .98 .98
-TRANSMISSIVE      0
-REFLECTIVE        1
-REFRACTIVE        0
-REFRACTIVE_INDEX  0
+RGB         .98 .98 .98
+SPECEX      0
+SPECRGB     .98 .98 .98
+REFL        1
+REFR        0
+REFRIOR     0
+EMITTANCE   0
 
 // Camera
 CAMERA

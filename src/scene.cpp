@@ -168,21 +168,19 @@ int Scene::loadMaterial(string materialid) {
             if (strcmp(tokens[0].c_str(), "RGB") == 0) {
                 glm::vec3 color( atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()) );
                 newMaterial.color = color;
-            } else if (strcmp(tokens[0].c_str(), "EMITTANCE") == 0) {
-				newMaterial.emittance = atof(tokens[1].c_str());
-			} else if (strcmp(tokens[0].c_str(), "SPECEX") == 0) {
+            } else if (strcmp(tokens[0].c_str(), "SPECEX") == 0) {
                 newMaterial.specular.exponent = atof(tokens[1].c_str());
             } else if (strcmp(tokens[0].c_str(), "SPECRGB") == 0) {
                 glm::vec3 specColor(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
                 newMaterial.specular.color = specColor;
-			} else if (strcmp(tokens[0].c_str(), "TRANSMISSIVE") == 0) {
-				newMaterial.transmissive = atof(tokens[1].c_str());
-			} else if (strcmp(tokens[0].c_str(), "REFLECTIVE") == 0) {
-                newMaterial.reflective = atof(tokens[1].c_str());
-            } else if (strcmp(tokens[0].c_str(), "REFRACTIVE") == 0) {
-                newMaterial.refractive = atof(tokens[1].c_str());
-            } else if (strcmp(tokens[0].c_str(), "REFRACTIVE_INDEX") == 0) {
-                newMaterial.eta = atof(tokens[1].c_str());
+            } else if (strcmp(tokens[0].c_str(), "REFL") == 0) {
+                newMaterial.hasReflective = atof(tokens[1].c_str());
+            } else if (strcmp(tokens[0].c_str(), "REFR") == 0) {
+                newMaterial.hasRefractive = atof(tokens[1].c_str());
+            } else if (strcmp(tokens[0].c_str(), "REFRIOR") == 0) {
+                newMaterial.indexOfRefraction = atof(tokens[1].c_str());
+            } else if (strcmp(tokens[0].c_str(), "EMITTANCE") == 0) {
+                newMaterial.emittance = atof(tokens[1].c_str());
             }
         }
         materials.push_back(newMaterial);

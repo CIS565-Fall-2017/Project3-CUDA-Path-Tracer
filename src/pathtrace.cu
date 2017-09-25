@@ -275,10 +275,20 @@ __global__ void shadeMaterials(int iter, int num_paths,
 			return;
 		}
 
-		ShadeableIntersection intersection = shadeableIntersections[idx];	
-		Material material = materials[intersection.materialId];
+		ShadeableIntersection intersection = shadeableIntersections[idx];
+		if (intersection.t > 0.0f) // if the intersection exists...
+		{
+			// Set up the RNG
+			thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
+			thrust::uniform_real_distribution<float> u01(0, 1);
 
-		if (intersection.t < 0.0f)
+			Material material = materials[intersection.materialId];
+			glm::vec3 materialColor = material.color;
+			
+			//deal with the material and end up changing the pathSegment color and its ray direction
+			scatterRay(pathSegments[idx], intersection.intersectPoint, intersection.surfaceNormal, material, rng);
+		}
+		else 
 		{
 			// If there was no intersection, color the ray black.
 			// Lots of renderers use 4 channel color, RGBA, where A = alpha, often
@@ -286,24 +296,7 @@ __global__ void shadeMaterials(int iter, int num_paths,
 			// This can be useful for post-processing and image compositing.
 			pathSegments[idx].color = glm::vec3(0.0f);
 			pathSegments[idx].remainingBounces = 0; //to make thread stop executing things
-			return;
 		}
-		// If the material indicates that the object was a light, "light" the ray
-		if (material.emittance > 0.0f)
-		{
-			pathSegments[idx].color *= material.color*material.emittance;
-			pathSegments[idx].remainingBounces = 0; //equivalent of breaking out of the thread
-			return;
-		}
-
-		// if the intersection exists and the itersection is not a light then
-		
-		// Set up the RNG
-		thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
-		thrust::uniform_real_distribution<float> u01(0, 1);
-			
-		//deal with the material and end up changing the pathSegment color and its ray direction
-		scatterRay(pathSegments[idx], intersection, material, rng);
 	}
 }
 
