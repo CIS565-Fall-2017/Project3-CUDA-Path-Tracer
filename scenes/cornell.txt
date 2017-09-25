@@ -6,7 +6,7 @@ SPECRGB     0 0 0
 REFL        0
 REFR        0
 REFRIOR     0
-EMITTANCE   5
+EMITTANCE   10
 
 // Diffuse white
 MATERIAL 1
@@ -146,6 +146,6 @@ SCALE       3 .3 3
 OBJECT 9
 cube
 material 5
-TRANS       3 8 -1
-ROT        .5 .5 0
-SCALE      2 2 2
+TRANS       2 5 -2
+ROT        .5 6 0
+SCALE      4 4 0.3
