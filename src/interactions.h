@@ -84,12 +84,12 @@ void scatterRay(
 	else if (m.hasRefractive > 0) {
     //pathSegment.ray.direction = glm::refract(pathSegment.ray.direction, normal, m.indexOfRefraction);
     // Schlick's Approximation implementation
-    thrust::uniform_real_distribution<float>u(0, 1);
+    thrust::uniform_real_distribution<float>urefract(0, 1);
     float R_0 = std::pow((1 - m.indexOfRefraction) / (1 + m.indexOfRefraction), 2);
     float dot = fabs(glm::dot(normal, pathSegment.ray.direction)); // use fabs not abs for precise calculation
     float R = R_0 + (1 - R_0) * std::pow(1 - dot, 5);
     
-    if (u(rng) < R) {
+    if (urefract(rng) < R) {
       pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
     }
     else {
@@ -102,7 +102,7 @@ void scatterRay(
       }
       // Snell's law
       pathSegment.ray.direction = glm::refract(pathSegment.ray.direction, normal, refractNum);
-      pathSegment.isRefract = u(rng) > 0.5;
+      pathSegment.isRefract = urefract(rng) > 0.5;
     }
 
 	}

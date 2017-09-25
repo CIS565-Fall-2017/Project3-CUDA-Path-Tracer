@@ -10,6 +10,7 @@
 #include "scene.h"
 #include "glm/glm.hpp"
 #include "glm/gtx/norm.hpp"
+#include <glm/gtc/matrix_inverse.hpp>
 #include "utilities.h"
 #include "pathtrace.h"
 #include "intersections.h"
@@ -21,11 +22,12 @@
 #define ERRORCHECK 1
 
 // Toggle features
-#define COMPACT 1
-#define FIRSTBOUNCE 1
-#define SORTBYMATERIAL 0
-#define DOF 1
-#define MOTIONBLUR 0
+#define PATH_COMPACT 1
+#define CACHE_FIRST_BOUNCE 0
+#define SORT_BY_MATERIAL 0
+#define DEPTH_OF_FIELD 0
+#define MOTION_BLUR 0
+#define STOCHASTIC_ANTIALIASING 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -208,24 +210,39 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		segment.ray.origin = cam.position;
     segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
-		// TODO: implement antialiasing by jittering the ray
+		// Stochastic sampled antialiasing implemented by jittering the ray
+#if STOCHASTIC_ANTIALIASING
+    thrust::default_random_engine rng = makeSeededRandomEngine(iter, x, y);
+    thrust::uniform_real_distribution<float> u01(0, 1);
+
 		segment.ray.direction = glm::normalize(cam.view
-			- cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
-			- cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
+			- cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f + u01(rng) - 0.5f)
+			- cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f + u01(rng) - 0.5f)
 			);
+#else
+    segment.ray.direction = glm::normalize(cam.view
+      - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
+      - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
+    );
+#endif
 
     // Depth of Field
-#if DOF
+#if DEPTH_OF_FIELD
     thrust::default_random_engine rngx = makeSeededRandomEngine(iter, x, 0);
     thrust::default_random_engine rngy = makeSeededRandomEngine(iter, y, 0);
+    //thrust::default_random_engine rng = makeSeededRandomEngine(iter, (x + (y * cam.resolution.x)), 0);
 
     thrust::uniform_real_distribution<float> udof(-1.0, 1.0);
+    //thrust::uniform_real_distribution<float> udof(0, 1);
 
     float lensU; float lensV;
-    //concentricSampleDisk(udof(rng), udof(rng), &lensU, &lensV);
+    //concentricSampleDisk(udof(rngx), udof(rngx), &lensU, &lensV);
 
+    //lensU *= cam.dofX;
+    //lensV *= cam.dofX;
     lensU = (udof(rngx)) / (80.0f);
     lensV = (udof(rngy)) / (80.0f);
+
     //printf("%f %f\n", lensU, lensV);
     //float t = std::abs(cam.dofY / cam.view.z);
     float t = 1.0f;
@@ -489,6 +506,29 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
   // TODO: perform one iteration of path tracing
 
+
+#if MOTION_BLUR
+  thrust::default_random_engine rng = makeSeededRandomEngine(iter, hst_scene->geoms.size(), traceDepth);
+  thrust::uniform_real_distribution<float> umotion(0, TWO_PI);
+
+  for (int i = 0; i < hst_scene->geoms.size(); i++) {
+    Geom& currGeom = motionBlurGeoms[i];
+    currGeom = hst_scene_geoms[i];
+
+    currGeom.translation.x += hst_scene_geoms[i].motion.x * 0.08 * cos(umotion(rng));
+    currGeom.translation.y += hst_scene_geoms[i].motion.y * 0.08 * cos(umotion(rng));
+    currGeom.translation.z += hst_scene_geoms[i].motion.z * 0.08 * cos(umotion(rng));
+
+    // calculate transforms of geometry
+    currGeom.transform = utilityCore::buildTransformationMatrix(
+      currGeom.translation, currGeom.rotation, currGeom.scale);
+    currGeom.inverseTransform = glm::inverse(currGeom.transform);
+    currGeom.invTranspose = glm::inverseTranspose(currGeom.transform);
+  }
+
+  cudaMemcpy(dev_geoms, motionBlurGeoms, hst_scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
+#endif
+
 	generateRayFromCamera <<<blocksPerGrid2d, blockSize2d >>>(cam, iter, traceDepth, dev_paths);
 	checkCUDAError("generate camera ray");
 
@@ -508,7 +548,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
 	  // tracing
 	  dim3 numblocksPathSegmentTracing = (num_paths_active + blockSize1d - 1) / blockSize1d;
-    if ((FIRSTBOUNCE && ((depth > 0) || (depth == 0 && iter == 1))) || !FIRSTBOUNCE) {
+    if ((CACHE_FIRST_BOUNCE && ((depth > 0) || (depth == 0 && iter == 1))) || !CACHE_FIRST_BOUNCE) {
       computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
         depth
         , num_paths
@@ -521,7 +561,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
       cudaDeviceSynchronize();
     }
 
-    if (FIRSTBOUNCE) {
+    if (CACHE_FIRST_BOUNCE) {
       // cache the first bounce
       if (depth == 0 && iter == 1) {
         cudaMemcpy(dev_intersections_firstbounce, dev_intersections, num_paths_active * sizeof(ShadeableIntersection), cudaMemcpyDeviceToDevice);
@@ -541,7 +581,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
     // TODO: compare between directly shading the path segments and shading
     // path segments that have been reshuffled to be contiguous in memory.
 
-#if SORTBYMATERIAL
+#if SORT_BY_MATERIAL
     kernGetMaterialId << <numblocksPathSegmentTracing, blockSize1d >> >(num_paths_active, dev_materials_paths, dev_intersections);
     checkCUDAError("kernGetMaterialType failed");
 
@@ -570,7 +610,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
       dev_image
       );
 
-#if COMPACT
+#if PATH_COMPACT
     // Thrust compact
     thrust::device_ptr<PathSegment> thrust_dev_paths_ptr(dev_paths);
     auto thrust_end = thrust::remove_if(thrust::device, thrust_dev_paths_ptr, thrust_dev_paths_ptr + num_paths_active, isPathDone());

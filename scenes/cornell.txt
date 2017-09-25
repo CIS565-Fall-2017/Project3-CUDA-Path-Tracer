@@ -68,8 +68,8 @@ FILE        cornell
 EYE         0.0 5 10.5
 LOOKAT      0 5 0
 UP          0 1 0
-DOFX	    5
-DOFY	    5
+DOFX	    1
+DOFY	    9
 
 // Ceiling light
 OBJECT 0
@@ -126,6 +126,7 @@ material 4
 TRANS       -1 4 -1
 ROTAT       0 0 0
 SCALE       3 3 3
+MOTION	    0 3 0
 
 // Cube
 OBJECT 7
@@ -134,6 +135,7 @@ material 1
 TRANS       2 6 -1
 ROTAT       45 45 0
 SCALE       2.5 2 3
+MOTION	    0 0 0
 
 // Sphere
 OBJECT 8
@@ -142,6 +144,7 @@ material 3
 TRANS       -3 2 2
 ROTAT       0 0 0
 SCALE       1 4 1
+MOTION	    2 0 0
 
 // Floorlight
 OBJECT 9
