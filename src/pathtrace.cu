@@ -4,6 +4,8 @@
 #include <thrust/execution_policy.h>
 #include <thrust/random.h>
 #include <thrust/remove.h>
+#include <thrust/find.h>
+#include <thrust/device_vector.h>
 
 #include "sceneStructs.h"
 #include "scene.h"
@@ -37,6 +39,14 @@ void checkCUDAErrorFn(const char *msg, const char *file, int line) {
     exit(EXIT_FAILURE);
 #endif
 }
+
+struct has_bounces_left {
+	__host__ __device__
+		bool operator()(const PathSegment &path)
+	{
+		return path.remainingBounces > 0;
+	}
+};
 
 __host__ __device__
 thrust::default_random_engine makeSeededRandomEngine(int iter, int index, int depth) {
@@ -435,7 +445,12 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
       dev_materials,
 	  depth
     );
+
+	dev_path_end = thrust::partition(thrust::device, dev_paths, dev_paths + num_paths, has_bounces_left());
+	//num_paths = dev_path_end - dev_paths + pixelcount;
+
 	if (depth > traceDepth) {
+		num_paths = pixelcount;
 		iterationComplete = true; // TODO: should be based off stream compaction results.
 	}
 	}

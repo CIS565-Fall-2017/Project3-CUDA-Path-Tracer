@@ -88,6 +88,6 @@ void scatterRay(
 			pathSegment.ray.direction = diffuse;
 		//}
 
-		pathSegment.ray.origin = intersect + pathSegment.ray.direction;
+		pathSegment.ray.origin = intersect + pathSegment.ray.direction*EPSILON;
 		pathSegment.color *= m.color;
 }
