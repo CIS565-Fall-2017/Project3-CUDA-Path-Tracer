@@ -124,6 +124,10 @@ int Scene::loadCamera() {
             camera.lookAt = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
         } else if (strcmp(tokens[0].c_str(), "UP") == 0) {
             camera.up = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+        } else if (strcmp(tokens[0].c_str(), "DOFX") == 0) {
+          camera.dofX = atoi(tokens[1].c_str());
+        } else if (strcmp(tokens[0].c_str(), "DOFY") == 0) {
+          camera.dofY = atoi(tokens[1].c_str());
         }
 
         utilityCore::safeGetline(fp_in, line);
@@ -135,9 +139,9 @@ int Scene::loadCamera() {
     float fovx = (atan(xscaled) * 180) / PI;
     camera.fov = glm::vec2(fovx, fovy);
 
-	camera.right = glm::normalize(glm::cross(camera.view, camera.up));
-	camera.pixelLength = glm::vec2(2 * xscaled / (float)camera.resolution.x
-							, 2 * yscaled / (float)camera.resolution.y);
+	  camera.right = glm::normalize(glm::cross(camera.view, camera.up));
+	  camera.pixelLength = glm::vec2(2 * xscaled / (float)camera.resolution.x
+							  , 2 * yscaled / (float)camera.resolution.y);
 
     camera.view = glm::normalize(camera.lookAt - camera.position);
 

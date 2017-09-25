@@ -77,11 +77,11 @@ void scatterRay(
   // A basic implementation of pure-diffuse shading will just call the
   // calculateRandomDirectionInHemisphere defined above.
 
-	if (m.hasReflective > 0.0f) {
+	if (m.hasReflective > 0) {
 		pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
     pathSegment.color *= m.specular.color;
 	}
-	else if (m.hasRefractive > 0.0f) {
+	else if (m.hasRefractive > 0) {
     //pathSegment.ray.direction = glm::refract(pathSegment.ray.direction, normal, m.indexOfRefraction);
     // Schlick's Approximation implementation
     thrust::uniform_real_distribution<float>u(0, 1);
@@ -100,6 +100,7 @@ void scatterRay(
       else {
         refractNum = 1 / m.indexOfRefraction;
       }
+      // Snell's law
       pathSegment.ray.direction = glm::refract(pathSegment.ray.direction, normal, refractNum);
       pathSegment.isRefract = u(rng) > 0.5;
     }
