@@ -67,18 +67,6 @@ glm::vec3 cosineWeightedSample(glm::vec3 normal, thrust::default_random_engine &
 
 	glm::mat3 rotation = glm::mat3(1.0f) + glm::sin(angle)*axisSkewed + ((1.0f - glm::cos(angle)) * axisSkewed * axisSkewed);
 
-	/*glm::vec3 n = glm::normalize(normal);
-	glm::vec3 t, b;
-	if (glm::dot(n, glm::vec3(0.0f, 0.0f, 1.0f)) >= 1.0f - EPSILON) {
-		t = glm::normalize(glm::cross(n, glm::vec3(1.0f, 0.0f, 0.0f)));
-	}
-	else {
-		t = glm::normalize(glm::cross(n, glm::vec3(0.0f, 0.0f, 1.0f)));
-	}
-	b = glm::normalize(glm::cross(n, t));
-
-	glm::mat3 tbn(t, b, n);*/
-
 	return glm::normalize(rotation * tangentSpaceSample);
 }
 
@@ -110,7 +98,6 @@ glm::vec3 cosineWeightedSample(glm::vec3 normal, thrust::default_random_engine &
 __host__ __device__
 glm::vec3 scatterRay(
 		PathSegment & pathSegment,
-        glm::vec3 intersect,
         glm::vec3 normal,
         const Material &m,
         thrust::default_random_engine &rng) {

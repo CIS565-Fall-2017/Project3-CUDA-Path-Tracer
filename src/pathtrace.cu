@@ -15,6 +15,7 @@
 #include "interactions.h"
 
 #define ERRORCHECK 1
+#define STREAM_COMPACTION 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -137,11 +138,33 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		segment.ray.origin = cam.position;
 		segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
-		// TODO: implement antialiasing by jittering the ray
+		// Antialiasing by jittering
+		thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
+		thrust::uniform_real_distribution<float> u01(0, 1);
+		float jitterX = u01(rng);
+		float jitterY = u01(rng);
+
 		segment.ray.direction = glm::normalize(cam.view
-			- cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
-			- cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
+			- cam.right * cam.pixelLength.x * ((x + jitterX) - (float)cam.resolution.x * 0.5f)
+			- cam.up * cam.pixelLength.y * ((y + jitterY) - (float)cam.resolution.y * 0.5f)
 			);
+
+		// Depth of field
+		float lensRadius = 1.0f;
+		float focalDistance = 10.0f;
+		if (lensRadius > 0.0f) {
+			float u1 = u01(rng);
+			float u2 = u01(rng);
+			float r = sqrt(u1);
+			float theta = TWO_PI * u2;
+			glm::vec2 sampleDisk(r * glm::cos(theta), r * glm::sin(theta));
+			float lensU = lensRadius * sampleDisk.x;
+			float lensV = lensRadius * sampleDisk.y;
+			glm::vec3 focalPoint = segment.ray.origin + (segment.ray.direction * focalDistance);
+
+			segment.ray.origin += (cam.right * lensU) + (cam.up * lensV);
+			segment.ray.direction = glm::normalize(focalPoint - segment.ray.origin);
+		}
 
 		segment.pixelIndex = index;
 		segment.remainingBounces = traceDepth;
@@ -218,10 +241,14 @@ __global__ void computeIntersections(
 	}
 }
 
-__global__ void shadeAllMaterials(int iter, int num_paths, ShadeableIntersection* shadeableIntersections, PathSegment* pathSegments, Material* materials) {
+__global__ void shadeAllMaterials(int iter, int depth, int num_paths, ShadeableIntersection* shadeableIntersections, PathSegment* pathSegments, Material* materials) {
 	int index = (blockDim.x * blockIdx.x) + threadIdx.x;
 
 	if (index < num_paths) {
+		if (!STREAM_COMPACTION && pathSegments[index].remainingBounces == 0) {
+			return;
+		}
+
 		ShadeableIntersection intersection = shadeableIntersections[index];
 
 		if (intersection.t > 0) {
@@ -235,15 +262,28 @@ __global__ void shadeAllMaterials(int iter, int num_paths, ShadeableIntersection
 				pathSegments[index].remainingBounces = 0;
 			}
 			else {
-				thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
-
-				// Diffuse
-				glm::vec3 brdf = materialColor / PI;
+				thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, depth);
 				glm::vec3 intersectionPoint = pathSegments[index].ray.origin + (pathSegments[index].ray.direction * intersection.t);
-				glm::vec3 wi = scatterRay(pathSegments[index], intersectionPoint, intersection.surfaceNormal, material, rng);
-				float wDotN = glm::dot(wi, intersection.surfaceNormal);
-				float absdot = glm::abs(wDotN);
-				float pdf = wDotN / PI;
+
+				glm::vec3 brdf;
+				glm::vec3 wi;
+				float absdot;
+				float pdf;
+				if (material.hasReflective) {
+					// Reflective
+					brdf = material.color;
+					wi = glm::reflect(pathSegments[index].ray.direction, intersection.surfaceNormal);
+					absdot = 1.0f;
+					pdf = 1.0f;
+				}
+				else {
+					// Diffuse
+					brdf = materialColor / PI;
+					wi = cosineWeightedSample(intersection.surfaceNormal, rng);
+					float wDotN = glm::dot(wi, intersection.surfaceNormal);
+					absdot = glm::abs(wDotN);
+					pdf = wDotN / PI;
+				}
 				glm::vec3 brdfSample = (brdf * absdot) / pdf;
 
 				// Update pathSegment state
@@ -373,16 +413,20 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
 		shadeAllMaterials<<<numblocksPathSegmentTracing, blockSize1d>>> (
 			iter,
+			depth,
 			num_paths,
 			dev_intersections,
 			dev_paths,
 			dev_materials
 		);
 
-		PathSegment* compacted = thrust::partition(thrust::device, dev_paths, dev_paths + num_paths, not_zero());
-		num_paths = compacted - dev_paths;
-		if (num_paths == 0 || depth == traceDepth) {
-			iterationComplete = true;
+		if (STREAM_COMPACTION) {
+			PathSegment* compacted = thrust::partition(thrust::device, dev_paths, dev_paths + num_paths, not_zero());
+			num_paths = compacted - dev_paths;
+			iterationComplete = (num_paths == 0) || (depth == traceDepth);
+		}
+		else {
+			iterationComplete = (depth == traceDepth);
 		}
 	}
 
