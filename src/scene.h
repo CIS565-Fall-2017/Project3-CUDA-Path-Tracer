@@ -8,6 +8,8 @@
 #include "utilities.h"
 #include "sceneStructs.h"
 
+#include "../tinyobj/tiny_obj_loader.h"
+
 using namespace std;
 
 class Scene {

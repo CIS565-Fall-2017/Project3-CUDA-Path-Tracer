@@ -216,9 +216,22 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
 		// TODO: implement antialiasing by jittering the ray
+#ifndef AA	
+#define AA
+		thrust::uniform_real_distribution<float> u01(0, 1);
+		thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
+		glm::vec2 jitter(u01(rng), u01(rng));
+
+		float _x = (float)x + jitter.x;
+		float _y = (float)y + jitter.y;
+#else 
+		float _x = x;
+		float _y = y;
+#endif
+
 		segment.ray.direction = glm::normalize(cam.view
-			- cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
-			- cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
+			- cam.right * cam.pixelLength.x * ((float)_x - (float)cam.resolution.x * 0.5f)
+			- cam.up * cam.pixelLength.y * ((float)_y - (float)cam.resolution.y * 0.5f)
 		);
 
 		// Depth of Field
@@ -286,6 +299,11 @@ __global__ void computeIntersections(
 				t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
 			}
 			// TODO: add more intersection tests here... triangle? metaball? CSG?
+			else if (geom.type == SQUARE)
+			{
+				t = squareIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+			}
+
 
 			// Compute the minimum t from the intersection tests to determine what
 			// scene geometry object was hit first.

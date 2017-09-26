@@ -189,27 +189,26 @@ void scatterRay(
 		spawnRay(pathSegment, normal, wi, intersect);
 
 		// Update color
-		pathSegment.color *= color;
+		pathSegment.color *= m.color * color;
 	}
 	// Refractive Surface
 	else if (m.hasRefractive) {
 		// Needa fix PBRT implementation
-		//bool entering = CosTheta(wo, normal) > 0;
+		/*bool entering = CosTheta(-wo, normal) > 0;
 
-		//float etaA = 1.f;
-		//float etaB = m.indexOfRefraction;
-		//float etaI = entering ? etaA : etaB;
-		//float etaT = entering ? etaB : etaA;
+		float etaA = 1.f;
+		float etaB = m.indexOfRefraction;
+		float etaI = entering ? etaA : etaB;
+		float etaT = entering ? etaB : etaA;
 
-		//if (!Refract(wo, Faceforward(glm::vec3(0, 0, 1), wo), etaI / etaT, wi)) {
-		//	pdf = 0.f;
-		//	color = glm::vec3(0.f);
-		//}
-		//else {
-		//	pdf = 1.f;
-		//	color = m.color * (glm::vec3(1.f) - fresnelDielectric(wo, wi, normal, etaI, etaT)) / AbsCosTheta(wi, normal);
-		//	//color = m.color / AbsCosTheta(nor, wi);
-		//}
+		if (!Refract(-wo, Faceforward(glm::vec3(0, 0, 1), -wo), etaI / etaT, wi)) {
+			pdf = 0.f;
+			color = glm::vec3(0.f);
+		}
+		else {
+			pdf = 1.f;
+			color = m.specular.color * (glm::vec3(1.f) - fresnelDielectric(-wo, wi, normal, etaI, etaT)) / AbsCosTheta(wi, normal);
+		}*/
 
 		float n1 = 1.f;					// air
 		float n2 = m.indexOfRefraction;	// material
@@ -230,6 +229,7 @@ void scatterRay(
 		// spawnRay() doesn't work?
 		pathSegment.ray.direction = wi;
 		// Update color
+		//pathSegment.color *= m.speculr.color * (glm::vec3(1.f) - fresnelDielectric(-wo, wi, normal, n1, n2)) / AbsCosTheta(wi, normal);
 		pathSegment.color *= m.specular.color;
 	}
 	// Diffuse Surface
@@ -237,25 +237,40 @@ void scatterRay(
 		wi = glm::normalize(calculateRandomDirectionInHemisphere(normal, rng));
 		
 		pdf = getPdf(wo, wi, normal);
-		color *= INVPI * m.color;
+		//color *= INVPI;
 
-		if (pdf > 0.f) {
-			pathSegment.color /= pdf;
-		}
-		else {
-			pathSegment.color = glm::vec3(0.f);
-		}
+		//if (pdf > 0.f) {
+		//	pathSegment.color /= pdf;
+		//}
+		//else {
+		//	pathSegment.color = glm::vec3(0.f);
+		//}
 
 		// Set up ray direction for next bounce
 		spawnRay(pathSegment, normal, wi, intersect);
 
 		// Update color
-		pathSegment.color *= color;
+		pathSegment.color *= m.color * color;
 	}
 
 	pathSegment.color *= AbsDot(normal, wi);
 }
 
+
+// http://corysimon.github.io/articles/uniformdistn-on-sphere/
+__host__ __device__
+glm::vec3 SphereSample(thrust::default_random_engine &rng)
+{
+	thrust::uniform_real_distribution<float> u01(0, 1);
+
+	float theta = 2.f * PI * u01(rng);
+	float phi = acos(1.f - 2.f * u01(rng));
+	float x = sin(phi) * cos(theta);
+	float y = sin(phi) * sin(theta);
+	float z = cos(phi);
+
+	return glm::vec3(x, y, z);
+}
 
 // TODO
 // Diffuse Area Light
@@ -267,6 +282,11 @@ glm::vec3 Sample_Li(const ShadeableIntersection &ref,
 					thrust::default_random_engine &rng)
 {
 	wi = glm::normalize(lightPos - ref.intersectPoint);
+
+	glm::vec3 samplePoint = SphereSample(rng);
+	if (samplePoint == ref.intersectPoint) {
+		return glm::vec3(0.f);
+	}
 
 	return glm::vec3(0.f);
 }
