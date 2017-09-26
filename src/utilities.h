@@ -23,4 +23,12 @@ namespace utilityCore {
     extern glm::mat4 buildTransformationMatrix(glm::vec3 translation, glm::vec3 rotation, glm::vec3 scale);
     extern std::string convertIntToString(int number);
     extern std::istream& safeGetline(std::istream& is, std::string& t); //Thanks to http://stackoverflow.com/a/6089413
+
+
+	//Adding my own -- WHY DONT THESE WORK??
+	extern float AbsDot(const glm::vec3 &a, const glm::vec3 &b);
+	extern float CosTheta(const glm::vec3 &w);
+	extern float AbsCosTheta(const glm::vec3 &w);
+	extern bool SameHemisphere(const glm::vec3 &w, const glm::vec3 &wp);
+	extern glm::vec3 Refract(const glm::vec3 &wi, const glm::vec3 &normal, float eta);
 }

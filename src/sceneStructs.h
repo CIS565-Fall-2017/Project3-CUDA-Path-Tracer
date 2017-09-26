@@ -34,10 +34,10 @@ struct Material {
         float exponent;
         glm::vec3 color;
     } specular;
-    float hasReflective;
-    float hasRefractive;
-    float indexOfRefraction;
-    float emittance;
+    float hasReflective;		//if greater than 0, it's reflective
+    float hasRefractive;		//if greater than 0, it's refractive
+    float indexOfRefraction;	//use this to calculate for refractive materials (look at specular BTDF)
+    float emittance;			//if greater than 0, it's a light
 };
 
 struct Camera {
@@ -73,4 +73,5 @@ struct ShadeableIntersection {
   float t;
   glm::vec3 surfaceNormal;
   int materialId;
+  glm::vec3 intersectionPt;		//I added this and in computeIntersection()
 };
