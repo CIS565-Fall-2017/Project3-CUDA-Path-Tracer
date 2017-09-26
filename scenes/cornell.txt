@@ -79,6 +79,14 @@ TRANS       0 10 0
 ROTAT       0 0 0
 SCALE       3 .3 3
 
+// Floorlight
+OBJECT 9
+cube
+material 5
+TRANS       0 0 0
+ROTAT       0 0 0
+SCALE       5 .3 4
+
 // Floor
 OBJECT 1
 cube
@@ -146,10 +154,10 @@ ROTAT       0 0 0
 SCALE       1 4 1
 MOTION	    2 0 0
 
-// Floorlight
+// Front wall
 OBJECT 9
 cube
-material 5
-TRANS       0 0 0
-ROTAT       0 0 0
-SCALE       5 .3 4
+material 1
+TRANS       0 5 5
+ROTAT       0 90 0
+SCALE       .01 10 10

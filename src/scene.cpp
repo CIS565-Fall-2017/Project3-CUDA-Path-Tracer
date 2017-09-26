@@ -3,6 +3,7 @@
 #include <cstring>
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtx/string_cast.hpp>
+//#include <tiny_obj_loader.h>
 
 Scene::Scene(string filename) {
     cout << "Reading scene from " << filename << " ..." << endl;
@@ -41,6 +42,7 @@ int Scene::loadGeom(string objectid) {
         cout << "Loading Geom " << id << "..." << endl;
         Geom newGeom;
         string line;
+        bool isMesh;
 
         //load object type
         utilityCore::safeGetline(fp_in, line);
@@ -51,7 +53,11 @@ int Scene::loadGeom(string objectid) {
             } else if (strcmp(line.c_str(), "cube") == 0) {
                 cout << "Creating new cube..." << endl;
                 newGeom.type = CUBE;
-            }
+            } /*else if (strcmp(line.c_str(), "mesh") == 0) {
+              cout << "Creating new mesh..." << endl;
+              newGeom.type = MESH;
+              isMesh = true;
+            }*/
         }
 
         //link material
@@ -75,8 +81,12 @@ int Scene::loadGeom(string objectid) {
             } else if (strcmp(tokens[0].c_str(), "SCALE") == 0) {
                 newGeom.scale = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
             } else if (strcmp(tokens[0].c_str(), "MOTION") == 0) {
-              newGeom.motion = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
-            }
+                newGeom.motion = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+            } /*else if (strcmp(tokens[0].c_str(), "FILE") == 0 && isMesh) {
+                auto path = tokens[1].c_str();
+                cout << "Loading mesh file from " << path << endl;
+                loadMesh(path, newGeom);
+            }*/
 
             utilityCore::safeGetline(fp_in, line);
         }
@@ -192,3 +202,60 @@ int Scene::loadMaterial(string materialid) {
         return 1;
     }
 }
+
+//int Scene::loadMesh(const string path, Geom mesh) {
+//  tinyobj::attrib_t attrib;
+//  vector<tinyobj::shape_t> shapes;
+//  vector<tinyobj::material_t> materials;
+//  std::string err;
+//  
+//  int flags = 1; // see load_flags_t enum for more information.
+//  bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, path.c_str());
+//  if (!err.empty()) { // `err` may contain warning message.
+//    std::cerr << err << std::endl;
+//  }
+//
+//  if (!ret) {
+//    exit(1);
+//  }
+//
+//  const float float_max = std::numeric_limits<float>::max();
+//  const float float_min = std::numeric_limits<float>::lowest();
+//
+//  glm::vec3 min_pos(float_max);
+//  glm::vec3 max_pos(float_min);
+//
+//  mesh.startVertex = vertices.size();
+//
+//  for (size_t i = 0; i < shapes.size(); i++) {
+//    for (const auto& shape : shapes) {
+//      for (const auto& index : shape.mesh.indices) {
+//        glm::vec3 pos = {
+//          attrib.vertices[3 * index.vertex_index + 0],
+//          attrib.vertices[3 * index.vertex_index + 1],
+//          attrib.vertices[3 * index.vertex_index + 2]
+//        };
+//        glm::vec3 norm = {
+//          attrib.normals[3 * index.normal_index + 0],
+//          attrib.normals[3 * index.normal_index + 1],
+//          attrib.normals[3 * index.normal_index + 2]
+//        };
+//
+//        Vertex v;
+//        v.position = pos;
+//        v.normal = norm;
+//        vertices.push_back(v);
+//
+//        for (auto i = 0; i < 3; i++) {
+//          min_pos[i] = std::min(min_pos[i], pos[i]);
+//          max_pos[i] = std::max(max_pos[i], pos[i]);
+//        }
+//      }
+//    }
+//
+//    mesh.verticesCount = vertices.size() - mesh.startVertex;
+//    mesh.boundingBoxMin = min_pos;
+//    mesh.boundingBoxMax = max_pos;
+//
+//  }
+//}

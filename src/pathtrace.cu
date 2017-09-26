@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cuda.h>
 #include <cmath>
+
 #include <thrust/execution_policy.h>
 #include <thrust/random.h>
 #include <thrust/remove.h>
@@ -228,27 +229,29 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 
     // Depth of Field
 #if DEPTH_OF_FIELD
-    thrust::default_random_engine rngx = makeSeededRandomEngine(iter, x, 0);
-    thrust::default_random_engine rngy = makeSeededRandomEngine(iter, y, 0);
-    //thrust::default_random_engine rng = makeSeededRandomEngine(iter, (x + (y * cam.resolution.x)), 0);
+    //if (iter == 1) {
+      thrust::default_random_engine rngx = makeSeededRandomEngine(iter, x, 0);
+      thrust::default_random_engine rngy = makeSeededRandomEngine(iter, y, 0);
+      //thrust::default_random_engine rng = makeSeededRandomEngine(iter, (x + (y * cam.resolution.x)), 0);
 
-    thrust::uniform_real_distribution<float> udof(-1.0, 1.0);
-    //thrust::uniform_real_distribution<float> udof(0, 1);
+      thrust::uniform_real_distribution<float> udof(-1.0, 1.0);
+      //thrust::uniform_real_distribution<float> udof(0, 1);
 
-    float lensU; float lensV;
-    //concentricSampleDisk(udof(rngx), udof(rngx), &lensU, &lensV);
+      float lensU; float lensV;
+      //concentricSampleDisk(udof(rngx), udof(rngx), &lensU, &lensV);
 
-    //lensU *= cam.dofX;
-    //lensV *= cam.dofX;
-    lensU = (udof(rngx)) / (80.0f);
-    lensV = (udof(rngy)) / (80.0f);
+      //lensU *= cam.dofX;
+      //lensV *= cam.dofX;
+      lensU = (udof(rngx)) / (80.0f);
+      lensV = (udof(rngy)) / (80.0f);
 
-    //printf("%f %f\n", lensU, lensV);
-    //float t = std::abs(cam.dofY / cam.view.z);
-    float t = 1.0f;
-    glm::vec3 focus = t * segment.ray.direction + segment.ray.origin;
-    segment.ray.origin += cam.right * lensU + cam.up * lensV;
-    segment.ray.direction = glm::normalize(focus - segment.ray.origin);
+      //printf("%f %f\n", lensU, lensV);
+      //float t = std::abs(cam.dofY / cam.view.z);
+      float t = 2.0f;
+      glm::vec3 focus = t * segment.ray.direction + segment.ray.origin;
+      segment.ray.origin += cam.right * lensU + cam.up * lensV;
+      segment.ray.direction = glm::normalize(focus - segment.ray.origin);
+    //}
 #endif
 
     segment.pixelIndex = index;
@@ -529,8 +532,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
   cudaMemcpy(dev_geoms, motionBlurGeoms, hst_scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
 #endif
 
-	generateRayFromCamera <<<blocksPerGrid2d, blockSize2d >>>(cam, iter, traceDepth, dev_paths);
-	checkCUDAError("generate camera ray");
+  generateRayFromCamera << <blocksPerGrid2d, blockSize2d >> >(cam, iter, traceDepth, dev_paths);
+  checkCUDAError("generate camera ray");
 
 	int depth = 0;
 	PathSegment* dev_path_end = dev_paths + pixelcount;
@@ -561,16 +564,15 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
       cudaDeviceSynchronize();
     }
 
-    if (CACHE_FIRST_BOUNCE) {
-      // cache the first bounce
-      if (depth == 0 && iter == 1) {
-        cudaMemcpy(dev_intersections_firstbounce, dev_intersections, num_paths_active * sizeof(ShadeableIntersection), cudaMemcpyDeviceToDevice);
-      }
-      // re-use first bounce across all subsequent iterations
-      else if (depth == 0 && iter > 1) {
-        cudaMemcpy(dev_intersections, dev_intersections_firstbounce, num_paths_active * sizeof(ShadeableIntersection), cudaMemcpyDeviceToDevice);
-      }
-    }
+#if CACHE_FIRST_BOUNCE
+	if (depth == 0 && iter == 1) {
+		cudaMemcpy(dev_intersections_firstbounce, dev_intersections, num_paths_active * sizeof(ShadeableIntersection), cudaMemcpyDeviceToDevice);
+	}
+	// re-use first bounce across all subsequent iterations
+	else if (depth == 0 && iter > 1) {
+		cudaMemcpy(dev_intersections, dev_intersections_firstbounce, num_paths_active * sizeof(ShadeableIntersection), cudaMemcpyDeviceToDevice);
+	}
+#endif
 
 	  // TODO:
 	  // --- Shading Stage ---
@@ -611,6 +613,9 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
       );
 
 #if PATH_COMPACT
+    if (iter == 1) {
+      cout << num_paths_active << endl;
+    }
     // Thrust compact
     thrust::device_ptr<PathSegment> thrust_dev_paths_ptr(dev_paths);
     auto thrust_end = thrust::remove_if(thrust::device, thrust_dev_paths_ptr, thrust_dev_paths_ptr + num_paths_active, isPathDone());

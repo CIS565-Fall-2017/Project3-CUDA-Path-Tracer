@@ -10,6 +10,7 @@
 enum GeomType {
     SPHERE,
     CUBE,
+    MESH,
 };
 
 struct Ray {
@@ -27,6 +28,10 @@ struct Geom {
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
     glm::vec3 motion;
+    int startVertex;
+    int verticesCount;
+    glm::vec3 boundingBoxMin;
+    glm::vec3 boundingBoxMax;
 };
 
 struct Material {
@@ -39,6 +44,12 @@ struct Material {
     float hasRefractive;
     float indexOfRefraction;
     float emittance;
+};
+
+struct Vertex {
+  glm::vec3 position;
+  glm::vec3 normal;
+
 };
 
 struct Camera {
