@@ -51,6 +51,9 @@ int Scene::loadGeom(string objectid) {
             } else if (strcmp(line.c_str(), "cube") == 0) {
                 cout << "Creating new cube..." << endl;
                 newGeom.type = CUBE;
+            } else if (strcmp(line.c_str(), "plane") == 0) {
+                cout << "Creating new plane..." << endl;
+                newGeom.type = PLANE;
             }
 			//TODO: ADD MORE OBJ TYPES HERE
         }
@@ -83,7 +86,7 @@ int Scene::loadGeom(string objectid) {
         newGeom.transform = utilityCore::buildTransformationMatrix(
                 newGeom.translation, newGeom.rotation, newGeom.scale);
         newGeom.inverseTransform = glm::inverse(newGeom.transform);
-        newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
+        newGeom.invTranspose = glm::mat3(glm::inverseTranspose(newGeom.transform));
 
         geoms.push_back(newGeom);
         return 1;

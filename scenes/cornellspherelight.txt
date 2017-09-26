@@ -72,11 +72,11 @@ UP          0 1 0
 
 // Ceiling light
 OBJECT 0
-cube
+sphere
 material 0
-TRANS       0 10 0
+TRANS       0 7 0
 ROTAT       0 0 0
-SCALE       3 .3 3
+SCALE       1 1 1
 
 // Floor
 OBJECT 1
@@ -124,4 +124,4 @@ sphere
 material 1
 TRANS       0 3.5 0
 ROTAT       0 0 0
-SCALE       2.0 2.0 2.0
+SCALE       1.0 1.0 1.0

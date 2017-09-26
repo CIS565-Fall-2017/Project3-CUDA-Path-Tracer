@@ -26,7 +26,9 @@ struct Geom {
     glm::vec3 scale;
     glm::mat4 transform;
     glm::mat4 inverseTransform;
-    glm::mat4 invTranspose;
+    //glm::mat4 invTranspose;
+    glm::mat3 invTranspose;//only transforming normals with this
+							//so no need for translation 
 };
 
 struct Material {

@@ -1,3 +1,4 @@
+#pragma once
 #include <cstdio>
 #include <cuda.h>
 #include <curand.h>
@@ -12,6 +13,7 @@
 #include "glm/gtx/norm.hpp"
 #include "glm/gtx/component_wise.hpp"
 #include "utilities.h"
+#include "utilkern.h"
 #include "pathtrace.h"
 #include "intersections.h"
 #include "interactions.h"
@@ -21,7 +23,7 @@
 
 #define ERRORCHECK 1
 #define COMPACT 0 //0 NONE, 1 THRUST, 2 CUSTOM
-#define PT_TECHNIQUE 0 //0 NAIVE, 1 MIS
+#define PT_TECHNIQUE 1 //0 NAIVE, 1 MIS
 //https://thrust.1ithub.io/doc/group__stream__compaction.html#ga5fa8f86717696de88ab484410b43829b
 //https://stackoverflow.com/questions/34103410/glmvec3-and-epsilon-comparison
 struct isDead { //needed for thrust's predicate, the last arg in remove_if
@@ -93,7 +95,7 @@ static ShadeableIntersection * dev_intersections = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
 //need something for lights
 static int numlights = 0;
-static Geom* dev_geomLights = NULL;
+static int* dev_geomLightIndices = NULL;
 
 void pathtraceInit(Scene *scene) {
     hst_scene = scene;
@@ -117,16 +119,16 @@ void pathtraceInit(Scene *scene) {
     // TODO: initialize any extra device memeory you need
 	//check which geoms are emissive and copy them to its own array(for large scenes 
 	//rather not pass geoms if we don't have to)
-	std::vector<Geom> geomLights;
+	std::vector<int> geomLightIndices;
 	for (int i = 0; i < scene->geoms.size(); ++i) {
 		int materialID = scene->geoms[i].materialid;
 		if (scene->materials[materialID].emittance > 0) {
-			geomLights.push_back(scene->geoms[i]);
+			geomLightIndices.push_back(i);
 			numlights++;
 		}
 	}
-	cudaMalloc((void**)&dev_geomLights, numlights * sizeof(Geom));
-  	cudaMemcpy(dev_geomLights, geomLights.data(), numlights * sizeof(Geom), cudaMemcpyHostToDevice);
+	cudaMalloc((void**)&dev_geomLightIndices, numlights * sizeof(int));
+  	cudaMemcpy(dev_geomLightIndices, geomLightIndices.data(), numlights * sizeof(int), cudaMemcpyHostToDevice);
 
     checkCUDAError("pathtraceInit");
 }
@@ -138,7 +140,7 @@ void pathtraceFree() {
   	cudaFree(dev_materials);
   	cudaFree(dev_intersections);
     // TODO: clean up any extra device memory you created
-	cudaFree(dev_geomLights);
+	cudaFree(dev_geomLightIndices);
 	numlights = 0;
 
     checkCUDAError("pathtraceFree");
@@ -224,6 +226,8 @@ __global__ void computeIntersections(
 			t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
 		} else if (geom.type == SPHERE) {
 			t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+		} else if (geom.type == PLANE) {
+			t = planeIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
 		}
 		// TODO: add more intersection tests here... triangle? metaball? CSG?
 
@@ -310,16 +314,17 @@ __global__ void shadeMaterialMIS(const int iter, const int depth,
 	const int numlights, const int MAXBOUNCES,
 	const int num_paths, const ShadeableIntersection* shadeableIntersections,
 	PathSegment* pathSegments, const Material* materials, 
-	const Geom* dev_geomLights) 
+	const int* dev_geomLightIndices, const Geom* dev_geoms, const int numgeoms) 
 {
 	const int idx = blockIdx.x * blockDim.x + threadIdx.x;
-	//path.color is accumcolor
 
 	if (idx >= num_paths) { return; }
 
 	PathSegment& path = pathSegments[idx];
 	const ShadeableIntersection& isect = shadeableIntersections[idx];
-
+#if 0 == COMPACT
+	if (0 >= path.remainingBounces) { return; }
+#endif
 
 	//Hit Nothing
 	if (0.f >= isect.t) {
@@ -330,8 +335,9 @@ __global__ void shadeMaterialMIS(const int iter, const int depth,
 	const Material& m = materials[isect.materialId];
 
 	//First Bounce or Last bounce was specular
+	const glm::vec3 wo = -path.ray.direction;
 	if (MAXBOUNCES == path.remainingBounces || path.specularbounce) {
-		path.color += path.throughput * m.color*m.emittance;//last bit is simply isect.Le(wo)
+		path.color += path.throughput * Le(m, isect.surfaceNormal, wo); //m.color*m.emittance;//last bit is simply isect.Le(wo)
 	}
 
 	//Hit Light
@@ -339,8 +345,8 @@ __global__ void shadeMaterialMIS(const int iter, const int depth,
 		path.remainingBounces = 0;//already accounted for Le above
 		return;
 		//also has something where if a bxdf was not produced
-		//(lights just return) then set the origin at the intersect point and continue on
-		//and path.remainingBounces++?
+		//(lights just return) then set the origin at the intersect point 
+		//and continue on in same direction and path.remainingBounces++?
 	}
 
 	//if(material doesnt exist) { path.remainingBounces = 0; return; }
@@ -355,27 +361,78 @@ __global__ void shadeMaterialMIS(const int iter, const int depth,
 	float pdfdirect = 0;
 	glm::vec3 widirect(0.f);
 	glm::vec3 colordirect(0.f);
-	const glm::vec3 wo = -path.ray.direction;
-	const Geom& randLight = dev_geomLights[int( u01(rng)*numlights )];
-	const Material& matlight = materials[randLight.materialid];
-	//sample the light to get wiDL, pdfDL, and colorDL
-	const glm::vec3 isectpoint = getPointOnRay(path.ray, isect.t) + isect.surfaceNormal*EPSILON;
-	colordirect = sampleLight(randLight, matlight, isectpoint, rng, widirect, pdfdirect);
-	//you'll want to switch the cube light to a planar light to make things easier
+
+	const int randlightindex = dev_geomLightIndices[int( u01(rng)*numlights )];
+	const Geom& randlight = dev_geoms[randlightindex];
+	const Material& mlight = materials[randlight.materialid];
+	const glm::vec3 pisect = getPointOnRay(path.ray, isect.t) + isect.surfaceNormal*EPSILON;
+
+	////////////////////////
+	/////// LIGTH SAMPLE////
+	////////////////////////
+	//NOTE: I BELIVE COLORDIRECT WILL BE 0 FOR SPECULAR STUFF
+	//BECUASE CHANCES OF THE REFLECTED VIEW RAY LINING UP WITH OUR
+	//SAMPLED LIGHT DIRECTION IS ZERO
+	//BUT COLOR DIRECT SAMPLE SHOULD RETURN SOMETHING IF THE REFLECTED
+	//RAY (OUR BXDF SAMPLE WI) HITS A LIGHT
+	//SO MAYBE IF SPECULAR BOUNCE, SKIP THE LIGHT SAMPLING PART?
+
+	//sample the light to get widirect, pdfdirect, and colordirect
+	//you'll want to switch the cube light to a planar light to make things easier?
+	colordirect = sampleLight(randlight, mlight, pisect, isect.surfaceNormal, rng, widirect, pdfdirect);
 	pdfdirect /= numlights;
 
-	//spawn ray from isect point(offset along normal) 
-	//in the direction of wiDL
+	//spawn ray from isect point and use widirect for direction 
+	Ray wiray_direct;
+	wiray_direct.origin = pisect;
+	wiray_direct.direction = widirect;
 
-	//get the closest intersetion in scene
-	//if 0.f >= t or object hit is not the same object as our light 
-	//or 0.f >= pdf then colorDL is 0
-	//else update colorDL
+	//get the closest intersection in scene
+	int hitgeomindex = -1;
+	findClosestIntersection(wiray_direct, dev_geoms, numgeoms, hitgeomindex);
 
-	//sample the bxdf (part of DL), do lots of stuff
+	//TODO: prob only need first and last condition
+	if (0 >= pdfdirect || 0 > hitgeomindex || hitgeomindex != randlightindex) {
+		colordirect = glm::vec3(0);
+	} else if (0.f < pdfdirect) {//condition needed? is OR async on gpu?
+		glm::vec3 bxdfcolordirect; float bxdfpdfdirect;
+		bxdf_FandPDF(wo, widirect, isect.surfaceNormal, m, bxdfcolordirect, bxdfpdfdirect);
+		const float absdotdirect = absDot(widirect, isect.surfaceNormal);
+		const float powerheuristic_direct = powerHeuristic(1, pdfdirect, 1, bxdfpdfdirect);
+		colordirect = (bxdfcolordirect * colordirect * absdotdirect * powerheuristic_direct) / pdfdirect;
+	}
 
-	if (path.specularbounce) { colordirect = glm::vec3(0.f); }
+	//////////////////////////////////////////////////////
+	////////// SAMPLE BXDF, CHECK IF HIT A LIGHT /////////
+	//////////////////////////////////////////////////////
+	glm::vec3 widirectsample;
+	float pdfdirectsample;
+	glm::vec3 colordirectsample(0);
+	PathSegment pathcopy = path;//scatterRayNaive updates the path with isect origin and wi direction
+	scatterRayNaive(pathcopy, isect, m, pdfdirectsample, colordirectsample, rng);
+	if (glm::length2(colordirectsample) > 0 && pdfdirectsample > 0) {
+		float DLPdf_for_directsample = lightPdfLi(randlight, pisect, widirectsample);
 
+		if (DLPdf_for_directsample > 0) {//visible
+			DLPdf_for_directsample /= numlights;
+			const float powerheuristic_directsample = powerHeuristic(1, pdfdirectsample, 1, DLPdf_for_directsample);
+			colordirectsample *= absDot(widirectsample, isect.surfaceNormal);
+			Ray directSampleRay; directSampleRay.direction = widirectsample; directSampleRay.origin = pisect;
+			int posslightindex;//we know a light is in the widirectsample direction, lets try to hit it
+			const glm::vec3 nposslight = findClosestIntersection(directSampleRay, dev_geoms, numgeoms, posslightindex);
+
+			const Geom& posslight = dev_geoms[posslightindex];
+			const Material& mposslight = materials[posslight.materialid];
+			const glm::vec3 Li = Le(mposslight, nposslight, -widirectsample);//returns 0 if we don't hit a light
+			colordirectsample = (colordirectsample * Li * powerheuristic_directsample) / pdfdirectsample;
+		} else {
+			colordirectsample = glm::vec3(0);
+		}
+	} else {//prob dont need 
+		colordirectsample = glm::vec3(0);
+	}
+
+	colordirect = colordirect + colordirectsample;
 	path.color += path.throughput*colordirect;
 
 	////////////////////////
@@ -389,18 +446,25 @@ __global__ void shadeMaterialMIS(const int iter, const int depth,
 	const glm::vec3 normal = isect.surfaceNormal;
 
 	glm::vec3 current_throughput(0.f); 
-	if(!isBlack(bxdfColor) && 0 >= bxdfPDF) { 
+	if(!isBlack(bxdfColor) && 0 < bxdfPDF) { 
 		current_throughput = bxdfColor * absDot(bxdfWi, normal) / bxdfPDF;
 	}
 	path.throughput *= current_throughput;
 	
-	//terminate low-energy rays
-	const float max = glm::compMax(path.throughput);
-	if(depth>3 && max < u01(rng)) {
-		path.remainingBounces = 0;
-		return;
+	//russian roulette terminate low-energy rays
+	if(depth>3) {
+		const float max = glm::compMax(path.throughput);
+		if (max < u01(rng)) {
+			path.remainingBounces = 0;
+			return;
+		}
+		//in the off chance this ray is still going after a long time
+		//scale it up to reduce noise 
+		//i.e. make it more like the rays in its pixel who terminated earlier
+		//this one just got lucky presumably
+		path.throughput /= max;
 	}
-	path.throughput /= max;
+
 }
 // Add the current iteration's output to the overall image
 __global__ void finalGather(const int nPaths, const glm::ivec2 resolution, 
@@ -519,7 +583,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) { //, const int MAXBOUNCES) {
 			num_paths,
 			dev_intersections,
 			dev_paths,
-			dev_materials, dev_geomLights
+			dev_materials, dev_geomLightIndices, dev_geoms, hst_scene->geoms.size()
 			);
 		checkCUDAError("shadeMaterial");
 #else

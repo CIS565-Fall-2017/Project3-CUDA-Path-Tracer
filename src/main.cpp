@@ -1,3 +1,4 @@
+#pragma once
 #include "main.h"
 #include "preview.h"
 #include <cstring>
@@ -33,6 +34,7 @@ int height;
 
 int main(int argc, char** argv) {
     startTimeString = currentTimeString();
+
 
     if (argc < 2) {
         printf("Usage: %s SCENEFILE.txt\n", argv[0]);

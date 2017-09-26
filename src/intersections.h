@@ -45,7 +45,7 @@ __host__ __device__ glm::vec3 multiplyMV(glm::mat4 m, glm::vec4 v) {
  * @param outside            Output param for whether the ray came from outside.
  * @return                   Ray parameter `t` value. -1 if no intersection.
  */
-__host__ __device__ float boxIntersectionTest(Geom box, Ray r,
+__host__ __device__ float boxIntersectionTest(const Geom& box, const Ray& r,
         glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) {
     Ray q;
     q.origin    =                multiplyMV(box.inverseTransform, glm::vec4(r.origin   , 1.0f));
@@ -99,9 +99,11 @@ __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
  * @param outside            Output param for whether the ray came from outside.
  * @return                   Ray parameter `t` value. -1 if no intersection.
  */
-__host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
+__host__ __device__ float sphereIntersectionTest(const Geom& sphere, const Ray& r,
         glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) {
-    float radius = .5;
+    //const float radius = .5;
+    const float radius = 1;
+	const float rSqrd = radius*radius;
 
     glm::vec3 ro = multiplyMV(sphere.inverseTransform, glm::vec4(r.origin, 1.0f));
     glm::vec3 rd = glm::normalize(multiplyMV(sphere.inverseTransform, glm::vec4(r.direction, 0.0f)));
@@ -110,16 +112,16 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
     rt.origin = ro;
     rt.direction = rd;
 
-    float vDotDirection = glm::dot(rt.origin, rt.direction);
-    float radicand = vDotDirection * vDotDirection - (glm::dot(rt.origin, rt.origin) - powf(radius, 2));
+    const float vDotDirection = glm::dot(rt.origin, rt.direction);
+	const float radicand = vDotDirection * vDotDirection - (glm::dot(rt.origin, rt.origin) - rSqrd);
     if (radicand < 0) {
         return -1;
     }
 
-    float squareRoot = sqrt(radicand);
-    float firstTerm = -vDotDirection;
-    float t1 = firstTerm + squareRoot;
-    float t2 = firstTerm - squareRoot;
+    const float squareRoot = sqrt(radicand);
+    const float firstTerm = -vDotDirection;
+    const float t1 = firstTerm + squareRoot;
+    const float t2 = firstTerm - squareRoot;
 
     float t = 0;
     if (t1 < 0 && t2 < 0) {
@@ -132,13 +134,103 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
         outside = false;
     }
 
-    glm::vec3 objspaceIntersection = getPointOnRay(rt, t);
+    const glm::vec3 objspaceIntersection = getPointOnRay(rt, t);
 
     intersectionPoint = multiplyMV(sphere.transform, glm::vec4(objspaceIntersection, 1.f));
-    normal = glm::normalize(multiplyMV(sphere.invTranspose, glm::vec4(objspaceIntersection, 0.f)));
+    normal = glm::normalize(multiplyMV(glm::mat4(sphere.invTranspose), glm::vec4(objspaceIntersection, 0.f)));
     if (!outside) {
         normal = -normal;
     }
 
     return glm::length(r.origin - intersectionPoint);
+}
+
+//plane is 1x1 centered at 0
+__host__ __device__ float planeIntersectionTest(const Geom& plane, const Ray& r,
+	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) 
+{
+	//transform the ray into obj space
+	Ray rloc;
+	rloc.origin = multiplyMV(plane.inverseTransform, glm::vec4(r.origin, 1.0f));
+	rloc.direction = glm::normalize(multiplyMV(plane.inverseTransform, glm::vec4(r.direction, 0.0f)));
+
+	glm::vec3 nplane(0, 0, 1);
+	//double sided, comment to make single sided
+	//nplane.z = glm::dot(-rloc.direction, nplane) ? 1 : -1;
+	const float sidelen = 1;
+	const float maxextent = sidelen / 2.f;
+
+    //Ray-plane intersection
+    const float t = glm::dot(nplane, (glm::vec3(0.5f, 0.5f, 0) - rloc.origin)) / glm::dot(nplane, rloc.direction);
+    glm::vec3 ploc = t * rloc.direction + rloc.origin;
+
+    //Check that ploc is within the bounds of the square
+    if(t > 0 && ploc.x >= -maxextent && ploc.x <= maxextent 
+		&& ploc.y >= -maxextent && ploc.y <= maxextent)
+	{
+		intersectionPoint = glm::vec3(plane.transform * glm::vec4(ploc, 1));
+		normal = glm::normalize(plane.invTranspose * nplane);
+		//ComputeTBN(pLocal, &(isect->normalGeometric), &(isect->tangent), &(isect->bitangent));
+		//isect->uv = GetUVCoordinates(pLocal);
+		return t;
+    }
+    return -1;
+}
+
+
+__host__ __device__ float shapeIntersectionTest(const Geom& geom, const Ray& ray,
+	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) 
+{
+	if (geom.type == GeomType::CUBE) {
+		return boxIntersectionTest(geom, ray, intersectionPoint, normal, outside);
+
+	} else if (geom.type == GeomType::SPHERE) {
+		return sphereIntersectionTest(geom, ray, intersectionPoint, normal, outside);
+
+	} else if (geom.type == GeomType::PLANE) {
+		return planeIntersectionTest(geom, ray, intersectionPoint, normal, outside);
+	}
+}
+
+
+
+///////////////////////////////////////////
+//////// FIND CLOSEST INTERSECTION/////////
+///////////////////////////////////////////
+__host__ __device__ glm::vec3 findClosestIntersection(const Ray& ray,
+	const Geom* const geoms, int geoms_size, int& hit_geom_index
+	)
+{
+	float t;
+	float t_min = FLT_MAX;
+	hit_geom_index = -1;
+	bool outside = true;
+	glm::vec3 nisect(0);
+
+	glm::vec3 tmp_intersect;
+	glm::vec3 tmp_normal;
+
+	// naive parse through global geoms
+	for (int i = 0; i < geoms_size; ++i) {
+		const Geom& geom = geoms[i];
+
+		if (geom.type == GeomType::CUBE) {
+			t = boxIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside);
+
+		} else if (geom.type == GeomType::SPHERE) {
+			t = sphereIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside);
+
+		} else if (geom.type == GeomType::PLANE) {
+			t = planeIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside);
+		}
+
+		// Compute the minimum t from the intersection tests to determine what
+		// scene geometry object was hit first.
+		if (t > 0.0f && t_min > t) {
+			t_min = t;
+			hit_geom_index = i;
+			nisect = tmp_normal;
+		}
+	}
+	return nisect;
 }

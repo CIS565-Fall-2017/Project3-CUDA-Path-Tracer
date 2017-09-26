@@ -2,26 +2,10 @@
 
 #include "stream_compaction/common.h"
 #include "intersections.h"
+#include "shapefunctions.h"
+#include "utilities.h"
+#include "utilkern.h"
 
-__host__ __device__ bool isBlack(const glm::vec3 c) {
-    return (c.r <= 0.f && c.g <= 0.f && c.b <= 0.f);
-}
-
-__host__ __device__ float absDot(const glm::vec3 a, const glm::vec3 b) {
-    return glm::abs(glm::dot(a, b));
-}
-
-__host__ __device__ float cosTheta(const glm::vec3 a, const glm::vec3 b) {
-	return glm::dot(a, b);
-}
-
-__host__ __device__ float absCosTheta(const glm::vec3 a, const glm::vec3 b) {
-    return glm::abs(glm::dot(a, b));
-}
-
-__host__ __device__ bool sameHemisphere(const glm::vec3 a, const glm::vec3 b) {
-	return glm::dot(a, b) > 0.f;
-}
 __host__ __device__ glm::vec3 evaluateFresnelDielectric(float cosThetaI, const float etaI, const float etaT) {
 		//561 evaluateFresnel for dieletrics(glass, water, etc)
 		float etaI_temp = etaI; float etaT_temp = etaT;
@@ -70,56 +54,13 @@ __host__ __device__ bool Refract(const glm::vec3 &wi, const glm::vec3 &n, float 
 
 }
 
-__host__ __device__ glm::vec3 Faceforward(const glm::vec3 &n, const glm::vec3 &v) {
-    return (glm::dot(n, v) < 0.f) ? -n : n;
-}
-
-// CHECKITOUT
-/**
- * Computes a cosine-weighted random direction in a hemisphere.
- * Used for diffuse lighting.
- */
-__host__ __device__
-glm::vec3 calculateRandomDirectionInHemisphere(
-        glm::vec3 normal, thrust::default_random_engine &rng) {
-    thrust::uniform_real_distribution<float> u01(0, 1);
-
-    float up = sqrt(u01(rng)); // cos(theta)
-    float over = sqrt(1 - up * up); // sin(theta)
-    float around = u01(rng) * TWO_PI;
-
-    // Find a direction that is not the normal based off of whether or not the
-    // normal's components are all equal to sqrt(1/3) or whether or not at
-    // least one component is less than sqrt(1/3). Learned this trick from
-    // Peter Kutz.
-
-    glm::vec3 directionNotNormal;
-    if (abs(normal.x) < SQRT_OF_ONE_THIRD) {
-        directionNotNormal = glm::vec3(1, 0, 0);
-    } else if (abs(normal.y) < SQRT_OF_ONE_THIRD) {
-        directionNotNormal = glm::vec3(0, 1, 0);
-    } else {
-        directionNotNormal = glm::vec3(0, 0, 1);
-    }
-
-    // Use not-normal direction to generate two perpendicular directions
-    glm::vec3 perpendicularDirection1 =
-        glm::normalize(glm::cross(normal, directionNotNormal));
-    glm::vec3 perpendicularDirection2 =
-        glm::normalize(glm::cross(normal, perpendicularDirection1));
-
-    return up * normal
-        + cos(around) * over * perpendicularDirection1
-        + sin(around) * over * perpendicularDirection2;
-}
-
 __host__ __device__
 void chooseReflection( PathSegment & path, const ShadeableIntersection& isect, const Material& m,
 	float& bxdfPDF, glm::vec3& bxdfColor, thrust::default_random_engine &rng, const bool isDielectric, const float probR) 
 {
 	const glm::vec3 normal = isect.surfaceNormal;
 	const glm::vec3 wo = -path.ray.direction;
-	const bool entering = cosTheta(normal, wo) > 0.f;
+	const bool entering = glm::dot(normal, wo) > 0.f;
 	const glm::vec3 norm = (entering ? normal : -normal);
 	const float etaA = 1.f;
 	const float etaB = m.indexOfRefraction;
@@ -158,7 +99,7 @@ void chooseTransmission( PathSegment & path, const ShadeableIntersection& isect,
 	//Determine if incoming or outgoing, adjust accordingly
 	const glm::vec3 normal = isect.surfaceNormal;
 	const glm::vec3 wo = -path.ray.direction;
-	const bool entering = cosTheta(normal, wo) > 0.f;
+	const bool entering = glm::dot (normal, wo) > 0.f;
 	const glm::vec3 norm = (entering ? normal : -normal);
 	const float etaA = 1.f;
 	const float etaB = m.indexOfRefraction;
@@ -167,7 +108,15 @@ void chooseTransmission( PathSegment & path, const ShadeableIntersection& isect,
 
 	//Get wi.
 	glm::vec3 wi;
+	///THIS SORTA WORKS WITH KEEPING SPHEREINTERSETIONTEST NORMAL FLIP
 	wi = glm::refract(wo, norm, etaI / etaT);
+
+	///THIS SEEMS SORTA OK WHEN SPHEREINTERSECTIONTEST NORMAL FLIP IS COMMENTED
+	//if (!Refract(wo, Faceforward(norm, wo), etaI / etaT, wi)) {
+	//	bxdfColor = glm::vec3(0);
+	//	path.remainingBounces = 0;
+	//	return;
+	//}
 
 	//Set Color and PDF and path ray
 	const bool exiting = glm::dot(normal, wi) > 0.f;
@@ -199,7 +148,7 @@ void chooseTransmission( PathSegment & path, const ShadeableIntersection& isect,
  *   being taken.
  *   - This way is inefficient, but serves as a good starting point - it
  *     converges slowly, especially for pure-diffuse or pure-specular.
- * - Pick the split based on the intensity of each material color, and divide
+ * - PIck the split based on the intensity of each material color, and divide
  *   branch result by that branch's probability (whatever probability you use).
  *
  * This method applies its changes to the Ray parameter `ray` in place.
@@ -240,8 +189,8 @@ void scatterRayNaive(
 		path.ray.origin += normal*EPSILON;
 		path.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
 		const glm::vec3 wi = path.ray.direction;
-		bxdfPDF = sameHemisphere(wo, wi) ? cosTheta(normal, wi)*InvPi : 0.f;
-		bxdfColor = m.color * InvPi;
+		bxdfPDF = sameHemisphere(wo, wi) ? cosTheta(normal, wi)*InvPI : 0.f;
+		bxdfColor = m.color * InvPI;
 	} else if ( m.hasReflective && !m.hasRefractive) {//just reflective
 		chooseReflection(path, isect, m, bxdfPDF, bxdfColor, rng, false, 1.f);
 
@@ -269,26 +218,86 @@ void scatterRayNaive(
 
 //MIS light sampling
 __host__ __device__
-glm::vec3 sampleLight( const Geom& randLight, const Material& mlight,
-	const glm::vec3& isectpoint,
+glm::vec3 sampleLight( const Geom& randlight, const Material& mlight,
+	const glm::vec3& pisect, const glm::vec3& nisect,
 	thrust::default_random_engine &rng,
 	glm::vec3& widirect, float& pdfdirect) 
 {
 
-	glm::vec3 lightsamplepoint; glm::vec3 lightsamplenormal;
-	if (randLight.type == GeomType::SPHERE) {//sphere has its own way of getting pdf
-		//glm::vec3 lightsamplepoint = surfaceSampleShere(
-		//	randLight, lightsamplenormal, isectpoint, rng, pdfdirect);
-	} else {
-		//glm::vec3 lightsamplepoint = surfaceSamplePlanarShapes(
-		//	randLight, lightsamplenormal, isectpoint, rng, pdfdirect);
-	}
+	glm::vec3 nlightsamp; glm::vec3 plightsamp;
+	glm::vec3 lightsamplepoint = surfaceSampleShape(nlightsamp,
+			randlight, pisect, nisect, rng, pdfdirect);
 
-	if ( 0.f >= pdfdirect || glm::all(glm::equal(isectpoint, lightsamplepoint)) ) {
+	if ( 0.f >= pdfdirect || glm::all(glm::equal(pisect, plightsamp)) ) {
 		pdfdirect = 0;
 		return glm::vec3(0.f);
 	}
-	widirect = glm::normalize(lightsamplepoint - isectpoint);
-	return (glm::dot(lightsamplenormal, -widirect)) > 0.f ? 
+	widirect = glm::normalize(plightsamp - pisect);
+	return (glm::dot(nlightsamp, -widirect)) > 0.f ? 
 		mlight.color*mlight.emittance : glm::vec3(0.f);
+}
+
+__host__ __device__
+void bxdf_FandPDF(const glm::vec3& wo, const glm::vec3& wi, 
+	const glm::vec3& normal, const Material& m, 
+	glm::vec3& bxdfColor, float& bxdfPDF) 
+{
+	if (!m.hasReflective && !m.hasRefractive) {//pure diffuse
+		bxdfPDF = sameHemisphere(wo, wi) ? cosTheta(normal, wi)*InvPI : 0.f;
+		bxdfColor = m.color * InvPI;
+	} else if (m.hasReflective || m.hasRefractive) {
+		bxdfPDF = 0;
+		bxdfColor = glm::vec3(0);
+	}
+	//TODO: other non specular bxdfs?
+}
+
+__host__ __device__
+float powerHeuristic(int nf, float fPdf, int ng, float gPdf) {
+    const float f = nf * fPdf, g = ng * gPdf;
+    const float denom = f*f + g*g;
+    if(denom < FLT_EPSILON) {
+        return 0.f;
+    }
+    return (f*f) / (denom);
+}
+
+__host__ __device__
+float lightPdfLi(const Geom& randlight, const glm::vec3& pisect, 
+	const glm::vec3& wi) 
+{
+	glm::vec3 pisect_thislight; glm::vec3 nisect_thislight;
+	Ray wiWray; wiWray.origin = pisect; wiWray.direction = wi;
+
+
+	bool outside;
+    if(0.f > shapeIntersectionTest(randlight, wiWray, pisect_thislight, nisect_thislight,outside)) {
+        return 0.f;
+    }
+
+    const float coslight = glm::dot(nisect_thislight, -wi);
+	//uncomment if twosided
+	//coslight = glm::abs(coslight);
+
+	const float denom = coslight * getAreaShape(randlight);
+    if(denom > 0.f) {
+		return glm::distance2(pisect, pisect_thislight) / denom;
+    } else {
+        return 0.f;
+    }
+
+}
+
+__host__ __device__
+glm::vec3 Le(const Material& misect, const glm::vec3 nisect, 
+	const glm::vec3 source_dir)
+{
+	if(0.f > misect.emittance || 
+	   0.f > glm::dot(source_dir, nisect))
+	{
+		return glm::vec3(0);
+	} else {
+		return misect.color*misect.emittance;
+	}
+
 }
