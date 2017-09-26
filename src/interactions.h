@@ -79,7 +79,7 @@ void scatterRay(
 	thrust::uniform_real_distribution<float> u01(0, 1);
 	float probability = (m.hasReflective > 0) ? u01(rng) : 1.0f;
 	Ray& ray = pathSegment.ray;
-	if (probability > 0.99f) {
+	if (probability > 0.5f) {
 		ray.direction = glm::normalize(calculateRandomDirectionInHemisphere(normal, rng));
 	} else {
 		ray.direction = glm::reflect(ray.direction, normal);

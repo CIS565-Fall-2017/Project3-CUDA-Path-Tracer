@@ -16,6 +16,7 @@
 #include "../stream_compaction/efficient.h"
 
 #define ERRORCHECK 1
+#define FIRSTBOUNCE 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -76,6 +77,9 @@ static PathSegment * dev_paths = NULL;
 static ShadeableIntersection * dev_intersections = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
 // ...
+#if FIRSTBOUNCE
+static ShadeableIntersection * dev_firstBounce_intersections = NULL;
+#endif
 
 void pathtraceInit(Scene *scene) {
     hst_scene = scene;
@@ -97,7 +101,10 @@ void pathtraceInit(Scene *scene) {
   	cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
     // TODO: initialize any extra device memeory you need
-
+	#if FIRSTBOUNCE
+	cudaMalloc(&dev_firstBounce_intersections, pixelcount * sizeof(ShadeableIntersection));
+	cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
+	#endif
     checkCUDAError("pathtraceInit");
 }
 
@@ -108,7 +115,9 @@ void pathtraceFree() {
   	cudaFree(dev_materials);
   	cudaFree(dev_intersections);
     // TODO: clean up any extra device memory you created
-
+#if FIRSTBOUNCE
+	cudaFree(dev_firstBounce_intersections);
+#endif
     checkCUDAError("pathtraceFree");
 }
 
@@ -287,8 +296,8 @@ __global__ void pathTraceBasic(int iter, int num_paths,
 
 			// If the material indicates that the object was a light, "light" the ray
 			if (material.emittance > 0.0f ) {
-				pathSegments[idx].color *= (materialColor * material.emittance);
-				pathSegments[idx].remainingBounces = 0;
+				pathSegment.color *= (materialColor * material.emittance);
+				pathSegment.remainingBounces = 0;
 			}
 			// Otherwise, do some pseudo-lighting computation. This is actually more
 			// like what you would expect from shading in a rasterizer like OpenGL.
@@ -309,7 +318,7 @@ __global__ void pathTraceBasic(int iter, int num_paths,
 			// This can be useful for post-processing and image compositing.
 		}
 		else {
-			pathSegments[idx].color = glm::vec3(0.0f);
+			pathSegment.color = glm::vec3(0.0f);
 			pathSegment.remainingBounces = 0;
 		}
 	}
@@ -416,6 +425,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	// --- PathSegment Tracing Stage ---
 	// Shoot ray into scene, bounce between objects, push shading chunks
 
+
+
   bool iterationComplete = false;
 	while (!iterationComplete) {
 
@@ -424,7 +435,40 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
 	// tracing
 	dim3 numblocksPathSegmentTracing = (numPathsActive + blockSize1d - 1) / blockSize1d;
-	computeIntersections <<<numblocksPathSegmentTracing, blockSize1d>>> (
+#if FIRSTBOUNCE
+	if (iter == 1 && depth == 0) {
+		computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
+			depth
+			, numPathsActive
+			, dev_paths
+			, dev_geoms
+			, hst_scene->geoms.size()
+			, dev_intersections
+			);
+		checkCUDAError("trace one bounce");
+		cudaDeviceSynchronize();
+		depth++;
+		cudaMemcpy(dev_firstBounce_intersections, dev_intersections, pixelcount * sizeof(ShadeableIntersection), cudaMemcpyDeviceToDevice);
+	}
+	else if (depth == 0) {
+		cudaMemcpy(dev_intersections, dev_firstBounce_intersections, pixelcount * sizeof(ShadeableIntersection), cudaMemcpyDeviceToDevice);
+		depth++;
+	}
+	else {
+		computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
+			depth
+			, numPathsActive
+			, dev_paths
+			, dev_geoms
+			, hst_scene->geoms.size()
+			, dev_intersections
+			);
+		checkCUDAError("trace one bounce");
+		cudaDeviceSynchronize();
+		depth++;
+	}
+#else 
+	computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
 		depth
 		, numPathsActive
 		, dev_paths
@@ -435,6 +479,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	checkCUDAError("trace one bounce");
 	cudaDeviceSynchronize();
 	depth++;
+#endif
 
 
 	// TODO:
