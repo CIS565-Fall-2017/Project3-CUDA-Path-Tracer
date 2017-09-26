@@ -40,7 +40,6 @@ void checkCUDAErrorFn(const char *msg, const char *file, int line) {
     exit(EXIT_FAILURE);
 #endif
 }
-
 __host__ __device__
 thrust::default_random_engine makeSeededRandomEngine(int iter, int index, int depth) {
     int h = utilhash((1 << 31) | (depth << 22) | iter) ^ utilhash(index);
@@ -295,7 +294,7 @@ __global__ void shakeBSDFMaterail(
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (idx < num_paths)
 	{
-		PathSegment curPath = pathSegments[idx];
+		PathSegment& curPath = pathSegments[idx];
 		ShadeableIntersection intersection = shadeableIntersections[idx];
 		if (intersection.t > 0.0f) { // if the intersection exists...
 									 // Set up the RNG
@@ -319,7 +318,12 @@ __global__ void shakeBSDFMaterail(
 			// TODO: replace this! you should be able to start with basically a one-liner
 			else {
 				scatterRay(curPath, intersection.t * curPath.ray.direction + curPath.ray.origin, intersection.surfaceNormal, material, rng);
-				dev_flag[idx] = true;
+				if(curPath.remainingBounces)
+					dev_flag[idx] = true;
+				else {
+					dev_flag[idx] = false;
+					//img[curPath.pixelIndex] += curPath.color;
+				}
 			}
 			// If there was no intersection, color the ray black.
 			// Lots of renderers use 4 channel color, RGBA, where A = alpha, often
@@ -433,19 +437,26 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		// materials you have in the scenefile.
 		// TODO: compare between directly shading the path segments and shading
 		// path segments that have been reshuffled to be contiguous in memory.
-
-		shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>> (
+		shakeBSDFMaterail << <numblocksPathSegmentTracing, blockSize1d >> > (
 			iter,
 			num_paths,
 			dev_intersections,
 			dev_paths,
-			dev_materials
-		 );
+			dev_materials,
+			dev_flag,
+			dev_image);
+		//shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>> (
+		//	iter,
+		//	num_paths,
+		//	dev_intersections,
+		//	dev_paths,
+		//	dev_materials
+		// );
 		checkCUDAError("shadeFakeMaterial");
 
 		depth++;
-		//compressedPath(num_paths, dev_paths, dev_flag);
-		//if(!num_paths)
+		compressedPath(num_paths, dev_paths, dev_flag);
+		if(!num_paths)
 			iterationComplete = true; 
 	}
 

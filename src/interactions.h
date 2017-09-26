@@ -88,6 +88,7 @@ void scatterRay(
 	glm::vec3 lambertBrdf = m.color / PI;
 	pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng, pdf);
 	pathSegment.ray.origin = intersect + pathSegment.ray.direction*pushoutTolerance;
-	pathSegment.color *= lambertBrdf * fmax(0.f, glm::dot(normal, pathSegment.ray.direction)) / (pdf + FLT_EPSILON);
+	//pathSegment.color *= lambertBrdf * fmax(0.f, glm::dot(normal, pathSegment.ray.direction)) / (pdf + FLT_EPSILON);
+	pathSegment.color *= m.color;
 	pathSegment.remainingBounces--;
 }

@@ -27,18 +27,29 @@ struct Geom {
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
 };
-
 struct Material {
-    glm::vec3 color;
-    struct {
-        float exponent;
-        glm::vec3 color;
-    } specular;
-    float hasReflective;
-    float hasRefractive;
-    float indexOfRefraction;
-    float emittance;
+public:
+	glm::vec3 color;
+	struct {
+		float exponent;
+		glm::vec3 color;
+	} specular;
+	float hasReflective;
+	float hasRefractive;
+	float indexOfRefraction;
+	float emittance;
 };
+//struct Material {
+//    glm::vec3 color;
+//    struct {
+//        float exponent;
+//        glm::vec3 color;
+//    } specular;
+//    float hasReflective;
+//    float hasRefractive;
+//    float indexOfRefraction;
+//    float emittance;
+//};
 
 struct Camera {
     glm::ivec2 resolution;
