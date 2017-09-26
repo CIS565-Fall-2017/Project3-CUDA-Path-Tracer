@@ -4,6 +4,7 @@
 #include <thrust/execution_policy.h>
 #include <thrust/random.h>
 #include <thrust/remove.h>
+#include <thrust/device_ptr.h>
 
 #include "sceneStructs.h"
 #include "scene.h"
@@ -17,6 +18,7 @@
 
 #define ERRORCHECK 1
 #define FIRSTBOUNCE 1
+#define SORTBYMATERIAL 0
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -81,6 +83,11 @@ static ShadeableIntersection * dev_intersections = NULL;
 static ShadeableIntersection * dev_firstBounce_intersections = NULL;
 #endif
 
+#if SORTBYMATERIAL
+static int * dev_materialIds1 = NULL;
+static int * dev_materialIds2 = NULL;
+#endif
+
 void pathtraceInit(Scene *scene) {
     hst_scene = scene;
     const Camera &cam = hst_scene->state.camera;
@@ -106,6 +113,14 @@ void pathtraceInit(Scene *scene) {
 	cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 	#endif
     checkCUDAError("pathtraceInit");
+
+#if SORTBYMATERIAL
+	cudaMalloc(&dev_materialIds1, pixelcount * sizeof(int));
+	cudaMemset(dev_materialIds1, 0, pixelcount * sizeof(int));
+
+	cudaMalloc(&dev_materialIds2, pixelcount * sizeof(int));
+	cudaMemset(dev_materialIds2, 0, pixelcount * sizeof(int));
+#endif
 }
 
 void pathtraceFree() {
@@ -117,6 +132,11 @@ void pathtraceFree() {
     // TODO: clean up any extra device memory you created
 #if FIRSTBOUNCE
 	cudaFree(dev_firstBounce_intersections);
+#endif
+
+#if SORTBYMATERIAL
+	cudaFree(dev_materialIds1);
+	cudaFree(dev_materialIds2);
 #endif
     checkCUDAError("pathtraceFree");
 }
@@ -356,6 +376,15 @@ __global__ void createPathSegmentIndicesArray(int numPaths, int *indices) {
 	indices[idx] = idx;
 }
 
+//kernel to map materialIds to int array
+__global__ void populateMaterialIds(int numPaths, int * materialIds, ShadeableIntersection * intersections) {
+	int idx = threadIdx.x + blockDim.x * blockIdx.x;
+	if (idx < numPaths) {
+		materialIds[idx] = intersections[idx].materialId;
+	}
+
+}
+
 
 
 //kernel to scatter pathSegments based on scanned boolean array
@@ -490,6 +519,22 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
   // materials you have in the scenefile.
   // TODO: compare between directly shading the path segments and shading
   // path segments that have been reshuffled to be contiguous in memory.
+#if SORTBYMATERIAL
+	populateMaterialIds << <numblocksPathSegmentTracing, blockSize1d >> >(numPathsActive,
+		dev_materialIds1,
+		dev_intersections);
+
+	cudaMemcpy(dev_materialIds2, dev_materialIds1, numPathsActive * sizeof(int), cudaMemcpyDeviceToDevice);
+
+	thrust::device_ptr<int> dev_thrust_materialIds1(dev_materialIds1);
+	thrust::device_ptr<int> dev_thrust_materialIds2(dev_materialIds2);
+
+	thrust::device_ptr<PathSegment> dev_thrust_paths(dev_paths);
+	thrust::device_ptr<ShadeableIntersection> dev_thrust_intersections(dev_intersections);
+
+	thrust::sort_by_key(dev_thrust_materialIds1, dev_thrust_materialIds1 + numPathsActive, dev_thrust_paths);
+	thrust::sort_by_key(dev_thrust_materialIds2, dev_thrust_materialIds2 + numPathsActive, dev_thrust_intersections);
+#endif
 
   pathTraceBasic<<<numblocksPathSegmentTracing, blockSize1d>>> (
     iter,
