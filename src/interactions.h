@@ -1,6 +1,8 @@
 #pragma once
 
 #include "intersections.h"
+#include "glm/glm.hpp"
+#include "glm/gtx/norm.hpp"
 
 // CHECKITOUT
 /**
@@ -76,4 +78,48 @@ void scatterRay(
     // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
+	
+	//hit the light, terminate the path
+	int pixelIndex = pathSegment.pixelIndex;
+	if (m.emittance > 0) {
+		pathSegment.color *= m.color * m.emittance;
+		pathSegment.remainingBounces = 0;
+	}
+	else {		
+		pathSegment.remainingBounces--;
+		if (pathSegment.remainingBounces == 0) {
+			pathSegment.color = glm::vec3(0);
+		}
+		else {
+			if (false && m.hasReflective) {
+				//Create a random number between 0 to 1
+				thrust::uniform_real_distribution<float> u01(0, 1);
+				float probability = u01(rng);
+				//if random number is smaller than 0.5, then use reflective brdf.
+				//if random number is bigger than 0.5, then use diffusive brdf
+				if (probability < 0.5) {
+					//reflective
+					glm::vec3 ri = pathSegment.ray.direction;
+					pathSegment.ray.direction = pathSegment.ray.direction - 2.0f *normal*(glm::dot(pathSegment.ray.direction, normal));
+					pathSegment.color /= 0.5;
+				}
+				else {
+					pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
+					float lightTerm = glm::abs(glm::dot(normal, pathSegment.ray.direction));
+					pathSegment.color *= (m.color) / 0.5f;
+				}
+				pathSegment.ray.origin = intersect;
+			}
+			else {
+				//Test on pure-diffusive first	
+				//Below code does not really work well
+				pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
+				//float f = 1.0 / PI; //Does not affect result
+				//float pdf = 1.0 / (PI); //Does not affect result
+				float lightTerm = glm::abs(glm::dot(normal, pathSegment.ray.direction));
+				pathSegment.color *= m.color;
+				pathSegment.ray.origin = intersect+ pathSegment.ray.direction*0.001f;
+			}
+		}	
+	}
 }
