@@ -18,8 +18,8 @@ enum BxDFType {
 	BSDF_LAMBERT = 1 << 0,      // This BxDF represents diffuse energy scattering, which is uniformly random
 	BSDF_SPECULAR_BRDF = 1 << 1,     // This BxDF handles specular energy scattering, which has no element of randomness
 	BSDF_SPECULAR_BTDF = 1 << 2,
-	GLASS = 1 << 3,
-	BSDF_ALL = BSDF_LAMBERT | BSDF_SPECULAR_BRDF | BSDF_SPECULAR_BTDF | GLASS
+	BSDF_GLASS = 1 << 3,
+	BSDF_ALL = BSDF_LAMBERT | BSDF_SPECULAR_BRDF | BSDF_SPECULAR_BTDF | BSDF_GLASS
 };
 
 struct Ray 
