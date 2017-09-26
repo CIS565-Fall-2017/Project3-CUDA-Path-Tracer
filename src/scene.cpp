@@ -163,9 +163,10 @@ int Scene::loadMaterial(string materialid) {
     } else {
         cout << "Loading Material " << id << "..." << endl;
         Material newMaterial;
+		int bxdfcounter = 0;
 
         //load static properties
-        for (int i = 0; i < 7; i++) {
+        for (int i = 0; i < 9; i++) {
             string line;
             utilityCore::safeGetline(fp_in, line);
             vector<string> tokens = utilityCore::tokenizeString(line);
@@ -185,8 +186,21 @@ int Scene::loadMaterial(string materialid) {
                 newMaterial.indexOfRefraction = atof(tokens[1].c_str());
             } else if (strcmp(tokens[0].c_str(), "EMITTANCE") == 0) {
                 newMaterial.emittance = atof(tokens[1].c_str());
-            }
-        }
+            } else if (strcmp(tokens[0].c_str(), "LAMBERT") == 0) {
+				if (atoi(tokens[1].c_str()) > 0)
+				{
+					newMaterial.bxdfs[bxdfcounter] = BSDF_LAMBERT;
+					bxdfcounter++;
+				}				
+			} else if (strcmp(tokens[0].c_str(), "SPECULAR_BRDF") == 0) {
+				if (atoi(tokens[1].c_str()) > 0)
+				{
+					newMaterial.bxdfs[bxdfcounter] = BSDF_SPECULAR_BRDF;
+					bxdfcounter++;
+				}
+			}
+		}
+		newMaterial.numBxDFs = bxdfcounter;
         materials.push_back(newMaterial);
         return 1;
     }

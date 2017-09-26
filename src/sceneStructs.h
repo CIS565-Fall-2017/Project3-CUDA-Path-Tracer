@@ -11,6 +11,15 @@ enum GeomType
 {
     SPHERE,
     CUBE,
+	TRIANGLE
+};
+
+enum BxDFType {
+	BSDF_LAMBERT = 1 << 0,      // This BxDF represents diffuse energy scattering, which is uniformly random
+	BSDF_SPECULAR_BRDF = 1 << 1,     // This BxDF handles specular energy scattering, which has no element of randomness
+	BSDF_SPECULAR_BTDF = 1 << 2,
+	GLASS = 1 << 3,
+	BSDF_ALL = BSDF_LAMBERT | BSDF_SPECULAR_BRDF | BSDF_SPECULAR_BTDF | GLASS
 };
 
 struct Ray 
@@ -42,6 +51,11 @@ struct Material
     float hasRefractive;
     float indexOfRefraction;
     float emittance;
+
+	int numBxDFs; // How many BxDFs this BSDF currently contains (init. 0)
+	const static int MaxBxDFs = 8; // How many BxDFs a single BSDF can contain
+	BxDFType bxdfs[MaxBxDFs]; // The collection of BxDFs contained in this BSDF(in our implementation there isn't a
+							  //practical difference between a material and a BSDF)
 };
 
 struct Camera 
@@ -81,8 +95,8 @@ struct PathSegment
 // 2) BSDF evaluation: generate a new ray
 struct ShadeableIntersection 
 {
-  float t;
-  glm::vec3 intersectPoint;
-  glm::vec3 surfaceNormal;
-  int materialId;
+	float t;
+	glm::vec3 intersectPoint;
+	glm::vec3 surfaceNormal;
+	int materialId;
 };

@@ -1,45 +1,8 @@
 #pragma once
 
 #include "intersections.h"
-
-// CHECKITOUT
-/**
- * Computes a cosine-weighted random direction in a hemisphere.
- * Used for diffuse lighting.
- * I believe this is in worldspace
- */
-__host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(glm::vec3 normal, thrust::default_random_engine &rng) 
-{
-    thrust::uniform_real_distribution<float> u01(0, 1);
-
-    float up = sqrt(u01(rng)); // cos(theta)
-    float over = sqrt(1 - up * up); // sin(theta)
-    float around = u01(rng) * TWO_PI;
-
-    // Find a direction that is not the normal based off of whether or not the
-    // normal's components are all equal to sqrt(1/3) or whether or not at
-    // least one component is less than sqrt(1/3). Learned this trick from
-    // Peter Kutz.
-
-    glm::vec3 directionNotNormal;
-    if (abs(normal.x) < SQRT_OF_ONE_THIRD) {
-        directionNotNormal = glm::vec3(1, 0, 0);
-    } else if (abs(normal.y) < SQRT_OF_ONE_THIRD) {
-        directionNotNormal = glm::vec3(0, 1, 0);
-    } else {
-        directionNotNormal = glm::vec3(0, 0, 1);
-    }
-
-    // Use not-normal direction to generate two perpendicular directions
-    glm::vec3 perpendicularDirection1 =
-        glm::normalize(glm::cross(normal, directionNotNormal));
-    glm::vec3 perpendicularDirection2 =
-        glm::normalize(glm::cross(normal, perpendicularDirection1));
-
-    return up * normal
-        + cos(around) * over * perpendicularDirection1
-        + sin(around) * over * perpendicularDirection2;
-}
+#include "sampling.h"
+#include "materialInteractions.h"
 
 /**
  * Scatter a ray with some probabilities according to the material properties.
@@ -85,10 +48,6 @@ __host__ __device__ void scatterRay( PathSegment & pathSegment,
 									 thrust::default_random_engine &rng) 
 {
 	// Update the ray and color associated with the pathSegment
-    // TODO: implement this.
-    // A basic implementation of pure-diffuse shading will just call the
-    // calculateRandomDirectionInHemisphere defined above.
-
 	glm::vec3 wo = pathSegment.ray.direction;
 	glm::vec3 wi = glm::vec3(0.0f);
 	glm::vec3 color = pathSegment.color;
@@ -98,22 +57,112 @@ __host__ __device__ void scatterRay( PathSegment & pathSegment,
 	{
 		//specular component
 		wi = glm::reflect(wo, intersection.surfaceNormal);
-		color = color*m.specular.color;
+		color = m.specular.color;
 		pdf = 0.0f;
 	}
 	else
 	{
 		//diffuse
 		wi = glm::normalize(calculateRandomDirectionInHemisphere(intersection.surfaceNormal, rng));
-
-		pdf = INVPI;
+		//pdf
+		pdf = INVPI*glm::abs(glm::cos(glm::dot(wi, intersection.surfaceNormal)));
 		//Update Color
-		color = color*m.color;// *glm::vec3(INVPI)*(1.0f / pdf);
+		color = m.color*INVPI;
 	}
 	
-	//color *= glm::abs(glm::dot(wi, intersection.surfaceNormal));
-	pathSegment.color = color;
+	if (pdf != 0.0f)
+	{
+		float absdot = glm::abs(glm::dot(wi, intersection.surfaceNormal));
+		pathSegment.color *= color*absdot / pdf;
+	}
 
 	pathSegment.ray = spawnNewRay(intersection, wi);
 	pathSegment.remainingBounces--;
 }
+
+__host__ __device__ void naiveIntegrator(PathSegment & pathSegment,
+										 ShadeableIntersection& intersection,
+										 const Material &m,
+										 thrust::default_random_engine &rng)
+{
+	// Update the ray and color associated with the pathSegment
+	Vector3f wo = pathSegment.ray.direction;
+	Vector3f wi = glm::vec3(0.0f);
+	Vector3f sampledColor = pathSegment.color;
+	Vector3f normal = intersection.surfaceNormal;
+	float pdf = 0.0f;
+
+	sampleMaterials(m, wo, normal, sampledColor, wi, pdf, rng);
+
+	//if (pdf <= EPSILON)
+	//{
+	//	pathSegment.ray = spawnNewRay(intersection, wi);
+	//	pathSegment.remainingBounces--;
+	//}
+	if (pdf != 0.0f)
+	{
+		float absdot = glm::abs(glm::dot(wi, intersection.surfaceNormal));
+		pathSegment.color *= sampledColor*absdot / pdf;
+	}
+	
+	pathSegment.ray = spawnNewRay(intersection, wi);
+	pathSegment.remainingBounces--;
+}
+
+/*
+Full Lighting
+
+DirectLighting
+BSDFBasedDirectLighting
+MIS
+IndirectBSDFLighting
+UpdateRayDirection
+
+//----------------------- Indirect Lighting (Global Illumination) -----
+Vector3f wiW_BSDF_Indirect;
+float pdf_BSDF_Indirect;
+Point2f xi_BSDF_Indirect = sampler->Get2D();
+
+if( depth == recursionLimit  || flag_CameFromSpecular )
+{
+	directLightingColor += intersection.Le(woW);
+}
+
+flag_CameFromSpecular = false;
+if(flag_Hit_Specular) //if( (sampledType & BSDF_SPECULAR) == BSDF_SPECULAR )
+{
+	flag_CameFromSpecular = true;
+}
+
+directLightingColor *= accumulatedThroughputColor;  //for only BSDFIndirectLighting, assume directLighting is 1,1,1
+
+if(!flag_NoBSDF)
+{
+	//f term
+	Color3f f_BSDF_Indirect = intersection.bsdf->Sample_f(woW, &wiW_BSDF_Indirect, xi_BSDF_Indirect,
+	&pdf_BSDF_Indirect, BSDF_ALL, &sampledType);
+
+	if(pdf_BSDF_Indirect != 0.0f)
+	{
+		//No Li term per se, this is accounted for via accumulatedThroughputColor
+
+		//absDot Term
+		float absDot_BSDF_Indirect = AbsDot(wiW_BSDF_Indirect, intersection.normalGeometric);
+
+		//LTE term
+		accumulatedThroughputColor *= f_BSDF_Indirect * absDot_BSDF_Indirect / pdf_BSDF_Indirect;
+	}
+}
+
+flag_Terminate = RussianRoulette(accumulatedThroughputColor, probability, depth); //can change accumulatedThroughput
+accumulatedRayColor += directLightingColor;
+
+Ray n_ray_BSDF_Indirect = intersection.SpawnRay(wiW_BSDF_Indirect);
+woW = -n_ray_BSDF_Indirect.direction;
+r = n_ray_BSDF_Indirect;
+depth--;
+}
+
+return accumulatedRayColor;
+
+*/

@@ -133,12 +133,14 @@ void runCuda()
     // Map OpenGL buffer object for writing from CUDA on a single GPU
     // No data is moved (Win & Linux). When mapped to CUDA, OpenGL should not use this buffer
 
-    if (iteration == 0) {
+    if (iteration == 0) 
+	{
         pathtraceFree();
         pathtraceInit(scene);
     }
 
-    if (iteration < renderState->iterations) {
+    if (iteration < renderState->iterations) 
+	{
         uchar4 *pbo_dptr = NULL;
         iteration++;
         cudaGLMapBufferObject((void**)&pbo_dptr, pbo);
@@ -149,7 +151,9 @@ void runCuda()
 
         // unmap buffer object
         cudaGLUnmapBufferObject(pbo);
-    } else {
+    } 
+	else 
+	{
         saveImage();
         pathtraceFree();
         cudaDeviceReset();

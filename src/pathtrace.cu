@@ -14,6 +14,7 @@
 #include "pathtrace.h"
 #include "intersections.h"
 #include "interactions.h"
+#include "sampling.h"
 
 #define ERRORCHECK 1
 
@@ -115,28 +116,6 @@ void pathtraceFree()
     checkCUDAError("pathtraceFree");
 }
 
-__host__ __device__ Point3f sampling_SquareToDiskConcentric(const Point2f &sample)
-{
-	glm::vec2 sampleOffset = 2.0f*sample - glm::vec2(1, 1);
-	if (sampleOffset.x == 0 && sampleOffset.y == 0)
-	{
-		return Point3f(0.0f, 0.0f, 0.0f);
-	}
-
-	float theta, r;
-	if (std::abs(sampleOffset.x) > std::abs(sampleOffset.y))
-	{
-		r = sampleOffset.x;
-		theta = (PI / 4.0f) * (sampleOffset.y / sampleOffset.x);
-	}
-	else
-	{
-		r = sampleOffset.y;
-		theta = (PI / 2.0f) - (PI / 4.0f) * (sampleOffset.x / sampleOffset.y);
-	}
-	return r*Point3f(std::cos(theta), std::sin(theta), 0.0f);
-}
-
 /**
 * Generate PathSegments with rays from the camera through the screen into the
 * scene, which is the first bounce of rays.
@@ -173,7 +152,8 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		if (cam.lensRadius>EPSILON)
 		{
 			//picking a samplepoint on the lens and then changing it according to the lens properties
-			Point2f xi = Point2f(u01(rng), u01(rng));
+			thrust::uniform_real_distribution<float> u02(0, 1);
+			Point2f xi = Point2f(u02(rng), u02(rng));
 			Point3f pLens = cam.lensRadius * sampling_SquareToDiskConcentric(xi);
 			Point3f pFocus = cam.focalDistance * segment.ray.direction + segment.ray.origin;
 			Point3f aperaturePoint = segment.ray.origin + (cam.up * pLens.y) + (cam.right * pLens.x);
@@ -274,18 +254,15 @@ __global__ void shadeMaterials(int iter, int num_paths,
 		ShadeableIntersection intersection = shadeableIntersections[idx];
 		Material material = materials[intersection.materialId];
 
+		//If the ray didnt intersect with objects in the scene
 		if (intersection.t < 0.0f)
 		{
-			// If there was no intersection, color the ray black.
-			// Lots of renderers use 4 channel color, RGBA, where A = alpha, often
-			// used for opacity, in which case they can indicate "no opacity".
-			// This can be useful for post-processing and image compositing.
 			pathSegments[idx].color = glm::vec3(0.0f);
 			pathSegments[idx].remainingBounces = 0; //to make thread stop executing things
 			return;
 		}
 
-		// If the material indicates that the object was a light, "light" the ray
+		//If the ray hit a light in the scene
 		if (material.emittance > 0.0f)
 		{
 			pathSegments[idx].color *= material.color*material.emittance;
@@ -298,7 +275,8 @@ __global__ void shadeMaterials(int iter, int num_paths,
 
 		// if the intersection exists and the itersection is not a light then
 		//deal with the material and end up changing the pathSegment color and its ray direction
-		scatterRay(pathSegments[idx], intersection, material, rng);
+		//scatterRay(pathSegments[idx], intersection, material, rng);
+		naiveIntegrator(pathSegments[idx], intersection, material, rng);
 	}
 }
 
@@ -350,24 +328,17 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
     //   * This has already been done for you.
     // * For each depth:
     //   * Compute an intersection in the scene for each path ray.
-    //     A very naive version of this has been implemented for you, but feel
-    //     free to add more primitives and/or a better algorithm.
     //     Currently, intersection distance is recorded as a parametric distance,
     //     t, or a "distance along the ray." t = -1.0 indicates no intersection.
     //     * Color is attenuated (multiplied) by reflections off of any object
-    //   * TODO: Stream compact away all of the terminated paths.
-    //     You may use either your implementation or `thrust::remove_if` or its
-    //     cousins.
-    //     * Note that you can't really use a 2D kernel launch any more - switch
-    //       to 1D.
+    //   * Stream compact away all of the terminated paths.
     //   * TODO: Shade the rays that intersected something or didn't bottom out.
     //     That is, color the ray by performing a color computation according
     //     to the shader, then generate a new ray to continue the ray path.
     //     We recommend just updating the ray's PathSegment in place.
     //     Note that this step may come before or after stream compaction,
     //     since some shaders you write may also cause a path to terminate.
-    //	 * Finally, add this iteration's results to the image. This has been done
-    //	   for you.
+    //	 * Finally, add this iteration's results to the image.
 
     // TODO: perform one iteration of path tracing
 
@@ -388,6 +359,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 		// clean shading chunks
 		cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
+		//printf("here");
 		// tracing
 		dim3 numblocksPathSegmentTracing = (activeRays + blockSize1d - 1) / blockSize1d;
 		computeIntersections <<<numblocksPathSegmentTracing, blockSize1d>>> (depth, 
