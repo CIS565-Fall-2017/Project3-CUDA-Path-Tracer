@@ -3,11 +3,26 @@ CUDA Path Tracer
 
 **University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 3**
 
-* (TODO) YOUR NAME HERE
-* Tested on: (TODO) Windows 22, i7-2222 @ 2.22GHz 22GB, GTX 222 222MB (Moore 2222 Lab)
+* Ricky Rajani
+* Tested on: Windows 7, i7-6700 @ 3.40GHz 16GB, NVIDIA Quadro K620 (Moore 100C Lab)
 
-### (TODO: Your README)
+// TODO: Explain project
 
-*DO NOT* leave the README to the last minute! It is a crucial part of the
-project, and we will not be able to grade you without a good README.
+// TODO: Add screenshots with labels and number of iterations
+// Open with basic features and anti-aliasing
+// Closed with basic features and anti-aliasing
+// DOF with anti-aliasing, stream compaction, 
+// Motion Blur with anti-aliasing
+// Refractive with anti-aliasing
+// Reflective with anti aliasing
+
+// TODO: Add features implemented
+
+### Performance Analysis
+
+Stream compaction helps most after a few bounces. Print and plot the effects of stream compaction within a single iteration (i.e. the number of unterminated rays after each bounce) and evaluate the benefits you get from stream compaction.
+
+Compare scenes which are open (like the given cornell box) and closed (i.e. no light can escape the scene). Again, compare the performance effects of stream compaction! Remember, stream compaction only affects rays which terminate, so what might you expect?
+
+For optimizations that target specific kernels, we recommend using stacked bar graphs to convey total execution time and improvements in individual kernels. For example:
 
