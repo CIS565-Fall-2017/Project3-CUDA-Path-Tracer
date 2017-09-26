@@ -153,46 +153,64 @@ void pathtraceFree() {
 __host__ __device__ 
 glm::vec3 ConcentricSampleDisk(float sampleX, float sampleY)
 {
-	float phi = 0.f;
+	//float phi = 0.f;
 
-	float r = 0.f;
-	float u = 0.f;
-	float v = 0.f;
+	//float r = 0.f;
+	//float u = 0.f;
+	//float v = 0.f;
+
+	//float a = 2.f * sampleX - 1.f;
+	//float b = 2.f * sampleY - 1.f;
+
+	//if (a > -b) {
+	//	if (a > b) {
+	//		r = a;
+	//		phi = (PI / 4.f) * (b / a);
+	//	}
+	//	else {
+	//		r = b;
+	//		phi = (PI / 4.f) * (2.f - (a / b));
+	//	}
+	//}
+	//else {
+	//	if (a < b) {
+	//		r = -a;
+	//		phi = (PI / 4.f) * (4.f + (b / a));
+	//	}
+	//	else {
+	//		r = -b;
+
+	//		if (b != 0.f) {
+	//			phi = (PI / 4.f) * (6.f - (a / b));
+	//		}
+	//		else {
+	//			phi = 0.f;
+	//		}
+	//	}
+	//}
+
+	//u = r * cos(phi);
+	//v = r * sin(phi);
+
+	//return glm::vec3(u, v, 0.f);
+
+	// http://psgraphics.blogspot.com/2011/01/improved-code-for-concentric-map.html
+	float phi;
+	float r;
 
 	float a = 2.f * sampleX - 1.f;
 	float b = 2.f * sampleY - 1.f;
 
-	if (a > -b) {
-		if (a > b) {
-			r = a;
-			phi = (PI / 4.f) * (b / a);
-		}
-		else {
-			r = b;
-			phi = (PI / 4.f) * (2.f - (a / b));
-		}
+	if (a * a > b * b) {
+		r = a;
+		phi = (PI / 4) * (b / a);
 	}
 	else {
-		if (a < b) {
-			r = -a;
-			phi = (PI / 4.f) * (4.f + (b / a));
-		}
-		else {
-			r = -b;
-
-			if (b != 0.f) {
-				phi = (PI / 4.f) * (6.f - (a / b));
-			}
-			else {
-				phi = 0.f;
-			}
-		}
+		r = b;
+		phi = (PI / 4) * (a / b) + (PI / 2);
 	}
 
-	u = r * cos(phi);
-	v = r * sin(phi);
-
-	return glm::vec3(u, v, 0.f);
+	return glm::vec3(r * glm::cos(phi), r * glm::sin(phi), 0.f);
 }
 
 /**

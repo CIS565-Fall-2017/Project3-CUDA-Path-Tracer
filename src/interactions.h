@@ -221,16 +221,16 @@ void scatterRay(
 		}
 
 		// Schlick's Approximation
-		float r0 = powf((1 - n1) / (1 + n2), 2.f);
-		float rTheta = r0 + (1 - r0) * powf(1 - CosTheta(-wo, normal), 5.f);
-		
+		float r0 = powf((1 - n2) / (1 + n2), 2.f);
+		float rTheta = r0 + (1 - r0) * powf((1 - AbsCosTheta(-wo, normal)), 5.f);
+
 		// Snell's Law
 		wi = glm::normalize(glm::refract(-wo, normal, n2));
 		// spawnRay() doesn't work?
 		pathSegment.ray.direction = wi;
 		// Update color
 		//pathSegment.color *= m.speculr.color * (glm::vec3(1.f) - fresnelDielectric(-wo, wi, normal, n1, n2)) / AbsCosTheta(wi, normal);
-		pathSegment.color *= m.specular.color;
+		pathSegment.color *= m.color * m.specular.color;
 	}
 	// Diffuse Surface
 	else {
