@@ -136,9 +136,9 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
 
     intersectionPoint = multiplyMV(sphere.transform, glm::vec4(objspaceIntersection, 1.f));
     normal = glm::normalize(multiplyMV(sphere.invTranspose, glm::vec4(objspaceIntersection, 0.f)));
-    if (!outside) {
-        normal = -normal;
-    }
+    //if (!outside) {
+    //    normal = -normal;
+    //}
 
     return glm::length(r.origin - intersectionPoint);
 }
@@ -147,4 +147,26 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
 __host__ __device__ inline float AbsDot(const glm::vec3 &a, const glm::vec3 &b)
 {
 	return glm::abs(glm::dot(a, b));
+}
+
+__host__ __device__ inline glm::vec3 Reflect(const glm::vec3 &wo, const glm::vec3 &n) {
+	return -wo + 2.0f * glm::dot(wo, n) * n;
+}
+
+__host__ __device__ inline glm::vec3 Faceforward(const glm::vec3 &n, const glm::vec3 &v) {
+	return (glm::dot(n, v) < 0.f) ? -n : n;
+}
+
+__host__ __device__ inline bool Refract(const glm::vec3 &wi, const glm::vec3 &n, float eta,
+	glm::vec3 *wt) {
+	// Compute cos theta using Snell's law
+	float cosThetaI = glm::dot(n, wi);
+	float sin2ThetaI = std::max(float(0), float(1 - cosThetaI * cosThetaI));
+	float sin2ThetaT = eta * eta * sin2ThetaI;
+
+	// Handle total internal reflection for transmission
+	if (sin2ThetaT >= 1) return false;
+	float cosThetaT = std::sqrt(1 - sin2ThetaT);
+	*wt = eta * -wi + (eta * cosThetaI - cosThetaT) * n;
+	return true;
 }

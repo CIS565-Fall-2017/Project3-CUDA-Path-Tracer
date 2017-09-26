@@ -20,6 +20,9 @@ struct Ray {
 struct Geom {
     enum GeomType type;
     int materialid;
+
+	//int materialTypeID;
+
     glm::vec3 translation;
     glm::vec3 rotation;
     glm::vec3 scale;
@@ -73,4 +76,10 @@ struct ShadeableIntersection {
   float t;
   glm::vec3 surfaceNormal;
   int materialId;
+  //int materialTypeID;
+
+  //Sort our pathSegments and related ShadeableIntersections by materialTypeID
+  //bool operator<(const ShadeableIntersection& that) const { return this->materialTypeID < that.materialTypeID; }
+  //bool operator>(const ShadeableIntersection& that) const { return this->materialTypeID > that.materialTypeID; }
+
 };

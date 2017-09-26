@@ -49,7 +49,6 @@ namespace StreamCompaction {
 		__global__ void kernScanDynamicShared(int n, int *g_odata, int *g_idata, int *OriRoot) {
 			extern __shared__ int temp[];
 
-
 			int thid = threadIdx.x;
 			// assume it's always a 1D block
 			int blockOffset = 2 * blockDim.x * blockIdx.x;
@@ -102,6 +101,99 @@ namespace StreamCompaction {
 			dev_odata[index] += OriRoot[blockIdx.x / stride];
 		}
 
+		void scanDynamicShared(int n, int *odata, const int *idata) {
+			int* dev_data;
+
+			dim3 blockDim(blockSize);
+			dim3 gridDim((n + blockSize - 1) / blockSize);
+
+			int size = gridDim.x * blockSize;
+
+			cudaMalloc((void**)&dev_data, sizeof(int) * size);
+			checkCUDAError("cudaMalloc dev_idata failed!");
+			cudaDeviceSynchronize();
+
+			int* ori_root;
+			// ori_root_size has to be like that(first divide blockSize then multiply), 
+			// because also needs to meet efficient algorithm requirement
+			// eg. 
+			// blockSize == 4,
+			// indicies : 0 1 2 3 | 4 5 -> 0 1 2 3 | 4 5 0 0
+			// elcusive_scan result : 0 0 1 3 | 0 4 9 9
+			// ori_root : 6 9 (0 0)
+			int ori_root_size = (gridDim.x + blockSize - 1) / blockSize;
+			ori_root_size *= blockSize;
+
+			cudaMalloc((void**)&ori_root, sizeof(int) * ori_root_size);
+			//checkCUDAError("cudaMalloc ori_root failed!");
+			cudaDeviceSynchronize();
+
+			kernSetZero << < dim3((ori_root_size + blockDim.x - 1) / blockDim.x), blockDim >> > (ori_root_size, ori_root);
+			//checkCUDAError("kernSetZero failed!");
+
+			cudaMemcpy(dev_data, idata, sizeof(int) * n, cudaMemcpyHostToDevice);
+			//checkCUDAError("cudaMemcpy failed!");
+
+			int sharedMemoryPerBlockInBytes = blockDim.x * sizeof(int);
+
+
+			// Step 1 : do scan
+			kernScanDynamicShared << <gridDim, dim3(blockDim.x / 2), sharedMemoryPerBlockInBytes >> > (blockDim.x, dev_data, dev_data, ori_root);
+
+
+			// Step 2.5 : scans of scan
+			// like ori_root_size,
+			// ori_root_of_ori_root_size has to align with blockSize
+			int *ori_root_of_ori_root;
+			int ori_root_of_ori_root_size = ori_root_size / blockSize;
+			ori_root_of_ori_root_size = (ori_root_of_ori_root_size + blockSize - 1) / blockSize;
+			ori_root_of_ori_root_size *= blockSize;
+
+			cudaMalloc((void**)&ori_root_of_ori_root, sizeof(int) * ori_root_of_ori_root_size);
+			//checkCUDAError("cudaMalloc ori_root_of_ori_root failed!");
+			int stride = 1;
+
+			do {
+				// do scan of scan of scan here
+				kernSetZero << < dim3((ori_root_of_ori_root_size + blockDim.x - 1) / blockDim.x), blockDim >> > (ori_root_of_ori_root_size, ori_root_of_ori_root);
+				//checkCUDAError("kernSetZero failed!");
+
+				kernScanDynamicShared << < dim3(ori_root_size / blockSize), dim3(blockDim.x / 2), sharedMemoryPerBlockInBytes >> > (blockDim.x, ori_root, ori_root, ori_root_of_ori_root);
+				//checkCUDAError("kernScanDynamicShared 2 failed!");
+
+				kernAddOriRoot << <gridDim, blockDim >> > (size, stride, ori_root, dev_data);
+				//checkCUDAError("kernAddOriRoot failed!");
+
+				// exit here
+				// we exit until there is only one block
+				if (ori_root_size == blockSize) {
+					break;
+				}
+
+				// reset ori_root and ori_root_of_ori_root infomation
+				ori_root_size = ori_root_of_ori_root_size;
+
+				int *temp = ori_root_of_ori_root;
+				ori_root_of_ori_root = ori_root;
+				ori_root = temp;
+
+				ori_root_of_ori_root_size = ori_root_size / blockSize;
+				ori_root_of_ori_root_size = (ori_root_of_ori_root_size + blockSize - 1) / blockSize;
+				ori_root_of_ori_root_size *= blockSize;
+
+				stride *= blockSize;
+
+			} while (true);
+
+
+			cudaMemcpy(odata, dev_data, sizeof(int) * n, cudaMemcpyDeviceToHost);
+			checkCUDAError("cudaMemcpy failed!");
+
+			cudaFree(dev_data);
+			cudaFree(ori_root);
+			cudaFree(ori_root_of_ori_root);
+		}
+
 		int compactDynamicShared(int n, PathSegment *dev_data) {
 			// compact Set-up
 			int* bools;
@@ -113,9 +205,9 @@ namespace StreamCompaction {
 			dim3 gridDim((n + blockSize - 1) / blockSize);
 
 			cudaMalloc((void**)&bools, n * sizeof(int));
-			checkCUDAError("cudaMalloc bools failed!");
+			//checkCUDAError("cudaMalloc bools failed!");
 			cudaMalloc((void**)&dev_count, sizeof(int));
-			checkCUDAError("cudaMalloc dev_count failed!");
+			//checkCUDAError("cudaMalloc dev_count failed!");
 			cudaDeviceSynchronize();
 
 
@@ -137,29 +229,29 @@ namespace StreamCompaction {
 
 
 			cudaMalloc((void**)&indices, size * sizeof(int));
-			checkCUDAError("cudaMalloc indices failed!");
+			//checkCUDAError("cudaMalloc indices failed!");
 			cudaMalloc((void**)&ori_root, sizeof(int) * ori_root_size);
-			checkCUDAError("cudaMalloc ori_root failed!");
+			//checkCUDAError("cudaMalloc ori_root failed!");
 			cudaDeviceSynchronize();
 
 			kernSetZero << < gridDim, blockDim >> > (size, indices);
-			checkCUDAError("kernSetZero failed!");
+			//checkCUDAError("kernSetZero failed!");
 			kernSetZero << < dim3((ori_root_size + blockDim.x - 1) / blockDim.x), blockDim >> > (ori_root_size, ori_root);
-			checkCUDAError("kernSetZero failed!");
+			//checkCUDAError("kernSetZero failed!");
 
 			int sharedMemoryPerBlockInBytes = blockDim.x * sizeof(int);
 
 			// Step 1 : compute bools array
 			kernMapToBoolean << <gridDim, blockDim >> > (n, bools, dev_data);
-			checkCUDAError("kernMapToBoolean failed!");
+			//checkCUDAError("kernMapToBoolean failed!");
 
 			// indeices# >= bools#
 			cudaMemcpy(indices, bools, sizeof(int) * n, cudaMemcpyDeviceToDevice);
-			checkCUDAError("cudaMemcpy failed!");
+			//checkCUDAError("cudaMemcpy failed!");
 
 			// Step 2 : exclusive scan indices
 			kernScanDynamicShared << <gridDim, dim3(blockDim.x / 2), sharedMemoryPerBlockInBytes >> > (blockDim.x, indices, indices, ori_root);
-			checkCUDAError("kernScanDynamicShared 1 failed!");
+			//checkCUDAError("kernScanDynamicShared 1 failed!");
 
 			// Step 2.5 : scans of scan
 			// like ori_root_size,
@@ -170,19 +262,19 @@ namespace StreamCompaction {
 			ori_root_of_ori_root_size *= blockSize; 
 
 			cudaMalloc((void**)&ori_root_of_ori_root, sizeof(int) * ori_root_of_ori_root_size);
-			checkCUDAError("cudaMalloc ori_root_of_ori_root failed!");
+			//checkCUDAError("cudaMalloc ori_root_of_ori_root failed!");
 			int stride = 1;
 
 			do {
 				// do scan of scan of scan here
 				kernSetZero << < dim3((ori_root_of_ori_root_size + blockDim.x - 1) / blockDim.x), blockDim >> > (ori_root_of_ori_root_size, ori_root_of_ori_root);
-				checkCUDAError("kernSetZero failed!");
+				//checkCUDAError("kernSetZero failed!");
 
 				kernScanDynamicShared << < dim3(ori_root_size / blockSize), dim3(blockDim.x / 2), sharedMemoryPerBlockInBytes >> > (blockDim.x, ori_root, ori_root, ori_root_of_ori_root);
-				checkCUDAError("kernScanDynamicShared 2 failed!");
+				//checkCUDAError("kernScanDynamicShared 2 failed!");
 
 				kernAddOriRoot << <gridDim, blockDim >> > (size, stride, ori_root, indices);
-				checkCUDAError("kernAddOriRoot failed!");
+				//checkCUDAError("kernAddOriRoot failed!");
 
 				// exit here
 				// we exit until there is only one block
@@ -208,7 +300,7 @@ namespace StreamCompaction {
 
 			// Step 3 : Sort (Scatter)
 			kernSetCompactCount << <dim3(1), dim3(1) >> > (n, dev_count, bools, indices);
-			checkCUDAError("kernSetCompactCount failed!");
+			//checkCUDAError("kernSetCompactCount failed!");
 
 			// Since scatter just discard elements who doesn't meet our criterion(bools value = 0)
 			// However, we don't want discard pathSegments whoes remaining bounce is 0, we still its color info
@@ -225,7 +317,7 @@ namespace StreamCompaction {
 
 
 			cudaMemcpy(&count, dev_count, sizeof(int), cudaMemcpyDeviceToHost);
-			checkCUDAError("cudaMemcpy failed!");
+			//checkCUDAError("cudaMemcpy failed!");
 
 
 			cudaFree(bools);

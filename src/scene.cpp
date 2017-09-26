@@ -60,6 +60,19 @@ int Scene::loadGeom(string objectid) {
             vector<string> tokens = utilityCore::tokenizeString(line);
             newGeom.materialid = atoi(tokens[1].c_str());
             cout << "Connecting Geom " << objectid << " to Material " << newGeom.materialid << "..." << endl;
+
+			/*if (strcmp(tokens[2].c_str(), "Emissive") == 0) {
+				newGeom.materialTypeID = 0;
+				cout << "Emissive Material" << endl;
+			}
+			else if (strcmp(tokens[2].c_str(), "Lambert") == 0) {
+				newGeom.materialTypeID = 1;
+				cout << "Lambert Material" << endl;
+			}
+			else if (strcmp(tokens[2].c_str(), "Mirror") == 0) {
+				newGeom.materialTypeID = 2;
+				cout << "Mirror Material" << endl;
+			}*/
         }
 
         //load transformations

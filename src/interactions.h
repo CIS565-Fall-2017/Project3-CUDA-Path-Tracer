@@ -74,23 +74,99 @@ void scatterRay(
         const Material &m,
         thrust::default_random_engine &rng) {
 
-    // A basic implementation of pure-diffuse shading will just call the
-    // calculateRandomDirectionInHemisphere defined above.
-	
-	// TODO : We only do basic pure-diffuse here
-	// no specular or refraction so far!
+	// get probabilty
+	thrust::uniform_real_distribution<float> u01(0, 1);
+	float probability = u01(rng);
+	glm::vec3 incidentDirection = pathSegment.ray.direction;
+	glm::vec3 newDirection;
 
-	glm::vec3 oldDirection = pathSegment.ray.direction;
-	glm::vec3 newDirection = calculateRandomDirectionInHemisphere(normal, rng);
-	newDirection = glm::normalize(newDirection);
+	// ----------------- Pure Specular reflection -------------------------
+	if (m.hasReflective == 1.f && m.hasRefractive == 0.f) {
+		newDirection = Reflect(-incidentDirection, normal);
+		newDirection = glm::normalize(newDirection);
+		pathSegment.ray.direction = newDirection;
+		pathSegment.ray.origin = intersect;
+		pathSegment.color *= m.specular.color; 
+	}
 
-	// set new ray
-	pathSegment.ray.direction = newDirection;
-	// intersect here should be an intersection point after offset
-	pathSegment.ray.origin = intersect;
+	// ----------------- Pure Specular refraction ----------------------------
+	else if (m.hasReflective == 0.f && m.hasRefractive == 1.f) {
 
+		bool entering = glm::dot(incidentDirection, normal) < 0;
+		float indexOfRefraction = m.indexOfRefraction;
+		float eta = entering ? (1.0f / indexOfRefraction) : indexOfRefraction;
 
-	pathSegment.color *= (m.color * AbsDot(glm::normalize(normal), newDirection));
-	//pathSegment.color *= (m.color * AbsDot(glm::normalize(oldDirection), newDirection));
+		//glm::vec3 newDirection = glm::refract(incidentDirection, normal, eta);
+		//pathSegment.ray.direction = newDirection;
+		//pathSegment.ray.origin = intersect + 0.0002f * newDirection;
+		//pathSegment.color *= m.specular.color;
 
+		glm::vec3 wt;
+		if (!Refract(-incidentDirection, Faceforward(normal, -incidentDirection), eta, &wt)) {
+			newDirection = Reflect(-incidentDirection, Faceforward(normal, -incidentDirection));
+			newDirection = glm::normalize(newDirection);
+			pathSegment.ray.direction = newDirection;
+			pathSegment.ray.origin = intersect;
+		}
+		else {
+			pathSegment.ray.direction = glm::normalize(wt);
+			pathSegment.ray.origin = intersect + 0.0002f * incidentDirection + 0.0002f * Faceforward(normal, incidentDirection);
+		}
+		pathSegment.color *= m.specular.color;  // divide the probability to counter the chance
+	}
+
+	// ------------------- Glass : Specular reflection & refraction-------------------
+	else if (m.hasReflective != 0.f && m.hasRefractive != 0.f) {
+		float specularSum = m.hasReflective + m.hasRefractive;
+		float reflecProb = m.hasReflective / specularSum;
+		float refractProb = 1.0f - reflecProb;
+
+		// Use Schlick's Approximation. No specific Frensel model
+		float temp = (1.0f - m.indexOfRefraction) / (1.0f + m.indexOfRefraction);
+		float R0 = temp * temp;
+		float cosineTheta = AbsDot(incidentDirection, normal);
+		float frenselCoefficient = R0 + (1.0f - R0) * (1.0f - cosineTheta) * (1.0f - cosineTheta);
+
+		if (probability < reflecProb) {
+			newDirection = Reflect(-incidentDirection, normal);
+			newDirection = glm::normalize(newDirection);
+			pathSegment.ray.direction = newDirection;
+			pathSegment.ray.origin = intersect;
+			pathSegment.color *= (frenselCoefficient * m.specular.color / reflecProb); // divide the probability to counter the chance
+		}
+
+		// if it's specualr and not reflective
+		// then it's Refractive
+		else
+		{
+			bool entering = glm::dot(incidentDirection, normal) < 0;
+			float indexOfRefraction = m.indexOfRefraction;
+			float eta = entering ? (1.0f / indexOfRefraction) : indexOfRefraction;
+
+			glm::vec3 wt;
+			if (!Refract(-incidentDirection, Faceforward(normal, -incidentDirection), eta, &wt)) {
+				newDirection = Reflect(-incidentDirection, Faceforward(normal, -incidentDirection));
+				newDirection = glm::normalize(newDirection);
+				pathSegment.ray.direction = newDirection;
+				pathSegment.ray.origin = intersect;
+			}
+			else {
+				pathSegment.ray.direction = glm::normalize(wt);
+				pathSegment.ray.origin = intersect + 0.0002f * incidentDirection + 0.0002f * Faceforward(normal, incidentDirection);
+			}
+			pathSegment.color *= ((1.f - frenselCoefficient) * m.specular.color / refractProb);  // divide the probability to counter the chance
+		}
+	}
+
+	// ------------------- Non-specular / Diffuse Part ---------------------
+	else 
+	{
+		newDirection = calculateRandomDirectionInHemisphere(normal, rng);
+		newDirection = glm::normalize(newDirection);
+		pathSegment.ray.direction = newDirection;
+		pathSegment.ray.origin = intersect;
+		// normal and newDirection should have been normalized 
+		// pathSegment.color *= (m.color * AbsDot(normal, newDirection));
+		pathSegment.color *= m.color;
+	}
 }

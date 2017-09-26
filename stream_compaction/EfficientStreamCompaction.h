@@ -22,6 +22,8 @@ inline int ilog2ceil(int x) {
 namespace StreamCompaction {
     namespace Efficient {
 
+		void scanDynamicShared(int n, int *odata, const int *idata);
+
 		int compactDynamicShared(int n, PathSegment *dev_data);
     }
 }

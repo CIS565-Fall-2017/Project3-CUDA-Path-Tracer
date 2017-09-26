@@ -26,6 +26,9 @@ int iteration;
 int width;
 int height;
 
+
+double startTime;
+
 //-------------------------------
 //-------------MAIN--------------
 //-------------------------------
@@ -117,6 +120,8 @@ void runCuda() {
         cameraPosition += cam.lookAt;
         cam.position = cameraPosition;
         camchanged = false;
+
+		startTime = glfwGetTime();
       }
 
     // Map OpenGL buffer object for writing from CUDA on a single GPU
@@ -139,6 +144,11 @@ void runCuda() {
         // unmap buffer object
         cudaGLUnmapBufferObject(pbo);
     } else {
+
+		double currentTime = glfwGetTime();
+		cout << "Total time to render : " << (currentTime - startTime) << " seconds" << endl;
+		cout << endl;
+
         saveImage();
         pathtraceFree();
         cudaDeviceReset();
