@@ -67,6 +67,7 @@ material 0
 TRANS       0 10 0
 ROTAT       0 0 0
 SCALE       3 .3 3
+TRANS_END   0 10 0
 
 // Floor
 OBJECT 1
@@ -75,6 +76,7 @@ material 1
 TRANS       0 0 0
 ROTAT       0 0 0
 SCALE       10 .01 10
+TRANS_END   0 0 0
 
 // Ceiling
 OBJECT 2
@@ -83,6 +85,7 @@ material 1
 TRANS       0 10 0
 ROTAT       0 0 90
 SCALE       .01 10 10
+TRANS_END   0 10 0
 
 // Back wall
 OBJECT 3
@@ -91,6 +94,7 @@ material 1
 TRANS       0 5 -5
 ROTAT       0 90 0
 SCALE       .01 10 10
+TRANS_END   0 5 -5
 
 // Left wall
 OBJECT 4
@@ -99,6 +103,7 @@ material 2
 TRANS       -5 5 0
 ROTAT       0 0 0
 SCALE       .01 10 10
+TRANS_END   -5 5 0
 
 // Right wall
 OBJECT 5
@@ -107,6 +112,7 @@ material 3
 TRANS       5 5 0
 ROTAT       0 0 0
 SCALE       .01 10 10
+TRANS_END   5 5 0
 
 // Sphere
 OBJECT 6
@@ -115,3 +121,4 @@ material 4
 TRANS       -1 4 -1
 ROTAT       0 0 0
 SCALE       3 3 3
+TRANS_END   0 3 -1

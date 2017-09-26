@@ -9,6 +9,8 @@
 #include "scene.h"
 #include "glm/glm.hpp"
 #include "glm/gtx/norm.hpp"
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/matrix_inverse.hpp>
 #include "utilities.h"
 #include "pathtrace.h"
 #include "intersections.h"
@@ -29,8 +31,10 @@ extern FILE *fp;
 
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
 
-#define Caching_Toggle 1
+#define Caching_Toggle 0
 #define Sorting_Toggle 0
+#define AntiAliasing_Toggle 1
+#define MotionBlur_Toggle 1
 
 void checkCUDAErrorFn(const char *msg, const char *file, int line) {
 #if ERRORCHECK
@@ -156,15 +160,35 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		segment.ray.origin = cam.position;
 		segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
+		
 		// TODO: implement antialiasing by jittering the ray
+		
 		segment.ray.direction = glm::normalize(cam.view
 			- cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
 			- cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
 		);
-
+		thrust::default_random_engine rng = makeSeededRandomEngine(iter, x + y, 0);
+#if AntiAliasing_Toggle
+		float offset = 0.001;
+		thrust::uniform_real_distribution<float> ux(-offset, offset);
+		thrust::uniform_real_distribution<float> uy(-offset, offset);
+		thrust::uniform_real_distribution<float> uz(-offset, offset);
+		segment.ray.direction += glm::vec3(ux(rng), uy(rng), uz(rng));
+#endif
+		thrust::uniform_real_distribution<float> u01(0,1);
+		segment.rand_time = u01(rng);
 		segment.pixelIndex = index;
 		segment.remainingBounces = traceDepth;
 	}
+}
+
+__host__ __device__ glm::mat4 buildTransformationMatrix(glm::vec3 translation, glm::vec3 rotation, glm::vec3 scale) {
+	glm::mat4 translationMat = glm::translate(glm::mat4(), translation);
+	glm::mat4 rotationMat = glm::rotate(glm::mat4(), rotation.x * (float)PI / 180, glm::vec3(1, 0, 0));
+	rotationMat = rotationMat * glm::rotate(glm::mat4(), rotation.y * (float)PI / 180, glm::vec3(0, 1, 0));
+	rotationMat = rotationMat * glm::rotate(glm::mat4(), rotation.z * (float)PI / 180, glm::vec3(0, 0, 1));
+	glm::mat4 scaleMat = glm::scale(glm::mat4(), scale);
+	return translationMat * rotationMat * scaleMat;
 }
 
 // TODO:
@@ -201,7 +225,12 @@ __global__ void computeIntersections(
 		for (int i = 0; i < geoms_size; i++)
 		{
 			Geom & geom = geoms[i];
-
+#if MotionBlur_Toggle
+			glm::vec3 blur_pos = glm::clamp((1 - pathSegment.rand_time) * geom.translation + pathSegment.rand_time * geom.translation_end, geom.translation, geom.translation_end);
+			geom.transform = buildTransformationMatrix(blur_pos, geom.rotation, geom.scale);
+			geom.inverseTransform = glm::inverse(geom.transform);
+			geom.invTranspose = glm::inverseTranspose(geom.transform);
+#endif
 			if (geom.type == CUBE)
 			{
 				t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
@@ -495,8 +524,9 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	int num_paths = dev_path_end - dev_paths;
 
 	StreamCompaction::Efficient::timer().startGpuTimer();
+	
 
-#if Caching_Toggle
+#if Caching_Toggle && !AntiAliasing_Toggle
 	if (iter == 1) {
 		generateRayFromCamera << <blocksPerGrid2d, blockSize2d >> >(cam, iter, traceDepth, dev_paths);
 		checkCUDAError("generate camera ray");
@@ -535,7 +565,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		
 		if (firstStage) {
 			firstStage = false;
-#if Caching_Toggle
+#if Caching_Toggle && !AntiAliasing_Toggle
 			cudaMemcpy(dev_paths, dev_cache_paths, num_paths * sizeof(PathSegment), cudaMemcpyDeviceToDevice);
 			cudaMemcpy(dev_intersections, dev_cache_intersections, num_paths * sizeof(ShadeableIntersection), cudaMemcpyDeviceToDevice);
 #else

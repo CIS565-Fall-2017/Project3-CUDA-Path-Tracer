@@ -108,7 +108,7 @@ void scatterRay(
 		pathSegment.ray.direction = glm::normalize(calculateRandomDirectionInHemisphere(normal, rng));
 		pathSegment.ray.origin = intersect + Shift_Bias * pathSegment.ray.direction;
 		//pathSegment.ray.origin = intersect + Shift_Bias * normal;
-		pathSegment.color *= glm::abs(glm::clamp(glm::dot(pathSegment.ray.direction, normal), 0.88f, 1.0f)) * m.color;
-		//pathSegment.color *= m.color;
+		//pathSegment.color *= glm::abs(glm::clamp(glm::dot(pathSegment.ray.direction, normal), 0.90f, 1.0f)) * m.color;
+		pathSegment.color *= m.color;
 	}
 }

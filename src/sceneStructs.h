@@ -21,6 +21,7 @@ struct Geom {
     enum GeomType type;
     int materialid;
     glm::vec3 translation;
+	glm::vec3 translation_end;
     glm::vec3 rotation;
     glm::vec3 scale;
     glm::mat4 transform;
@@ -64,6 +65,7 @@ struct PathSegment {
 	glm::vec3 color;
 	int pixelIndex;
 	int remainingBounces;
+	float rand_time;
 };
 
 // Use with a corresponding PathSegment to do:

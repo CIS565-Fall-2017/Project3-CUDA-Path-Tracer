@@ -75,6 +75,9 @@ int Scene::loadGeom(string objectid) {
             } else if (strcmp(tokens[0].c_str(), "SCALE") == 0) {
                 newGeom.scale = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
             }
+			else if (strcmp(tokens[0].c_str(), "TRANS_END") == 0) {
+				newGeom.translation_end = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+			}
 
             utilityCore::safeGetline(fp_in, line);
         }
