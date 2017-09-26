@@ -70,6 +70,35 @@ glm::vec3 cosineWeightedSample(glm::vec3 normal, thrust::default_random_engine &
 	return glm::normalize(rotation * tangentSpaceSample);
 }
 
+__host__ __device__
+glm::vec3 generateSphereSample(Geom& sphere, thrust::default_random_engine &rng) {
+	thrust::uniform_real_distribution<float> u01(0, 1);
+
+	float u1 = u01(rng);
+	float u2 = u01(rng);
+
+	float z = 1.0f - 2.0f * u1;
+	float r = sqrt(max(0.0f, 1.0f - z * z));
+	float phi = TWO_PI * u2;
+
+	glm::vec4 localSample(r * glm::cos(phi), r * glm::sin(phi), z, 1.0f);
+	glm::vec4 worldSample = sphere.transform * localSample;
+	return glm::vec3(worldSample);
+}
+
+__host__ __device__
+glm::vec3 generateCubeSample(Geom& cube, thrust::default_random_engine &rng) {
+	thrust::uniform_real_distribution<float> u01(0, 1);
+	
+	float x = u01(rng) - 0.5f;
+	float y = u01(rng) - 0.5f;
+	float z = u01(rng) - 0.5f;
+
+	glm::vec4 localSample(x, y, z, 1.0f);
+	glm::vec4 worldSample = cube.transform * localSample;
+	return glm::vec3(worldSample);
+}
+
 /**
  * Scatter a ray with some probabilities according to the material properties.
  * For example, a diffuse surface scatters in a cosine-weighted hemisphere.
