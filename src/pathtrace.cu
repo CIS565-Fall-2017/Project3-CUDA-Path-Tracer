@@ -4,8 +4,6 @@
 #include <thrust/execution_policy.h>
 #include <thrust/random.h>
 #include <thrust/remove.h>
-#include <thrust/partition.h>
-#include <thrust/device_ptr.h>
 
 #include "stream_compaction\efficient.h"
 #include "sceneStructs.h"
@@ -25,7 +23,9 @@
 #define CONTIG_MAT 0
 #define CACHE_FIRST 0
 
+// features
 #define ANTI_ALIAS 1
+#define DEPTH_OF_FIELD 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -53,6 +53,38 @@ __host__ __device__
 thrust::default_random_engine makeSeededRandomEngine(int iter, int index, int depth) {
 	int h = utilhash((1 << 31) | (depth << 22) | iter) ^ utilhash(index);
 	return thrust::default_random_engine(h);
+}
+
+__host__ __device__
+glm::vec3 squareToDiskConcentric(float x, float y) 
+{
+	float r, phi;
+	float PiOver4 = 0.78539816339744830961;
+	float a = 2.f * x - 1.f; // map to [-1, 1]
+	float b = 2.f * y - 1.f;
+
+	if (a > -b) {
+		if (a > b) {
+			r = a;
+			phi = PiOver4 * b / a;
+		}
+		else {
+			r = b;
+			phi = PiOver4 * (2.f - a / b);
+		}
+	}
+	else {
+		if (a < b) {
+			r = -a;
+			phi = PiOver4 * (4.f + b / a);
+		}
+		else {
+			r = -b;
+			if (b != 0.f) phi = PiOver4 * (6.f - a / b);
+			else phi = 0.f;
+		}
+	}
+	return glm::vec3(r * glm::cos(phi), r * glm::sin(phi), 0.f);
 }
 
 //Kernel that writes the image to the OpenGL PBO directly.
@@ -158,8 +190,8 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, segment.remainingBounces);
 		thrust::uniform_real_distribution<float> u01(0, 1);
 
-		dx = u01(rng) - 0.5;
-		dy = u01(rng) - 0.5;
+		dx = u01(rng);
+		dy = u01(rng);
 #endif
 
 		segment.ray.origin = cam.position;
@@ -171,6 +203,16 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 			- cam.up * cam.pixelLength.y * ((float)y + dy - (float)cam.resolution.y * 0.5f)
 		);
 
+#if DEPTH_OF_FIELD
+		float focalD = 10;
+		float lensR = 0.4;
+		float t = glm::abs(focalD / segment.ray.direction.z);
+		glm::vec3 pFocus = t * segment.ray.direction;
+		glm::vec3 origin = lensR * squareToDiskConcentric(u01(rng), u01(rng));
+		segment.ray.direction = glm::normalize(pFocus - origin);
+		segment.ray.origin += origin;
+
+#endif
 		segment.pixelIndex = index;
 		indices[index] = index + 1;
 		segment.remainingBounces = traceDepth;
@@ -368,11 +410,11 @@ __global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterati
 	}
 }
 
-struct is_zero
+struct has_bounces
 {
 	__host__ __device__
-	bool operator()(const int &a) {
-		return a > 0;
+	bool operator()(const PathSegment &a) {
+		return a.remainingBounces > 0;
 	}
 };
 
@@ -477,9 +519,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		} else {
 #if COMPACT
 #if THRUST
-
-			int* new_end = thrust::partition(dev_indices, dev_indices + num_paths, is_zero());
-			num_paths = new_end - dev_indices;
+			PathSegment* new_end = thrust::partition(thrust::device, dev_paths, dev_paths + num_paths, has_bounces());
+			num_paths = new_end - dev_paths;
 #else
 			num_paths = StreamCompaction::Efficient::compact(num_paths, dev_indices, dev_indices);
 			

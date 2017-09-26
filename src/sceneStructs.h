@@ -50,6 +50,8 @@ struct Camera {
     glm::vec3 up;
     glm::vec3 right;
     glm::vec2 fov;
+	float lensR;
+	float focalD;
     glm::vec2 pixelLength;
 };
 
