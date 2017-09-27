@@ -22,38 +22,55 @@ This project implements a CUDA-based path tracer capable of rendering globally-i
 
 *All features are easily toggleable
 
-# Screenshots
+### Samples - 5000 iterations
 
-Open scene with core features and anti-aliasing - 5000 iterations
+Open scene with core features and anti-aliasing
+
 ![](img/samples/open-basic.PNG)
 
-Closed scene with core features and anti-aliasing (only one light) - 5000 iterations
+Closed scene with core features and anti-aliasing (only one light)
+
 ![](img/samples/closed-basic.PNG)
 
-Open scene with depth-of-field, stream compaction and anti-aliasing - 5000 iterations
-![](img/samples/dof.PNG)
+Open scene with depth-of-field, stream compaction and anti-aliasing
 
 ![](img/samples/dof2.PNG)
 
-Open scene with motion blur, stream compaction and anti-aliasing - 5000 iterations
+![](img/samples/dof.PNG)
+
+Open scene with motion blur, stream compaction and anti-aliasing
+
+![](img/samples/motion2.PNG)
+
 ![](img/samples/motion.PNG)
 
-Open scene with refraction, core features and anti-aliasing - 5000 iterations
+Open scene with refraction, core features and anti-aliasing
+
 ![](img/samples/refract.PNG)
 
 ### Performance Analysis
 
 ![](img/active-paths-graph.PNG)
 
+Stream Compaction:
+
 Stream compaction helps most after a few bounces. It reduces the number of active paths during an iteration. The plot above shows the reduction in paths for open and closed scenes during one iteration. The thrust implementation (remove-if) was used for stream compaction as it was significantly faster than the work-efficient compaction.
 
-Compare scenes which are open (like the given cornell box) and closed (i.e. no light can escape the scene). Again, compare the performance effects of stream compaction! Remember, stream compaction only affects rays which terminate, so what might you expect?
+Using compaction reduces time spent on computing intersection of rays on object considerably. However, the drawback with stream compaction is time spent removing inactive paths. Thrust takes a significant amount of time with compaction which decreases its benefits.
 
-Provide performance benefit analysis across different max ray depths for first bounce caching
+Examining the data, it is also evident that stream compaction is beneficial only for open scenes as the number of paths terminating in a closed scene is significantly less than in an open scene. 
 
-Provide performance benefit analysis for sorting path segments and intersections
+Caching First Bounce:
 
-For optimizations that target specific kernels, we recommend using stacked bar graphs to convey total execution time and improvements in individual kernels.
+// TODO: add graph
+
+Caching the first bounce during an iteration reduces the time complexity significantly. However, this optimization can't be used under certain circumstances where the scene is not static, such as depth of field or motion blur. 
+
+Sorting Path Segments and Intersections:
+
+// TODO: add graph
+
+Sorting path segments and intersections seems to not be beneficial for the scene (cornell) used as there are not that many materials used. In this scenario, sorting actually increases the time complexity and is not an optimization. In the open scene, it is more efficient to remove inactive paths rather than making them contiguous in memory. In the closed scene, since memory doesn't decrease significantly, sorting will take longer. In both cases, there still are not enough materials in the scene to balance the cost of sorting.
 
 ### References
 - [PBRT] Physically Based Rendering, Second Edition: From Theory to Implementation. Pharr, Matt and Humphreys, Greg. 2010.
