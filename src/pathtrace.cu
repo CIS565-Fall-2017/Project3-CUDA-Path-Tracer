@@ -82,8 +82,11 @@ static Geom * dev_geoms = NULL;
 static Geom * dev_lights = NULL;
 static Material * dev_materials = NULL;
 static PathSegment * dev_paths = NULL;
+static PathSegment * dev_sortedPaths = NULL;
 static ShadeableIntersection * dev_intersections = NULL;
+static ShadeableIntersection * dev_sortedIntersections = NULL;
 static int * dev_materialType = NULL;
+static int * dev_indices = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
 // ...
 
@@ -97,6 +100,8 @@ void pathtraceInit(Scene *scene) {
 
   	cudaMalloc(&dev_paths, pixelcount * sizeof(PathSegment));
 
+	cudaMalloc(&dev_sortedPaths, pixelcount * sizeof(PathSegment));
+
   	cudaMalloc(&dev_geoms, scene->geoms.size() * sizeof(Geom));
   	cudaMemcpy(dev_geoms, scene->geoms.data(), scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
 
@@ -109,8 +114,12 @@ void pathtraceInit(Scene *scene) {
   	cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
   	cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
+	cudaMalloc(&dev_sortedIntersections, pixelcount * sizeof(ShadeableIntersection));
+
 	cudaMalloc(&dev_materialType, pixelcount * sizeof(int));
 	cudaMemset(dev_materialType, -1, pixelcount * sizeof(int));
+
+	cudaMalloc(&dev_indices, pixelcount * sizeof(int));
 
     checkCUDAError("pathtraceInit");
 }
@@ -118,11 +127,14 @@ void pathtraceInit(Scene *scene) {
 void pathtraceFree() {
     cudaFree(dev_image);  // no-op if dev_image is null
   	cudaFree(dev_paths);
+	cudaFree(dev_sortedPaths);
   	cudaFree(dev_geoms);
 	cudaFree(dev_lights);
   	cudaFree(dev_materials);
   	cudaFree(dev_intersections);
+	cudaFree(dev_sortedIntersections);
 	cudaFree(dev_materialType);
+	cudaFree(dev_indices);
 
     checkCUDAError("pathtraceFree");
 }
@@ -235,12 +247,14 @@ __global__ void computeIntersections(
 	, ShadeableIntersection * intersections
 	, int * materialType
 	, Material * materials
+	, int * indices
 	)
 {
 	int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (path_index < num_paths)
 	{
+		indices[path_index] = path_index;
 		PathSegment pathSegment = pathSegments[path_index];
 
 		float t;
@@ -424,6 +438,16 @@ __global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterati
 	}
 }
 
+__global__ void sortByNewIndices(int num_paths, PathSegment *pathSegments, PathSegment *sortedPathSegments, ShadeableIntersection *intersections, ShadeableIntersection *sortedIntersections, int *indices) {
+	int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+
+	if (index < num_paths) {
+		int oldIndex = indices[index];
+		sortedPathSegments[index] = pathSegments[oldIndex];
+		sortedIntersections[index] = intersections[oldIndex];
+	}
+}
+
 /**
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
  * of memory management
@@ -501,13 +525,25 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 			, dev_intersections
 			, dev_materialType
 			, dev_materials
+			, dev_indices
 			);
 		checkCUDAError("Failed to trace one bounce");
 		cudaDeviceSynchronize();
 		depth++;
 
 #ifdef MATERIAL_SORT
-		// TODO: Sort path segments by material
+		// Sort path segments by material
+		thrust::sort_by_key(thrust::device, dev_materialType, dev_materialType + num_paths, dev_indices);
+		sortByNewIndices<<<numblocksPathSegmentTracing, blockSize1d>>>(num_paths, dev_paths, dev_sortedPaths, dev_intersections, dev_sortedIntersections, dev_indices);
+
+		// Swap buffers
+		PathSegment *tempPaths = dev_paths;
+		dev_paths = dev_sortedPaths;
+		dev_sortedPaths = tempPaths;
+
+		ShadeableIntersection *tempIntersections = dev_intersections;
+		dev_intersections = dev_sortedIntersections;
+		dev_sortedIntersections = tempIntersections;
 #endif
 
 
