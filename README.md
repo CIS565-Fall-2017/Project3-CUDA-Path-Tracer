@@ -50,6 +50,10 @@ Open scene with refraction, core features and anti-aliasing
 
 # Performance Analysis
 
+![](img/optimizations-open.PNG)
+
+![](img/optimizations-closed.PNG)
+
 ![](img/active-paths-graph.PNG)
 
 ### Stream Compaction:
@@ -62,13 +66,9 @@ Examining the data, it is also evident that stream compaction is beneficial only
 
 ### Caching First Bounce:
 
-// TODO: add graph
-
 Caching the first bounce during an iteration reduces the time complexity significantly. However, this optimization can't be used under certain circumstances where the scene is not static, such as depth of field or motion blur. 
 
 ### Sorting Path Segments and Intersections:
-
-// TODO: add graph
 
 Sorting path segments and intersections seems to not be beneficial for the scene (cornell) used as there are not that many materials used. In this scenario, sorting actually increases the time complexity and is not an optimization. In the open scene, it is more efficient to remove inactive paths rather than making them contiguous in memory. In the closed scene, since memory doesn't decrease significantly, sorting will take longer. In both cases, there still are not enough materials in the scene to balance the cost of sorting.
 
