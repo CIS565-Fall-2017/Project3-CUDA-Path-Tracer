@@ -87,7 +87,8 @@ static Material * dev_materials = NULL;
 static PathSegment * dev_paths = NULL;
 static ShadeableIntersection * dev_intersections = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
-// ...
+static PathSegment * dev_first_paths = NULL;
+static ShadeableIntersection * dev_first_intersections = NULL;
 
 void pathtraceInit(Scene *scene) {
     hst_scene = scene;
@@ -109,6 +110,9 @@ void pathtraceInit(Scene *scene) {
   	cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
     // TODO: initialize any extra device memeory you need
+	cudaMalloc(&dev_first_paths, pixelcount * sizeof(PathSegment));
+	cudaMalloc(&dev_first_intersections, pixelcount * sizeof(ShadeableIntersection));
+	cudaMemset(dev_first_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
     checkCUDAError("pathtraceInit");
 }
@@ -120,7 +124,8 @@ void pathtraceFree() {
   	cudaFree(dev_materials);
   	cudaFree(dev_intersections);
     // TODO: clean up any extra device memory you created
-
+	cudaFree(dev_first_paths);
+	cudaFree(dev_first_intersections);
     checkCUDAError("pathtraceFree");
 }
 
@@ -142,12 +147,18 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		PathSegment & segment = pathSegments[index];
 
 		segment.ray.origin = cam.position;
-    segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
+		segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
+
+		thrust::default_random_engine rng = makeSeededRandomEngine(iter, x, y);
+		thrust::uniform_real_distribution<float> u01(-0.5, 0.5);
+
+		float xOffset = u01(rng);
+		float yOffset = u01(rng);
 
 		// TODO: implement antialiasing by jittering the ray
 		segment.ray.direction = glm::normalize(cam.view
-			- cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
-			- cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
+			- cam.right * cam.pixelLength.x * ((float)x + xOffset - (float)cam.resolution.x * 0.5f)
+			- cam.up * cam.pixelLength.y * ((float)y + yOffset - (float)cam.resolution.y * 0.5f)
 			);
 
 		segment.pixelIndex = index;
@@ -400,11 +411,54 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	// --- PathSegment Tracing Stage ---
 	// Shoot ray into scene, bounce between objects, push shading chunks
 
+#if CACHEBOUNCE
+	cudaMemcpy(dev_first_paths, dev_paths, sizeof(PathSegment)* num_paths, cudaMemcpyDeviceToDevice);
+	// tracing
+	dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
+	computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
+		depth
+		, num_paths
+		, dev_first_paths
+		, dev_geoms
+		, hst_scene->geoms.size()
+		, dev_intersections
+		);
+	checkCUDAError("trace one bounce");
+
+	shadeMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
+		iter,
+		num_paths,
+		dev_intersections,
+		dev_first_paths,
+		dev_materials,
+		depth
+		);
+
+	//dev_path_end = thrust::partition(thrust::device, dev_first_paths, dev_first_paths + num_paths, has_no_bounces());
+	//num_paths = dev_path_end - dev_first_paths;
+
+#endif
+
     bool iterationComplete = false;
 	while (!iterationComplete) {
 
 	// clean shading chunks
-	cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
+	// cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
+
+
+	#if CACHEBOUNCE
+		if (depth == 0) {
+			// cache the first bounce
+			//printf("first bounce: %d\n", num_paths);
+			cudaMemcpy(dev_paths, dev_first_paths, sizeof(PathSegment)* num_paths, cudaMemcpyDeviceToDevice);
+			depth++;
+			continue;
+		}
+		else {
+			cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
+		}
+
+	#endif
 
 	// tracing
 	dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
@@ -430,11 +484,10 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
     // TODO: compare between directly shading the path segments and shading
     // path segments that have been reshuffled to be contiguous in memory.
 
-#if MATERIALS
-	//printf("what");
+	#if MATERIALS
 	
 	//sort them
-#endif
+	#endif
 
     shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>> (
       iter,
