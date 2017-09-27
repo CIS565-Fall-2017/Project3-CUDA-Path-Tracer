@@ -274,6 +274,64 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 	}
 }
 
+__host__ __device__ 
+void Intersect(
+	PathSegment &pathSegment,
+	Geom *geoms,
+	int geoms_size,
+	ShadeableIntersection &intersection)
+{
+	float t;
+	glm::vec3 intersect_point;
+	glm::vec3 normal;
+	float t_min = FLT_MAX;
+	int hit_geom_index = -1;
+	bool outside = true;
+
+	glm::vec3 tmp_intersect;
+	glm::vec3 tmp_normal;
+
+	// naive parse through global geoms
+
+	for (int i = 0; i < geoms_size; i++)
+	{
+		Geom & geom = geoms[i];
+
+		if (geom.type == CUBE)
+		{
+			t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+		}
+		else if (geom.type == SPHERE)
+		{
+			t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+		}
+		// TODO: add more intersection tests here... triangle? metaball? CSG?
+
+		// Compute the minimum t from the intersection tests to determine what
+		// scene geometry object was hit first.
+		if (t > 0.0f && t_min > t)
+		{
+			t_min = t;
+			hit_geom_index = i;
+			intersect_point = tmp_intersect;
+			normal = tmp_normal;
+		}
+	}
+
+	if (hit_geom_index == -1)
+	{
+		intersection.t = -1.0f;
+	}
+	else
+	{
+		//The ray hits something
+		intersection.t = t_min;
+		intersection.materialId = geoms[hit_geom_index].materialid;
+		intersection.surfaceNormal = normal;
+		intersection.intersectPoint = intersect_point;
+	}
+}
+
 // TODO:
 // computeIntersections handles generating ray intersections ONLY.
 // Generating new rays is handled in your shader(s).
@@ -347,63 +405,6 @@ __global__ void computeIntersections(
 			intersections[path_index].surfaceNormal = normal;
 			intersections[path_index].intersectPoint = intersect_point;
 		}
-	}
-}
-
-__host__ __device__ void Intersect(
-	PathSegment &pathSegment,
-	Geom *geoms,
-	int geoms_size,
-	ShadeableIntersection &intersection)
-{
-	float t;
-	glm::vec3 intersect_point;
-	glm::vec3 normal;
-	float t_min = FLT_MAX;
-	int hit_geom_index = -1;
-	bool outside = true;
-
-	glm::vec3 tmp_intersect;
-	glm::vec3 tmp_normal;
-
-	// naive parse through global geoms
-
-	for (int i = 0; i < geoms_size; i++)
-	{
-		Geom & geom = geoms[i];
-
-		if (geom.type == CUBE)
-		{
-			t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
-		}
-		else if (geom.type == SPHERE)
-		{
-			t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
-		}
-		// TODO: add more intersection tests here... triangle? metaball? CSG?
-
-		// Compute the minimum t from the intersection tests to determine what
-		// scene geometry object was hit first.
-		if (t > 0.0f && t_min > t)
-		{
-			t_min = t;
-			hit_geom_index = i;
-			intersect_point = tmp_intersect;
-			normal = tmp_normal;
-		}
-	}
-
-	if (hit_geom_index == -1)
-	{
-		intersection.t = -1.0f;
-	}
-	else
-	{
-		//The ray hits something
-		intersection.t = t_min;
-		intersection.materialId = geoms[hit_geom_index].materialid;
-		intersection.surfaceNormal = normal;
-		intersection.intersectPoint = intersect_point;
 	}
 }
 
@@ -546,8 +547,8 @@ __global__ void shadeMaterialDirect(
 		}
 
 		// Use this without stream compaction
-		thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
-		//thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
+		//thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
+		thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
 		thrust::uniform_real_distribution<float> u01(0, 1);
 
 		// See what kind of object the ray hit.
@@ -562,24 +563,17 @@ __global__ void shadeMaterialDirect(
 		// Ray hits an object.
 		// Scatter the ray to get a new ray and update the color
 		else {
-			float pdf;
-			glm::vec3 wi;
-
 			// Pick a random light in the scene
 			// Cornell has 1 light at geoms[0]
 			int numLights = 1;
 			Geom light = geoms[0];
-
-			// Sample light
-			// Might have to convert point 
-			//glm::vec3 li = Sample_Li(intersection, light, wi, pdf, rng);
 
 			// Sample a point on the light
 			glm::vec3 samplePoint = SphereSample(rng);
 			// Get the light's position based on the sample
 			glm::vec3 lightPos(light.transform * glm::vec4(samplePoint, 1.f));
 
-			// Sample the object
+			// Sample the object hit
 			glm::vec3 f = bsdf_f(pathSegments[idx], material);
 
 			// Test for shadows
@@ -589,21 +583,22 @@ __global__ void shadeMaterialDirect(
 
 			ShadeableIntersection isx;
 			Intersect(shadowFeeler, geoms, num_geoms, isx);
-			
+
 			float emit = 0.f;
 			// Occluded by object
 			if (isx.t > 0.f && materials[isx.materialId].emittance <= 0.f) {
 				pathSegments[idx].color = glm::vec3(0.f);
 			}
 			else {
-				if (glm::dot(lightPos, -shadowFeeler.ray.direction) > 0.f) {
+				if (glm::dot(lightPos, shadowFeeler.ray.direction) >= 0.f) {
 					emit = materials[light.materialid].emittance;
 				} 
 				
 				pathSegments[idx].color *= f * emit * AbsDot(intersection.surfaceNormal, glm::normalize(shadowFeeler.ray.direction));
+				pathSegments[idx].color *= numLights;
 			}
 
-			// Direct lighting only does one bounce.
+			// Direct lighting only does one bounce
 			pathSegments[idx].remainingBounces = 0;
 		}
 	}
@@ -734,8 +729,9 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		// tracing
 		dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
 
-#define CACHE false
-#define SORTBYMATERIAL false
+#define CACHE true
+#define SORTBYMATERIAL true
+#define DIRECTLIGHTING true
 
 		// Store the very first bounce into dev_intersections_cached.
 		if (CACHE && depth == 0 && iter == 1) {
@@ -783,8 +779,12 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 				thrust::sort_by_key(thrust::device, dev_intersectionIndicesByMaterial, dev_intersectionIndicesByMaterial + num_paths, dev_intersections_cached);
 			}
 
-			//shadeMaterialDirect << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections_cached, dev_paths, dev_materials, dev_geoms, hst_scene->geoms.size(), depth);
-			shadeMaterialNaive << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections_cached, dev_paths, dev_materials, depth);
+			if (DIRECTLIGHTING) {
+				shadeMaterialDirect << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections_cached, dev_paths, dev_materials, dev_geoms, hst_scene->geoms.size(), depth);
+			}
+			else {
+				shadeMaterialNaive << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections_cached, dev_paths, dev_materials, depth);
+			}
 		}
 		// Otherwise use the new ray.
 		else {
@@ -796,15 +796,19 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 				thrust::sort_by_key(thrust::device, dev_intersectionIndicesByMaterial, dev_intersectionIndicesByMaterial + num_paths, dev_intersections);
 			}
 
-			//shadeMaterialDirect << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections, dev_paths, dev_materials, dev_geoms, hst_scene->geoms.size(), depth);
-			shadeMaterialNaive << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections, dev_paths, dev_materials, depth);
+			if (DIRECTLIGHTING) {
+				shadeMaterialDirect << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections, dev_paths, dev_materials, dev_geoms, hst_scene->geoms.size(), depth);
+			}
+			else {
+				shadeMaterialNaive << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections, dev_paths, dev_materials, depth);
+			}
 		}
 
 		// Compact paths
 		// Puts all the paths with bounces > 0 towards the front of the array
-		//PathSegment *activePaths = thrust::partition(thrust::device, dev_paths, dev_paths + numActivePaths, endPath());
-		//// Update the number of active paths so we can only operate on those the next loop.
-		//numActivePaths = activePaths - dev_paths;
+		PathSegment *activePaths = thrust::partition(thrust::device, dev_paths, dev_paths + numActivePaths, endPath());
+		// Update the number of active paths so we can only operate on those the next loop.
+		numActivePaths = activePaths - dev_paths;
 		
 		depth++;
 		iterationComplete = (depth >= traceDepth || numActivePaths == 0);

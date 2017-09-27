@@ -331,6 +331,13 @@ glm::vec3 bsdf_f(
 	PathSegment & pathSegment,
 	Material &m)
 {
-	// Handle diffuse first
+	if (m.hasReflective) {
+		return glm::vec3(0.f);
+	}
+	else if (m.hasRefractive) {
+		return glm::vec3(0.f);
+	}
+
+	// Diffuse
 	return m.color * INVPI;
 }
