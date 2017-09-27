@@ -79,32 +79,30 @@ void scatterRay(
 
 	if (m.hasReflective > 0) {
 		pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
-    pathSegment.color *= m.specular.color;
+		pathSegment.color *= m.specular.color;
 	}
 	else if (m.hasRefractive > 0) {
-    //pathSegment.ray.direction = glm::refract(pathSegment.ray.direction, normal, m.indexOfRefraction);
-    // Schlick's Approximation implementation
-    thrust::uniform_real_distribution<float>urefract(0, 1);
-    float R_0 = std::pow((1 - m.indexOfRefraction) / (1 + m.indexOfRefraction), 2);
-    float dot = fabs(glm::dot(normal, pathSegment.ray.direction)); // use fabs not abs for precise calculation
-    float R = R_0 + (1 - R_0) * std::pow(1 - dot, 5);
+		// Schlick's Approximation implementation
+		thrust::uniform_real_distribution<float>urefract(0, 1);
+		float R_0 = std::pow((1.0f - m.indexOfRefraction) / (1.0f + m.indexOfRefraction), 2.0f);
+		float dot = fabs(glm::dot(normal, pathSegment.ray.direction)); // use fabs not abs for precise calculation
+		float fresnel = R_0 + (1.0f - R_0) * std::pow(1.0f - dot, 5.0f);
     
-    if (urefract(rng) < R) {
-      pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
-    }
-    else {
-      float refractNum = 0.0f;
-      if (pathSegment.isRefract) {
-        refractNum = m.indexOfRefraction;
-      }
-      else {
-        refractNum = 1 / m.indexOfRefraction;
-      }
-      // Snell's law
-      pathSegment.ray.direction = glm::refract(pathSegment.ray.direction, normal, refractNum);
-      pathSegment.isRefract = urefract(rng) > 0.5;
-    }
-
+		if (urefract(rng) < fresnel) {
+			pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
+		}
+		else {
+			float refractNum = 0.0f;
+			if (pathSegment.isRefract) {
+				refractNum = m.indexOfRefraction;
+			}
+			else {
+				refractNum = 1.0f / m.indexOfRefraction;
+			}
+			// Snell's law
+			pathSegment.ray.direction = glm::refract(pathSegment.ray.direction, normal, refractNum);
+			pathSegment.isRefract = urefract(rng) > 0.5;
+		}
 	}
 	else {
 		pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);

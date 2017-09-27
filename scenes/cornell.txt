@@ -65,7 +65,7 @@ SPECEX      0
 SPECRGB     0 0 0
 REFL        0
 REFR        1
-REFRIOR     0
+REFRIOR     1.5
 EMITTANCE   0
 
 // Camera
@@ -139,7 +139,7 @@ MOTION	    -1 1 0
 // Cube
 OBJECT 7
 cube
-material 1
+material 6
 TRANS       2 6 -1
 ROTAT       45 45 0
 SCALE       2.5 2 3
@@ -161,4 +161,3 @@ material 5
 TRANS       0 0 0
 ROTAT       0 0 0
 SCALE       5 .3 4
-

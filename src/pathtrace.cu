@@ -355,7 +355,7 @@ __global__ void kernGetMaterialId(int n, int *odata, const ShadeableIntersection
  * of memory management
  */
 void pathtrace(uchar4 *pbo, int frame, int iter) {
-	timer().startGpuTimer();
+	//timer().startGpuTimer();
   const int traceDepth = hst_scene->state.traceDepth;
   const Camera &cam = hst_scene->state.camera;
   const int pixelcount = cam.resolution.x * cam.resolution.y;
@@ -508,10 +508,10 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
     iterationComplete = num_paths_active <= 0 || traceDepth < depth; // TODO: should be based off stream compaction results.
 	}
 
-	timer().endGpuTimer();
+	/*timer().endGpuTimer();
 	if (iter < 101 && (iter % 10 == 0 || iter == 1)) {
 		cout << timer().getGpuElapsedTimeForPreviousOperation() << endl;
-	}
+	}*/
 
   ///////////////////////////////////////////////////////////////////////////
 
