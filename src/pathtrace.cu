@@ -260,6 +260,16 @@ __global__ void computeIntersections(
 			{
 				t = triangleIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
 			}
+			else if (geom.type == MESH)
+			{
+#if BV_CULLING
+				bool hit = bbIntersectionTest(geom, pathSegment.ray);
+				if (hit) {
+					i += geom.nextIdxOff;
+				}
+#endif
+				continue;
+			}
 			// Compute the minimum t from the intersection tests to determine what
 			// scene geometry object was hit first.
 			if (t > 0.0f && t_min > t)
@@ -268,7 +278,7 @@ __global__ void computeIntersections(
 				hit_geom_index = i;
 				intersect_point = tmp_intersect;
 				normal = tmp_normal;
-			}
+			} 
 		}
 
 		if (hit_geom_index == -1)

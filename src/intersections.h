@@ -161,6 +161,41 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
 
 // TODO
 /**
+* Test intersection between a ray and a bounding box.
+*/
+__host__ __device__ bool bbIntersectionTest(Geom bb, Ray r) 
+{
+	glm::vec3 invDir = glm::vec3(1.f / r.direction.x, 1.f / r.direction.y, 1.f / r.direction.z);
+	int dirIsNeg[3] = { invDir.x < 0, invDir.y < 0, invDir.z < 0 };
+
+	// Check for ray intersection against $x$ and $y$ slabs
+	float tMin = (bb.bound[dirIsNeg[0]].x - r.origin.x) * invDir.x;
+	float tMax = (bb.bound[1 - dirIsNeg[0]].x - r.origin.x) * invDir.x;
+	float tyMin = (bb.bound[dirIsNeg[1]].y - r.origin.y) * invDir.y;
+	float tyMax = (bb.bound[1 - dirIsNeg[1]].y - r.origin.y) * invDir.y;
+
+	// Update _tMax_ and _tyMax_ to ensure robust bounds intersection
+	float gamma3 = (3 * EPSILON * 0.5) / (1 - 3 * EPSILON * 0.5);
+	tMax *= 1 + 2 * gamma3;
+	tyMax *= 1 + 2 * gamma3;
+	if (tMin > tyMax || tyMin > tMax) return false;
+	if (tyMin > tMin) tMin = tyMin;
+	if (tyMax < tMax) tMax = tyMax;
+
+	// Check for ray intersection against $z$ slab
+	float tzMin = (bb.bound[dirIsNeg[2]].z - r.origin.z) * invDir.z;
+	float tzMax = (bb.bound[1 - dirIsNeg[2]].z - r.origin.z) * invDir.z;
+
+	// Update _tzMax_ to ensure robust bounds intersection
+	tzMax *= 1 + 2 * gamma3;
+	if (tMin > tzMax || tzMin > tMax) return false;
+	if (tzMin > tMin) tMin = tzMin;
+	if (tzMax < tMax) tMax = tzMax;
+	return (tMax > 0);
+
+}
+
+/**
 * Test intersection between a ray and a transformed triangle.
 *
 * @param intersectionPoint  Output parameter for point of intersection.
@@ -169,7 +204,7 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
 * @return                   Ray parameter `t` value. -1 if no intersection.
 */
 __host__ __device__ float triangleIntersectionTest(Geom tri, Ray r,
-	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) 
+	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside)
 {
 	// transform ray
 	Ray rt;

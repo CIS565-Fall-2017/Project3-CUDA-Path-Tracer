@@ -52,11 +52,13 @@ int Scene::loadGeom(string objectid) {
                 cout << "Creating new sphere..." << endl;
 				Geom geo;
                 geo.type = SPHERE;
+				geo.nextIdxOff = 0;
 				newGeoms.push_back(geo);
             } else if (strcmp(tokens[0].c_str(), "cube") == 0) {
                 cout << "Creating new cube..." << endl;
 				Geom geo;
                 geo.type = CUBE;
+				geo.nextIdxOff = 0;
 				newGeoms.push_back(geo);
             }
 			else if (strcmp(tokens[0].c_str(), "mesh") == 0) {
@@ -88,6 +90,7 @@ int Scene::loadGeom(string objectid) {
 					for (size_t f = 0; f < shapes[s].mesh.indices.size() / 3; f++) {
 						Geom geo;
 						geo.type = TRIANGLE;
+						geo.nextIdxOff = 0;
 
 						tinyobj::index_t idx0 = shapes[s].mesh.indices[3 * f + 0];
 						tinyobj::index_t idx1 = shapes[s].mesh.indices[3 * f + 1];
@@ -116,9 +119,6 @@ int Scene::loadGeom(string objectid) {
 						geo.pos[0] = glm::vec3(v[0][0], v[0][1], v[0][2]);
 						geo.pos[1] = glm::vec3(v[1][0], v[1][1], v[1][2]);
 						geo.pos[2] = glm::vec3(v[2][0], v[2][1], v[2][2]);
-
-						geo.bmin = glm::vec3(bmin[0], bmin[1], bmin[2]);
-						geo.bmax = glm::vec3(bmax[0], bmax[1], bmax[2]);
 
 						// normals
 						float n[3][3];
@@ -151,6 +151,12 @@ int Scene::loadGeom(string objectid) {
 						newGeoms.push_back(geo);
 					}
 				}
+				Geom geo;
+				geo.type = MESH;
+				geo.nextIdxOff = newGeoms.size();
+				geo.bound[0] = glm::vec3(bmin[0], bmin[1], bmin[2]);
+				geo.bound[1] = glm::vec3(bmax[0], bmax[1], bmax[2]);
+				geoms.push_back(geo);
 			}
         }
 

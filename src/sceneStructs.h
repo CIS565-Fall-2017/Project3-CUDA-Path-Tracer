@@ -22,6 +22,7 @@ struct Ray {
 struct Geom {
     enum GeomType type;
     int materialid;
+	int nextIdxOff; // if Geom is not intersected
     glm::vec3 translation;
     glm::vec3 rotation;
     glm::vec3 scale;
@@ -31,8 +32,7 @@ struct Geom {
 	// triangles
 	glm::vec3 pos[3];
 	glm::vec3 norm[3];
-	glm::vec3 bmin;
-	glm::vec3 bmax;
+	glm::vec3 bound[2];
 };
 
 struct Material {
