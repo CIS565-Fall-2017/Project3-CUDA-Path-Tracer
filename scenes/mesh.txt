@@ -110,8 +110,8 @@ SCALE       .01 10 10
 
 // Mesh
 OBJECT 6
-mesh "wahoo.obj"
+mesh ..\scenes\tetra.obj
 material 4
 TRANS       -1 4 -1
 ROTAT       0 0 0
-SCALE       3 3 3
+SCALE       2 2 2

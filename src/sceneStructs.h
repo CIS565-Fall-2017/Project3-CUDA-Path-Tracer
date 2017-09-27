@@ -10,7 +10,8 @@
 enum GeomType {
     SPHERE,
     CUBE,
-	TRIANGLE
+	TRIANGLE,
+	MESH
 };
 
 struct Ray {
@@ -18,7 +19,6 @@ struct Ray {
     glm::vec3 direction;
 };
 
-// if GeomType is triangle, translation = P1, rotation = P2, scale = P3
 struct Geom {
     enum GeomType type;
     int materialid;
@@ -28,7 +28,9 @@ struct Geom {
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
-	// TODO vertices, normals
+	// triangles
+	glm::vec3 pos[3];
+	glm::vec3 norm[3];
 	glm::vec3 bmin;
 	glm::vec3 bmax;
 };

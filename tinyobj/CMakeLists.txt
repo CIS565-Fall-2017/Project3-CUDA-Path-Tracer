@@ -5,5 +5,5 @@ set(SOURCE_FILES
 
 cuda_add_library(tinyobj
     ${SOURCE_FILES}
-    OPTIONS -arch=sm_60
+    OPTIONS -arch=sm_20
     )

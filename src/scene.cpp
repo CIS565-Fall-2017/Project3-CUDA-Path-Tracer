@@ -86,6 +86,9 @@ int Scene::loadGeom(string objectid) {
 
 				for (unsigned int s = 0; s < shapes.size(); ++s) {
 					for (size_t f = 0; f < shapes[s].mesh.indices.size() / 3; f++) {
+						Geom geo;
+						geo.type = TRIANGLE;
+
 						tinyobj::index_t idx0 = shapes[s].mesh.indices[3 * f + 0];
 						tinyobj::index_t idx1 = shapes[s].mesh.indices[3 * f + 1];
 						tinyobj::index_t idx2 = shapes[s].mesh.indices[3 * f + 2];
@@ -110,6 +113,12 @@ int Scene::loadGeom(string objectid) {
 							bmax[k] = std::max(v[1][k], bmax[k]);
 							bmax[k] = std::max(v[2][k], bmax[k]);
 						}
+						geo.pos[0] = glm::vec3(v[0][0], v[0][1], v[0][2]);
+						geo.pos[1] = glm::vec3(v[1][0], v[1][1], v[1][2]);
+						geo.pos[2] = glm::vec3(v[2][0], v[2][1], v[2][2]);
+
+						geo.bmin = glm::vec3(bmin[0], bmin[1], bmin[2]);
+						geo.bmax = glm::vec3(bmax[0], bmax[1], bmax[2]);
 
 						// normals
 						float n[3][3];
@@ -125,8 +134,7 @@ int Scene::loadGeom(string objectid) {
 								n[1][k] = attrib.normals[3 * f1 + k];
 								n[2][k] = attrib.normals[3 * f2 + k];
 							}
-						}
-						else {
+						} else {
 							// compute geometric normal
 							CalcNormal(n[0], v[0], v[1], v[2]);
 							n[1][0] = n[0][0];
@@ -136,9 +144,13 @@ int Scene::loadGeom(string objectid) {
 							n[2][1] = n[0][1];
 							n[2][2] = n[0][2];
 						}
+						geo.norm[0] = glm::vec3(n[0][0], n[0][1], n[0][2]);
+						geo.norm[1] = glm::vec3(n[1][0], n[1][1], n[1][2]);
+						geo.norm[2] = glm::vec3(n[2][0], n[2][1], n[2][2]);
+
+						newGeoms.push_back(geo);
 					}
 				}
-				//newGeom.type = TRIANGLE;
 			}
         }
 
@@ -149,7 +161,7 @@ int Scene::loadGeom(string objectid) {
         if (!line.empty() && fp_in.good()) {
             vector<string> tokens = utilityCore::tokenizeString(line);
 			for (int i = 0; i < num_geo; ++i) {
-				Geom geo = newGeoms[i];
+				Geom &geo = newGeoms[i];
 				geo.materialid = atoi(tokens[1].c_str());
 			}
             cout << "Connecting Geom " << objectid << " to Material " << tokens[1].c_str() << "..." << endl;
@@ -163,18 +175,18 @@ int Scene::loadGeom(string objectid) {
             //load tranformations
             if (strcmp(tokens[0].c_str(), "TRANS") == 0) {
 				for (int i = 0; i < num_geo; ++i) {
-					Geom geo = newGeoms[i];
+					Geom &geo = newGeoms[i];
 					geo.translation = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
 				}
                 
             } else if (strcmp(tokens[0].c_str(), "ROTAT") == 0) {
 				for (int i = 0; i < num_geo; ++i) {
-					Geom geo = newGeoms[i];
+					Geom &geo = newGeoms[i];
 					geo.rotation = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
 				}
             } else if (strcmp(tokens[0].c_str(), "SCALE") == 0) {
 				for (int i = 0; i < num_geo; ++i) {
-					Geom geo = newGeoms[i];
+					Geom &geo = newGeoms[i];
 					geo.scale = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
 				}
             }
@@ -183,10 +195,12 @@ int Scene::loadGeom(string objectid) {
         }
 
 		for (int i = 0; i < num_geo; ++i) {
-			Geom geo = newGeoms[i];
+			Geom &geo = newGeoms[i];
 			geo.transform = utilityCore::buildTransformationMatrix(geo.translation, geo.rotation, geo.scale);
 			geo.inverseTransform = glm::inverse(geo.transform);
 			geo.invTranspose = glm::inverseTranspose(geo.transform);
+
+			geoms.push_back(geo);
 		}
         return 1;
     }

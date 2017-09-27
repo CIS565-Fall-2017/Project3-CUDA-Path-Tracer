@@ -17,15 +17,16 @@
 
 #define ERRORCHECK 1
 
-// option flags
+// optimization flags
 #define THRUST 0
 #define COMPACT 1
 #define CONTIG_MAT 0
 #define CACHE_FIRST 0
+#define BV_CULLING 0
 
-// features
+// feature flags
 #define ANTI_ALIAS 1
-#define DEPTH_OF_FIELD 1
+#define DEPTH_OF_FIELD 0
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
