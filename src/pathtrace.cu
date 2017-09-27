@@ -110,15 +110,6 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution,
 	}
 }
 
-//Kernel that writes index (starting at 1)
-__global__ void kernSetIndex(int N, int *data)
-{
-	int index = (blockIdx.x * blockDim.x) + threadIdx.x;
-	if (index >= N) return;
-
-	data[index] = index + 1;
-}
-
 static Scene * hst_scene = NULL;
 static glm::vec3 * dev_image = NULL;
 static Geom * dev_geoms = NULL;
@@ -308,8 +299,7 @@ __global__ void shadeFakeMaterial(
 	, int num_paths
 	, ShadeableIntersection * shadeableIntersections
 	, PathSegment * pathSegments
-	, Material * materials
-)
+	, Material * materials)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (idx < num_paths)
@@ -497,14 +487,17 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		cudaDeviceSynchronize();
 		depth++;
 
+#if CONTIG_MAT
+		// TODO: compare between directly shading the path segments and shading
+		// path segments that have been reshuffled to be contiguous in memory.
+#endif
+
 		// TODO:
 		// --- Shading Stage ---
 		// Shade path segments based on intersections and generate new rays by
 		// evaluating the BSDF.
 		// Start off with just a big kernel that handles all the different
 		// materials you have in the scenefile.
-		// TODO: compare between directly shading the path segments and shading
-		// path segments that have been reshuffled to be contiguous in memory.
 
 		shadeMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
 			iter,

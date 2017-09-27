@@ -28,6 +28,9 @@ struct Geom {
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+	// TODO vertices, normals
+	glm::vec3 bmin;
+	glm::vec3 bmax;
 };
 
 struct Material {
