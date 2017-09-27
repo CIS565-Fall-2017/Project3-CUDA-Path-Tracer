@@ -499,8 +499,8 @@ __global__ void shadeMaterialNaive(
 		}
 
 		// Use this without stream compaction
-		//thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
-		thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
+		thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
+		//thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
 		thrust::uniform_real_distribution<float> u01(0, 1);
 
 		// See what kind of object the ray hit.
@@ -546,8 +546,8 @@ __global__ void shadeMaterialDirect(
 		}
 
 		// Use this without stream compaction
-		//thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
 		thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
+		//thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
 		thrust::uniform_real_distribution<float> u01(0, 1);
 
 		// See what kind of object the ray hit.
@@ -783,8 +783,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 				thrust::sort_by_key(thrust::device, dev_intersectionIndicesByMaterial, dev_intersectionIndicesByMaterial + num_paths, dev_intersections_cached);
 			}
 
-			shadeMaterialDirect << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections_cached, dev_paths, dev_materials, dev_geoms, hst_scene->geoms.size(), depth);
-			//shadeMaterialNaive << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections_cached, dev_paths, dev_materials, depth);
+			//shadeMaterialDirect << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections_cached, dev_paths, dev_materials, dev_geoms, hst_scene->geoms.size(), depth);
+			shadeMaterialNaive << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections_cached, dev_paths, dev_materials, depth);
 		}
 		// Otherwise use the new ray.
 		else {
@@ -796,8 +796,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 				thrust::sort_by_key(thrust::device, dev_intersectionIndicesByMaterial, dev_intersectionIndicesByMaterial + num_paths, dev_intersections);
 			}
 
-			shadeMaterialDirect << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections, dev_paths, dev_materials, dev_geoms, hst_scene->geoms.size(), depth);
-			//shadeMaterialNaive << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections, dev_paths, dev_materials, depth);
+			//shadeMaterialDirect << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections, dev_paths, dev_materials, dev_geoms, hst_scene->geoms.size(), depth);
+			shadeMaterialNaive << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections, dev_paths, dev_materials, depth);
 		}
 
 		// Compact paths

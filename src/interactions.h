@@ -188,25 +188,23 @@ void scatterRay(
 	if (m.hasReflective) {
 		wi = glm::reflect(-wo, normal);
 
-		pdf = 1.f;
-		color *= m.specular.color;
-
+		//pdf = 1.f;
+		//color *= m.specular.color;
 		// Set up ray direction for next bounce
-		spawnRay(pathSegment, normal, wi, intersect);
-
+		//spawnRay(pathSegment, normal, wi, intersect);
 		// Update color
-		pathSegment.color *= m.color * color;
+		//pathSegment.color *= m.color * color;
+		
+		pathSegment.color *= m.specular.color;
 	}
 	// Refractive Surface
 	else if (m.hasRefractive) {
 		// Needa fix PBRT implementation
 		//bool entering = CosTheta(wo, normal) > 0;
-
 		//float etaA = 1.f;
 		//float etaB = m.indexOfRefraction;
 		//float etaI = entering ? etaA : etaB;
 		//float etaT = entering ? etaB : etaA;
-
 		//if (!Refract(wo, Faceforward(glm::vec3(0, 0, 1), wo), etaI / etaT, wi)) {
 		//	pdf = 0.f;
 		//	color = glm::vec3(0.f);
@@ -215,11 +213,6 @@ void scatterRay(
 		//	pdf = 1.f;
 		//	color = m.specular.color * (glm::vec3(1.f) - fresnelDielectric(wo, wi, normal, etaI, etaT)) / AbsCosTheta(wi, normal);
 		//}
-
-
-		// negate ray direction gets glass effect 
-		// but it still isnt right o.o
-
 
 		float n1 = 1.f;					// air
 		float n2 = m.indexOfRefraction;	// material
@@ -233,42 +226,38 @@ void scatterRay(
 
 		// Schlick's Approximation
 		float r0 = powf((n1 - n2) / (n1 + n2), 2.f);
-		float rTheta = r0 + (1 - r0) * powf((1 - glm::abs(glm::dot(normal, -pathSegment.ray.direction))), 5.f);
+		float rTheta = r0 + (1 - r0) * powf((1 - glm::abs(glm::dot(normal, pathSegment.ray.direction))), 5.f);
 
 		thrust::uniform_real_distribution<float> u01(0, 1);
 		if (rTheta < u01(rng)) {
-			wi = glm::normalize(glm::refract(-pathSegment.ray.direction, normal, n2));
+			wi = glm::normalize(glm::refract(pathSegment.ray.direction, normal, n2));
 		}
 		else {
-			wi = glm::normalize(glm::reflect(-pathSegment.ray.direction, normal));
+			wi = glm::normalize(glm::reflect(pathSegment.ray.direction, normal));
 		}
 
-		pathSegment.ray.direction = -wi;
-		pathSegment.color *= m.color * m.specular.color;
-		pathSegment.ray.origin = intersect + (EPSILON * pathSegment.ray.direction);
+		pathSegment.color *= m.specular.color;
 	}
 	// Diffuse Surface
 	else {
 		wi = glm::normalize(calculateRandomDirectionInHemisphere(normal, rng));
 		
-		pdf = getPdf(wo, wi, normal);
+		//pdf = getPdf(wo, wi, normal);
 		//color *= INVPI;
-
 		//if (pdf > 0.f) {
 		//	pathSegment.color /= pdf;
 		//}
 		//else {
 		//	pathSegment.color = glm::vec3(0.f);
 		//}
-
-		// Set up ray direction for next bounce
-		spawnRay(pathSegment, normal, wi, intersect);
-
 		// Update color
-		pathSegment.color *= m.color * color;
+		//pathSegment.color *= m.color * color;
 	}
-
-	pathSegment.color *= AbsDot(normal, wi);
+	
+	// Set up ray for the next bounce
+	spawnRay(pathSegment, normal, wi, intersect);
+	// Update color 
+	pathSegment.color *= m.color * AbsDot(normal, wi);
 }
 
 
