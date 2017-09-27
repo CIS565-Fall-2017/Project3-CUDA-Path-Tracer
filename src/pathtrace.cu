@@ -23,7 +23,7 @@
 
 #define ERRORCHECK 1
 #define COMPACT 0 //0 NONE, 1 THRUST, 2 CUSTOM
-#define PT_TECHNIQUE 1 //0 NAIVE, 1 MIS
+#define PT_TECHNIQUE 0 //0 NAIVE, 1 MIS
 //https://thrust.1ithub.io/doc/group__stream__compaction.html#ga5fa8f86717696de88ab484410b43829b
 //https://stackoverflow.com/questions/34103410/glmvec3-and-epsilon-comparison
 struct isDead { //needed for thrust's predicate, the last arg in remove_if
