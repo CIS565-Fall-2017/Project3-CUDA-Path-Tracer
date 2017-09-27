@@ -1,6 +1,9 @@
 #pragma once
 
 #include "intersections.h"
+#ifndef M_PI
+	#define M_PI 3.14159265358979323846
+#endif
 
 // CHECKITOUT
 /**
@@ -76,4 +79,129 @@ void scatterRay(
     // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
+
+	// Implement the specular and the diffuse shading
+	// Update the color of the sample
+	// Generte new direction of the ray
+	
+	float probability = 1.0f; // Will be used later when slecting between refplection and refraction
+	glm::vec3 newRayDirection;
+	glm::vec3 finalColor = glm::vec3(1.0f,1.0f,1.0f);
+
+	// SPECULAR REFLECTIVE
+	if (m.hasReflective) {
+		// Update direction 
+		newRayDirection = glm::reflect(pathSegment.ray.direction , normal);
+
+		// Update color
+		finalColor = m.specular.color * m.color;
+	}
+	// DIFFUSE
+	else {
+		// Update direction
+		newRayDirection = glm::normalize(calculateRandomDirectionInHemisphere(normal, rng));
+
+		// Update color
+		finalColor *= fabs(glm::dot(normal, newRayDirection)) * m.color;
+	}
+
+	pathSegment.ray.direction = newRayDirection;
+	pathSegment.ray.origin = intersect + EPSILON * normal;
+	pathSegment.color *= finalColor;
 }
+
+/**
+* Square to Disk Uniform mapping function
+* Based on the implementation in PBRT and CIS460
+*/
+__host__ __device__
+glm::vec2 squareToDiskUniform(const glm::vec2 point2D) {
+	float r = std::sqrt(point2D[0]); //x-axis maps to the radius
+	float theta = 2.0f * M_PI * point2D[1]; //y-axis maps to the angle on the disc
+	return glm::vec2(r * std::cos(theta), r * std::sin(theta));
+}
+
+/**
+* Square to Disk Concentric mapping function
+* Based on the implementation in PBRT and CIS460
+*/
+__host__ __device__
+glm::vec2 squareToDiskConcentric(const glm::vec2 point2D)
+{
+	float phi, r, u, v;
+	float a = 2.0f * point2D[0] - 1.0f;
+	float b = 2.0f * point2D[1] - 1.0f;
+
+
+	if (a > -b)
+	{
+		if (a > b) //region 1
+		{
+			r = a;
+			phi = (M_PI / 4.0f) * (b / a);
+		}
+		else // region 2
+		{
+			r = b;
+			phi = (M_PI / 4.0f) * (2.0f - (a / b));
+		}
+	}
+	else
+	{
+		if (a < b) // region 3
+		{
+			r = -a;
+			phi = (M_PI / 4.0f) * (4.0f + (b / a));
+		}
+		else // region 4
+		{
+			r = -b;
+			if (b != 0)
+			{
+				phi = (M_PI / 4.0f) * (6 - (a / b));
+			}
+			else
+			{
+				phi = 0;
+			}
+		}
+	}
+
+	u = r * std::cos(phi);
+	v = r * std::sin(phi);
+	return glm::vec2(u, v);
+}
+
+/**
+* Depth of Field
+* This implementation assumes a thin lens approximation
+* Based on the implementation in PBRT and CIS460
+*/
+__host__ __device__
+void depthOfField(const Camera camera, thrust::default_random_engine& rng, PathSegment& segment) {
+	if (camera.lRadius > 0) {
+		// Generate a sample
+		thrust::uniform_real_distribution<float> u01(0, 1);
+		glm::vec2 point2D(u01(rng), u01(rng));
+		point2D = squareToDiskConcentric(point2D);
+
+		// Point on the lens
+		glm::vec2 pLens = camera.lRadius * point2D;
+
+		// Focal point
+		glm::vec3 pFocus = segment.ray.origin + camera.fLength * segment.ray.direction;
+
+		// Update the original ray from camera to start from the lens in the direction of the focal point
+		glm::vec3 newOrigin = segment.ray.origin + (camera.up * pLens.y) + (camera.right * pLens.x);
+		glm::vec3 newDirection = glm::normalize(pFocus - newOrigin);
+
+		segment.ray.origin = newOrigin;
+		segment.ray.direction = newDirection;
+	}
+	else {
+		return;
+	}
+}
+
+// TODO
+// Do Direct lighting calculation for each point. Send in a  variable with all the lights in the scene stored in it to scatterRay function.
