@@ -207,7 +207,8 @@ glm::vec3 ConcentricSampleDisk(float sampleX, float sampleY)
 	}
 	else {
 		r = b;
-		phi = (PI / 4) * (a / b) + (PI / 2);
+		//phi = (PI / 4) * (a / b) + (PI / 2);
+		phi = (PI / 2) - (PI / 4) * (a / b);
 	}
 
 	return glm::vec3(r * glm::cos(phi), r * glm::sin(phi), 0.f);
@@ -349,6 +350,63 @@ __global__ void computeIntersections(
 	}
 }
 
+__host__ __device__ void Intersect(
+	PathSegment &pathSegment,
+	Geom *geoms,
+	int geoms_size,
+	ShadeableIntersection &intersection)
+{
+	float t;
+	glm::vec3 intersect_point;
+	glm::vec3 normal;
+	float t_min = FLT_MAX;
+	int hit_geom_index = -1;
+	bool outside = true;
+
+	glm::vec3 tmp_intersect;
+	glm::vec3 tmp_normal;
+
+	// naive parse through global geoms
+
+	for (int i = 0; i < geoms_size; i++)
+	{
+		Geom & geom = geoms[i];
+
+		if (geom.type == CUBE)
+		{
+			t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+		}
+		else if (geom.type == SPHERE)
+		{
+			t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+		}
+		// TODO: add more intersection tests here... triangle? metaball? CSG?
+
+		// Compute the minimum t from the intersection tests to determine what
+		// scene geometry object was hit first.
+		if (t > 0.0f && t_min > t)
+		{
+			t_min = t;
+			hit_geom_index = i;
+			intersect_point = tmp_intersect;
+			normal = tmp_normal;
+		}
+	}
+
+	if (hit_geom_index == -1)
+	{
+		intersection.t = -1.0f;
+	}
+	else
+	{
+		//The ray hits something
+		intersection.t = t_min;
+		intersection.materialId = geoms[hit_geom_index].materialid;
+		intersection.surfaceNormal = normal;
+		intersection.intersectPoint = intersect_point;
+	}
+}
+
 // LOOK: "fake" shader demonstrating what you might do with the info in
 // a ShadeableIntersection, as well as how to use thrust's random number
 // generator. Observe that since the thrust random number generator basically
@@ -470,6 +528,7 @@ __global__ void shadeMaterialDirect(
 	PathSegment *pathSegments,
 	Material *materials,
 	Geom *geoms,
+	int num_geoms,
 	int depth)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -481,59 +540,70 @@ __global__ void shadeMaterialDirect(
 
 		// Check if the ray hits anything
 		ShadeableIntersection intersection = shadeableIntersections[idx];
-		if (intersection.t > 0.0f) {
-
-			thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
-			// Use this without stream compaction
-			//thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
-
-			thrust::uniform_real_distribution<float> u01(0, 1);
-
-			Material material = materials[intersection.materialId];
-			glm::vec3 materialColor = material.color;
-
-			// If the material indicates that the object was a light, "light" the ray
-			if (material.emittance > 0.0f) {
-				pathSegments[idx].color *= (materialColor * material.emittance);
-				pathSegments[idx].remainingBounces = 0;
-			}
-			// Scatter the ray based on the material
-			else {
-				float pdf;
-				glm::vec3 wi;
-
-				// Pick a random light in the scene
-				// Cornell has 1 light at geoms[0]
-				int numLights = 1;
-
-				// Sample light
-				// Might have to convert point 
-				glm::vec3 li = Sample_Li(intersection, geoms[0].translation, wi, pdf, rng);
-
-				pdf /= numLights;
-
-				if (pdf == 0.f) {
-					// pathSegments[idx].color = light
-				}
-
-				// Instead of Sample_f, use f to get material color
-
-				// Test for shadows
-
-				scatterRay(
-					pathSegments[idx],
-					intersection.intersectPoint,
-					intersection.surfaceNormal,
-					material,
-					rng);
-			}
-		}
-		// If there was no intersection, color the ray black.
-		// Lots of renderers use 4 channel color, RGBA, where A = alpha, often
-		// used for opacity, in which case they can indicate "no opacity".
-		// This can be useful for post-processing and image compositing.
-		else {
+		if (intersection.t <= 0.0f) {
 			pathSegments[idx].color = glm::vec3(0.0f);
+			pathSegments[idx].remainingBounces = 0;
+		}
+
+		// Use this without stream compaction
+		//thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
+		thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
+		thrust::uniform_real_distribution<float> u01(0, 1);
+
+		// See what kind of object the ray hit.
+		Material material = materials[intersection.materialId];
+		glm::vec3 materialColor = material.color;
+
+		// Ray hits the light.
+		if (material.emittance > 0.0f) {
+			pathSegments[idx].color *= (materialColor * material.emittance);
+			pathSegments[idx].remainingBounces = 0;
+		}
+		// Ray hits an object.
+		// Scatter the ray to get a new ray and update the color
+		else {
+			float pdf;
+			glm::vec3 wi;
+
+			// Pick a random light in the scene
+			// Cornell has 1 light at geoms[0]
+			int numLights = 1;
+			Geom light = geoms[0];
+
+			// Sample light
+			// Might have to convert point 
+			//glm::vec3 li = Sample_Li(intersection, light, wi, pdf, rng);
+
+			// Sample a point on the light
+			glm::vec3 samplePoint = SphereSample(rng);
+			// Get the light's position based on the sample
+			glm::vec3 lightPos(light.transform * glm::vec4(samplePoint, 1.f));
+
+			// Sample the object
+			glm::vec3 f = bsdf_f(pathSegments[idx], material);
+
+			// Test for shadows
+			PathSegment shadowFeeler;
+			shadowFeeler.ray.direction = glm::normalize(lightPos - intersection.intersectPoint);
+			shadowFeeler.ray.origin = intersection.intersectPoint + (EPSILON * shadowFeeler.ray.direction);
+
+			ShadeableIntersection isx;
+			Intersect(shadowFeeler, geoms, num_geoms, isx);
+			
+			float emit = 0.f;
+			// Occluded by object
+			if (isx.t > 0.f && materials[isx.materialId].emittance <= 0.f) {
+				pathSegments[idx].color = glm::vec3(0.f);
+			}
+			else {
+				if (glm::dot(lightPos, -shadowFeeler.ray.direction) > 0.f) {
+					emit = materials[light.materialid].emittance;
+				} 
+				
+				pathSegments[idx].color *= f * emit * AbsDot(intersection.surfaceNormal, glm::normalize(shadowFeeler.ray.direction));
+			}
+
+			// Direct lighting only does one bounce.
 			pathSegments[idx].remainingBounces = 0;
 		}
 	}
@@ -664,8 +734,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		// tracing
 		dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
 
-#define CACHE true
-#define SORTBYMATERIAL true
+#define CACHE false
+#define SORTBYMATERIAL false
 
 		// Store the very first bounce into dev_intersections_cached.
 		if (CACHE && depth == 0 && iter == 1) {
@@ -713,7 +783,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 				thrust::sort_by_key(thrust::device, dev_intersectionIndicesByMaterial, dev_intersectionIndicesByMaterial + num_paths, dev_intersections_cached);
 			}
 
-			shadeMaterialNaive << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections_cached, dev_paths, dev_materials, depth);
+			shadeMaterialDirect << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections_cached, dev_paths, dev_materials, dev_geoms, hst_scene->geoms.size(), depth);
+			//shadeMaterialNaive << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections_cached, dev_paths, dev_materials, depth);
 		}
 		// Otherwise use the new ray.
 		else {
@@ -725,14 +796,15 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 				thrust::sort_by_key(thrust::device, dev_intersectionIndicesByMaterial, dev_intersectionIndicesByMaterial + num_paths, dev_intersections);
 			}
 
-			shadeMaterialNaive << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections, dev_paths, dev_materials, depth);
+			shadeMaterialDirect << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections, dev_paths, dev_materials, dev_geoms, hst_scene->geoms.size(), depth);
+			//shadeMaterialNaive << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections, dev_paths, dev_materials, depth);
 		}
 
 		// Compact paths
 		// Puts all the paths with bounces > 0 towards the front of the array
-		PathSegment *activePaths = thrust::partition(thrust::device, dev_paths, dev_paths + numActivePaths, endPath());
-		// Update the number of active paths so we can only operate on those the next loop.
-		numActivePaths = activePaths - dev_paths;
+		//PathSegment *activePaths = thrust::partition(thrust::device, dev_paths, dev_paths + numActivePaths, endPath());
+		//// Update the number of active paths so we can only operate on those the next loop.
+		//numActivePaths = activePaths - dev_paths;
 		
 		depth++;
 		iterationComplete = (depth >= traceDepth || numActivePaths == 0);

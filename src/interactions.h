@@ -51,7 +51,7 @@ bool SameHemisphere(glm::vec3 &w, glm::vec3 &wp)
 	return w.z * wp.z > 0;
 }
 
-__host__ __device__ float CosTheta(glm::vec3 wi, glm::vec3 n) {
+__host__ __device__ float CosTheta(const glm::vec3 wi,  const glm::vec3 n) {
 	return glm::dot(n, wi);
 }
 
@@ -128,6 +128,12 @@ glm::vec3 Faceforward(const glm::vec3 &n, const glm::vec3 &v)
 }
 
 __host__ __device__
+float SinTheta2(const glm::vec3 &w, const glm::vec3 &normal)
+{
+	return max(0.f, 1.f - CosTheta(w, normal) * CosTheta(w, normal));
+}
+
+__host__ __device__
 void spawnRay(PathSegment &pathSegment, const glm::vec3 &normal, const glm::vec3 &wi, const glm::vec3 &intersect)
 {
 	glm::vec3 originOffset = normal * EPSILON;
@@ -194,43 +200,52 @@ void scatterRay(
 	// Refractive Surface
 	else if (m.hasRefractive) {
 		// Needa fix PBRT implementation
-		/*bool entering = CosTheta(-wo, normal) > 0;
+		//bool entering = CosTheta(wo, normal) > 0;
 
-		float etaA = 1.f;
-		float etaB = m.indexOfRefraction;
-		float etaI = entering ? etaA : etaB;
-		float etaT = entering ? etaB : etaA;
+		//float etaA = 1.f;
+		//float etaB = m.indexOfRefraction;
+		//float etaI = entering ? etaA : etaB;
+		//float etaT = entering ? etaB : etaA;
 
-		if (!Refract(-wo, Faceforward(glm::vec3(0, 0, 1), -wo), etaI / etaT, wi)) {
-			pdf = 0.f;
-			color = glm::vec3(0.f);
-		}
-		else {
-			pdf = 1.f;
-			color = m.specular.color * (glm::vec3(1.f) - fresnelDielectric(-wo, wi, normal, etaI, etaT)) / AbsCosTheta(wi, normal);
-		}*/
+		//if (!Refract(wo, Faceforward(glm::vec3(0, 0, 1), wo), etaI / etaT, wi)) {
+		//	pdf = 0.f;
+		//	color = glm::vec3(0.f);
+		//}
+		//else {
+		//	pdf = 1.f;
+		//	color = m.specular.color * (glm::vec3(1.f) - fresnelDielectric(wo, wi, normal, etaI, etaT)) / AbsCosTheta(wi, normal);
+		//}
+
+
+		// negate ray direction gets glass effect 
+		// but it still isnt right o.o
+
 
 		float n1 = 1.f;					// air
 		float n2 = m.indexOfRefraction;	// material
 
 		// CosTheta > 0 --> ray outside
 		// CosTheta < 0 --> ray inside
-		bool entering = CosTheta(normal, -wo) > 0;
+		bool entering = CosTheta(normal, pathSegment.ray.direction) > 0.f;
 		if (!entering) {
 			n2 = 1.f / m.indexOfRefraction;
 		}
 
 		// Schlick's Approximation
-		float r0 = powf((1 - n2) / (1 + n2), 2.f);
-		float rTheta = r0 + (1 - r0) * powf((1 - AbsCosTheta(-wo, normal)), 5.f);
+		float r0 = powf((n1 - n2) / (n1 + n2), 2.f);
+		float rTheta = r0 + (1 - r0) * powf((1 - glm::abs(glm::dot(normal, -pathSegment.ray.direction))), 5.f);
 
-		// Snell's Law
-		wi = glm::normalize(glm::refract(-wo, normal, n2));
-		// spawnRay() doesn't work?
-		pathSegment.ray.direction = wi;
-		// Update color
-		//pathSegment.color *= m.speculr.color * (glm::vec3(1.f) - fresnelDielectric(-wo, wi, normal, n1, n2)) / AbsCosTheta(wi, normal);
+		thrust::uniform_real_distribution<float> u01(0, 1);
+		if (rTheta < u01(rng)) {
+			wi = glm::normalize(glm::refract(-pathSegment.ray.direction, normal, n2));
+		}
+		else {
+			wi = glm::normalize(glm::reflect(-pathSegment.ray.direction, normal));
+		}
+
+		pathSegment.ray.direction = -wi;
 		pathSegment.color *= m.color * m.specular.color;
+		pathSegment.ray.origin = intersect + (EPSILON * pathSegment.ray.direction);
 	}
 	// Diffuse Surface
 	else {
@@ -272,21 +287,61 @@ glm::vec3 SphereSample(thrust::default_random_engine &rng)
 	return glm::vec3(x, y, z);
 }
 
-// TODO
+__host__ __device__
+glm::vec3 sampleCube(const glm::vec2 &xi, ShadeableIntersection &isect, const Geom &cube)
+{
+	glm::vec3 p(xi.x - 0.5f, xi.y - 0.5f, 0.f);
+
+	// Check this
+	isect.surfaceNormal = glm::normalize(glm::vec3(cube.invTranspose * glm::vec4(0.f, 0.f, 1.f, 1.f)));
+	isect.intersectPoint = glm::vec3(cube.transform * glm::vec4(p, 1.f));
+
+	return p;
+}
+
+__host__ __device__
+bool L(const ShadeableIntersection &isect, const glm::vec3 &w)
+{
+	if (glm::dot(isect.surfaceNormal, w) > 0.f) {
+		return true;
+	}
+
+	return false;
+}
+
 // Diffuse Area Light
+// ref		- the point on the object the ray hit
+// light	- the random light chosen
+// wi		- the direction from the object to the light
 __host__ __device__
 glm::vec3 Sample_Li(const ShadeableIntersection &ref, 
-					const glm::vec3 &lightPos,
+					const Geom &light,
 					glm::vec3 &wi,
 					float &pdf,
 					thrust::default_random_engine &rng)
 {
-	wi = glm::normalize(lightPos - ref.intersectPoint);
-
+	// Get sample point on light
 	glm::vec3 samplePoint = SphereSample(rng);
 	if (samplePoint == ref.intersectPoint) {
 		return glm::vec3(0.f);
 	}
 
+	// Get light position based on the sample
+	glm::vec3 lightPos(light.transform * glm::vec4(samplePoint, 1.f));
+
+	// Make a ray based on this direction
+	wi = glm::normalize(lightPos - ref.intersectPoint);
+
+	//glm::vec3 color = L();
+
 	return glm::vec3(0.f);
+}
+
+__host__ __device__
+glm::vec3 bsdf_f(
+	PathSegment & pathSegment,
+	Material &m)
+{
+	// Handle diffuse first
+	return m.color * INVPI;
 }
