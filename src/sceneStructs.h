@@ -32,6 +32,7 @@ struct Geom {
 	// triangles
 	glm::vec3 pos[3];
 	glm::vec3 norm[3];
+	glm::vec2 text[3];
 	glm::vec3 bound[2];
 };
 
@@ -45,6 +46,7 @@ struct Material {
     float hasRefractive;
     float indexOfRefraction;
     float emittance;
+	const char* texture;
 };
 
 struct Camera {

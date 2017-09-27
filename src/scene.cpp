@@ -152,6 +152,29 @@ int Scene::loadGeom(string objectid) {
 						geo.norm[1] = glm::vec3(n[1][0], n[1][1], n[1][2]);
 						geo.norm[2] = glm::vec3(n[2][0], n[2][1], n[2][2]);
 
+						// texture coordinates
+						if (attrib.texcoords.size() > 0) {
+							assert(attrib.texcoords.size() > 2 * idx0.texcoord_index + 1);
+							assert(attrib.texcoords.size() > 2 * idx1.texcoord_index + 1);
+							assert(attrib.texcoords.size() > 2 * idx2.texcoord_index + 1);
+
+							// Flip Y coord.
+							geo.text[0].x = attrib.texcoords[2 * idx0.texcoord_index];
+							geo.text[0].y = 1.0f - attrib.texcoords[2 * idx0.texcoord_index + 1];
+							geo.text[1].x = attrib.texcoords[2 * idx1.texcoord_index];
+							geo.text[1].y = 1.0f - attrib.texcoords[2 * idx1.texcoord_index + 1];
+							geo.text[2].x = attrib.texcoords[2 * idx2.texcoord_index];
+							geo.text[2].y = 1.0f - attrib.texcoords[2 * idx2.texcoord_index + 1];
+						}
+						else {
+							geo.text[0].x = 0.f;
+							geo.text[0].y = 0.f;
+							geo.text[1].x = 0.f;
+							geo.text[1].y = 0.f;
+							geo.text[2].x = 0.f;
+							geo.text[2].y = 0.f;
+						}
+
 						newGeoms.push_back(geo);
 					}
 				}
@@ -231,6 +254,10 @@ int Scene::loadCamera() {
             camera.resolution.y = atoi(tokens[2].c_str());
         } else if (strcmp(tokens[0].c_str(), "FOVY") == 0) {
             fovy = atof(tokens[1].c_str());
+		//} else if (strcmp(tokens[0].c_str(), "LENSR") == 0) {
+		//	camera.lensR = atof(tokens[1].c_str());
+		//} else if (strcmp(tokens[0].c_str(), "FOCALD") == 0) {
+		//	camera.focalD = atof(tokens[1].c_str());
         } else if (strcmp(tokens[0].c_str(), "ITERATIONS") == 0) {
             state.iterations = atoi(tokens[1].c_str());
         } else if (strcmp(tokens[0].c_str(), "DEPTH") == 0) {
@@ -286,14 +313,18 @@ int Scene::loadMaterial(string materialid) {
         Material newMaterial;
 
         //load static properties
-        for (int i = 0; i < 7; i++) {
+        for (int i = 0; i < 8; i++) {
             string line;
             utilityCore::safeGetline(fp_in, line);
             vector<string> tokens = utilityCore::tokenizeString(line);
             if (strcmp(tokens[0].c_str(), "RGB") == 0) {
                 glm::vec3 color( atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()) );
                 newMaterial.color = color;
-            } else if (strcmp(tokens[0].c_str(), "SPECEX") == 0) {
+            } else if (strcmp(tokens[0].c_str(), "TEXTUREMAP") == 0) {
+				if (tokens.size() > 1) {
+					newMaterial.texture = tokens[1].c_str();
+				}
+			} else if (strcmp(tokens[0].c_str(), "SPECEX") == 0) {
                 newMaterial.specular.exponent = atof(tokens[1].c_str());
             } else if (strcmp(tokens[0].c_str(), "SPECRGB") == 0) {
                 glm::vec3 specColor(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
@@ -306,7 +337,7 @@ int Scene::loadMaterial(string materialid) {
                 newMaterial.indexOfRefraction = atof(tokens[1].c_str());
             } else if (strcmp(tokens[0].c_str(), "EMITTANCE") == 0) {
                 newMaterial.emittance = atof(tokens[1].c_str());
-            }
+            } 
         }
         materials.push_back(newMaterial);
         return 1;
