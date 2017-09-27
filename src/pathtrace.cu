@@ -31,10 +31,10 @@ extern FILE *fp;
 
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
 
-#define Caching_Toggle 0
+#define Caching_Toggle 1
 #define Sorting_Toggle 0
 #define AntiAliasing_Toggle 1
-#define MotionBlur_Toggle 1
+#define MotionBlur_Toggle 0
 
 void checkCUDAErrorFn(const char *msg, const char *file, int line) {
 #if ERRORCHECK
@@ -215,10 +215,10 @@ __global__ void computeIntersections(
 		glm::vec3 normal;
 		float t_min = FLT_MAX;
 		int hit_geom_index = -1;
-		bool outside = true;
 
 		glm::vec3 tmp_intersect;
 		glm::vec3 tmp_normal;
+		bool outside = true;
 
 		// naive parse through global geoms
 
@@ -262,6 +262,7 @@ __global__ void computeIntersections(
 			intersections[path_index].t = t_min;
 			intersections[path_index].materialId = geoms[hit_geom_index].materialid;
 			intersections[path_index].surfaceNormal = normal;
+			intersections[path_index].outside = outside;
 		}
 	}
 }
@@ -346,7 +347,7 @@ __global__ void shadeRealMaterial(
 
 			if (pathSegments[idx].remainingBounces) {
 				flag_array[idx] = 1;
-				scatterRay(this_Path, intersection.t * this_Path.ray.direction + this_Path.ray.origin, intersection.surfaceNormal, material, rng);
+				scatterRay(this_Path, intersection.t * this_Path.ray.direction + this_Path.ray.origin, intersection.surfaceNormal, material, rng, intersection.outside);
 			}
 			else {
 				flag_array[idx] = 0;
@@ -522,11 +523,11 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	int depth = 0;
 	PathSegment* dev_path_end = dev_paths + pixelcount;
 	int num_paths = dev_path_end - dev_paths;
-
+	bool outside = true;
 	StreamCompaction::Efficient::timer().startGpuTimer();
 	
 
-#if Caching_Toggle && !AntiAliasing_Toggle
+#if Caching_Toggle && !AntiAliasing_Toggle && £¡MotionBlur_Toggle
 	if (iter == 1) {
 		generateRayFromCamera << <blocksPerGrid2d, blockSize2d >> >(cam, iter, traceDepth, dev_paths);
 		checkCUDAError("generate camera ray");
@@ -565,7 +566,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		
 		if (firstStage) {
 			firstStage = false;
-#if Caching_Toggle && !AntiAliasing_Toggle
+#if Caching_Toggle && !AntiAliasing_Toggle && £¡MotionBlur_Toggle
 			cudaMemcpy(dev_paths, dev_cache_paths, num_paths * sizeof(PathSegment), cudaMemcpyDeviceToDevice);
 			cudaMemcpy(dev_intersections, dev_cache_intersections, num_paths * sizeof(ShadeableIntersection), cudaMemcpyDeviceToDevice);
 #else
@@ -625,7 +626,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 			dev_paths, 
 			dev_materials, 
 			dev_image, 
-			dev_flag_array);
+			dev_flag_array
+			);
 		//get new paths and new flag_array
 // ----------------- Stream Compaction ----------------
 		num_paths = compact_Paths(num_paths);
