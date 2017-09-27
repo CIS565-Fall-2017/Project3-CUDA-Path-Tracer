@@ -58,6 +58,16 @@ REFR        0
 REFRIOR     0
 EMITTANCE   2
 
+// Refractive white
+MATERIAL 6
+RGB         .98 .98 .98
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        1
+REFRIOR     0
+EMITTANCE   0
+
 // Camera
 CAMERA
 RES         800 800
@@ -68,8 +78,6 @@ FILE        cornell
 EYE         0.0 5 10.5
 LOOKAT      0 5 0
 UP          0 1 0
-DOFX	    1
-DOFY	    9
 
 // Ceiling light
 OBJECT 0
@@ -79,18 +87,10 @@ TRANS       0 10 0
 ROTAT       0 0 0
 SCALE       3 .3 3
 
-// Floorlight
-OBJECT 9
-cube
-material 5
-TRANS       0 0 0
-ROTAT       0 0 0
-SCALE       5 .3 4
-
 // Floor
 OBJECT 1
 cube
-material 1
+material 6
 TRANS       0 0 0
 ROTAT       0 0 0
 SCALE       10 .01 10
@@ -134,16 +134,16 @@ material 4
 TRANS       -1 4 -1
 ROTAT       0 0 0
 SCALE       3 3 3
-MOTION	    0 3 0
+MOTION	    -1 1 0
 
 // Cube
 OBJECT 7
 cube
-material 1
+material 6
 TRANS       2 6 -1
 ROTAT       45 45 0
 SCALE       2.5 2 3
-MOTION	    0 0 0
+MOTION	    1 -1 0
 
 // Sphere
 OBJECT 8
@@ -152,12 +152,4 @@ material 3
 TRANS       -3 2 2
 ROTAT       0 0 0
 SCALE       1 4 1
-MOTION	    2 0 0
-
-// Front wall
-OBJECT 9
-cube
-material 1
-TRANS       0 5 5
-ROTAT       0 90 0
-SCALE       .01 10 10
+MOTION	    1 1 0

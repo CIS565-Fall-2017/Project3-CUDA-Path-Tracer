@@ -10,7 +10,6 @@
 enum GeomType {
     SPHERE,
     CUBE,
-    MESH,
 };
 
 struct Ray {
@@ -61,8 +60,6 @@ struct Camera {
     glm::vec3 right;
     glm::vec2 fov;
     glm::vec2 pixelLength;
-    float dofX;
-    float dofY;
 };
 
 struct RenderState {
@@ -78,11 +75,11 @@ struct PathSegment {
 	glm::vec3 color;
 	int pixelIndex;
 	int remainingBounces;
-  bool isRefract;
+	bool isRefract;
 
-  __host__ __device__ bool isDone() const {
-    return (remainingBounces <= 0);
-  }
+	__host__ __device__ bool isDone() const {
+	return (remainingBounces <= 0);
+	}
 };
 
 // Use with a corresponding PathSegment to do:
