@@ -22,7 +22,7 @@
 #define COMPACT 1
 #define CONTIG_MAT 0
 #define CACHE_FIRST 0
-#define BV_CULLING 0
+#define BV_CULLING 1
 
 // feature flags
 #define ANTI_ALIAS 1
@@ -264,7 +264,7 @@ __global__ void computeIntersections(
 			{
 #if BV_CULLING
 				bool hit = bbIntersectionTest(geom, pathSegment.ray);
-				if (hit) {
+				if (!hit) {
 					i += geom.nextIdxOff;
 				}
 #endif

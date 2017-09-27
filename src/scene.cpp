@@ -63,6 +63,10 @@ int Scene::loadGeom(string objectid) {
             }
 			else if (strcmp(tokens[0].c_str(), "mesh") == 0) {
 				cout << "Creating new mesh..." << endl;
+				Geom geo;
+				geo.type = MESH;
+				newGeoms.push_back(geo);
+
 				tinyobj::attrib_t attrib;
 				std::vector<tinyobj::shape_t> shapes; 
 				std::vector<tinyobj::material_t> materials;
@@ -151,12 +155,11 @@ int Scene::loadGeom(string objectid) {
 						newGeoms.push_back(geo);
 					}
 				}
-				Geom geo;
-				geo.type = MESH;
-				geo.nextIdxOff = newGeoms.size();
-				geo.bound[0] = glm::vec3(bmin[0], bmin[1], bmin[2]);
-				geo.bound[1] = glm::vec3(bmax[0], bmax[1], bmax[2]);
-				geoms.push_back(geo);
+				Geom &mesh = newGeoms[0];
+				mesh.nextIdxOff = newGeoms.size() - 1;
+				mesh.bound[0] = glm::vec3(bmin[0], bmin[1], bmin[2]);
+				mesh.bound[1] = glm::vec3(bmax[0], bmax[1], bmax[2]);
+				
 			}
         }
 

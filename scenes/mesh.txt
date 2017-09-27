@@ -110,8 +110,8 @@ SCALE       .01 10 10
 
 // Mesh
 OBJECT 6
-mesh ..\scenes\tetra.obj
+mesh ..\scenes\soccer.obj
 material 4
-TRANS       -1 4 -1
+TRANS       0 5 0
 ROTAT       0 0 0
-SCALE       2 2 2
+SCALE       2 2 2 

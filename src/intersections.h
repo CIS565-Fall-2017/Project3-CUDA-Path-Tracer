@@ -168,11 +168,37 @@ __host__ __device__ bool bbIntersectionTest(Geom bb, Ray r)
 	glm::vec3 invDir = glm::vec3(1.f / r.direction.x, 1.f / r.direction.y, 1.f / r.direction.z);
 	int dirIsNeg[3] = { invDir.x < 0, invDir.y < 0, invDir.z < 0 };
 
+	// apply transform
+	float minX, maxX, minY, maxY, minZ, maxZ;
+	glm::vec3 min = bb.bound[0];
+	glm::vec3 max = bb.bound[1];
+	glm::vec4 p000 = bb.transform * glm::vec4(min, 1.f);
+	glm::vec4 p001 = bb.transform * glm::vec4(max.x, min.y, min.z, 1.f);
+	glm::vec4 p010 = bb.transform * glm::vec4(min.x, max.y, min.z, 1.f);
+	glm::vec4 p011 = bb.transform * glm::vec4(max.x, max.y, min.z, 1.f);
+	glm::vec4 p100 = bb.transform * glm::vec4(min.x, min.y, max.z, 1.f);
+	glm::vec4 p101 = bb.transform * glm::vec4(max.x, min.y, max.z, 1.f);
+	glm::vec4 p110 = bb.transform * glm::vec4(max.x, max.y, min.z, 1.f);
+	glm::vec4 p111 = bb.transform * glm::vec4(max, 1.f);
+	minX = glm::min(p000.x, glm::min(p001.x, glm::min(p010.x, glm::min(p011.x,
+		glm::min(p100.x, glm::min(p101.x, glm::min(p110.x, p111.x)))))));
+	maxX = glm::max(p000.x, glm::max(p001.x, glm::max(p010.x, glm::max(p011.x,
+		glm::max(p100.x, glm::max(p101.x, glm::max(p110.x, p111.x)))))));
+	minY = glm::min(p000.y, glm::min(p001.y, glm::min(p010.y, glm::min(p011.y,
+		glm::min(p100.y, glm::min(p101.y, glm::min(p110.y, p111.y)))))));
+	maxY = glm::max(p000.y, glm::max(p001.y, glm::max(p010.y, glm::max(p011.y,
+		glm::max(p100.y, glm::max(p101.y, glm::max(p110.y, p111.y)))))));
+	minZ = glm::min(p000.z, glm::min(p001.z, glm::min(p010.z, glm::min(p011.z,
+		glm::min(p100.z, glm::min(p101.z, glm::min(p110.z, p111.z)))))));
+	maxZ = glm::max(p000.z, glm::max(p001.z, glm::max(p010.z, glm::max(p011.z,
+		glm::max(p100.z, glm::max(p101.z, glm::max(p110.z, p111.z)))))));
+	glm::vec3 box[2] = { glm::vec3(minX, minY, minZ), glm::vec3(maxX, maxY, maxZ) };
+
 	// Check for ray intersection against $x$ and $y$ slabs
-	float tMin = (bb.bound[dirIsNeg[0]].x - r.origin.x) * invDir.x;
-	float tMax = (bb.bound[1 - dirIsNeg[0]].x - r.origin.x) * invDir.x;
-	float tyMin = (bb.bound[dirIsNeg[1]].y - r.origin.y) * invDir.y;
-	float tyMax = (bb.bound[1 - dirIsNeg[1]].y - r.origin.y) * invDir.y;
+	float tMin = (box[dirIsNeg[0]].x - r.origin.x) * invDir.x;
+	float tMax = (box[1 - dirIsNeg[0]].x - r.origin.x) * invDir.x;
+	float tyMin = (box[dirIsNeg[1]].y - r.origin.y) * invDir.y;
+	float tyMax = (box[1 - dirIsNeg[1]].y - r.origin.y) * invDir.y;
 
 	// Update _tMax_ and _tyMax_ to ensure robust bounds intersection
 	float gamma3 = (3 * EPSILON * 0.5) / (1 - 3 * EPSILON * 0.5);
@@ -183,8 +209,8 @@ __host__ __device__ bool bbIntersectionTest(Geom bb, Ray r)
 	if (tyMax < tMax) tMax = tyMax;
 
 	// Check for ray intersection against $z$ slab
-	float tzMin = (bb.bound[dirIsNeg[2]].z - r.origin.z) * invDir.z;
-	float tzMax = (bb.bound[1 - dirIsNeg[2]].z - r.origin.z) * invDir.z;
+	float tzMin = (box[dirIsNeg[2]].z - r.origin.z) * invDir.z;
+	float tzMax = (box[1 - dirIsNeg[2]].z - r.origin.z) * invDir.z;
 
 	// Update _tzMax_ to ensure robust bounds intersection
 	tzMax *= 1 + 2 * gamma3;
