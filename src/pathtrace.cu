@@ -26,9 +26,9 @@
 #define PATH_COMPACT 1
 #define CACHE_FIRST_BOUNCE 1
 #define SORT_BY_MATERIAL 0
+#define STOCHASTIC_ANTIALIASING 0
 #define DEPTH_OF_FIELD 0
 #define MOTION_BLUR 0
-#define STOCHASTIC_ANTIALIASING 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -51,6 +51,14 @@ void checkCUDAErrorFn(const char *msg, const char *file, int line) {
     exit(EXIT_FAILURE);
 #endif
 }
+
+using StreamCompaction::Common::PerformanceTimer;
+PerformanceTimer& timer()
+{
+	static PerformanceTimer timer;
+	return timer;
+}
+
 
 __host__ __device__
 thrust::default_random_engine makeSeededRandomEngine(int iter, int index, int depth) {
@@ -327,7 +335,7 @@ __global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterati
 	}
 }
 
-struct isPathDone {
+struct isPathInactive {
   __host__ __device__ bool operator() (const PathSegment& path_segment) {
     return (path_segment.remainingBounces <= 0);
   }
@@ -347,6 +355,7 @@ __global__ void kernGetMaterialId(int n, int *odata, const ShadeableIntersection
  * of memory management
  */
 void pathtrace(uchar4 *pbo, int frame, int iter) {
+	timer().startGpuTimer();
   const int traceDepth = hst_scene->state.traceDepth;
   const Camera &cam = hst_scene->state.camera;
   const int pixelcount = cam.resolution.x * cam.resolution.y;
@@ -436,7 +445,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
 	  // tracing
 	  dim3 numblocksPathSegmentTracing = (num_paths_active + blockSize1d - 1) / blockSize1d;
-    if ((CACHE_FIRST_BOUNCE && ((depth > 0) || (depth == 0 && iter == 1))) || !CACHE_FIRST_BOUNCE) {
+    if (!CACHE_FIRST_BOUNCE || (CACHE_FIRST_BOUNCE && ((depth > 0) || (depth == 0 && iter == 1)))) {
       computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
         depth
         , num_paths
@@ -491,7 +500,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 #if PATH_COMPACT
     // Thrust compact
     thrust::device_ptr<PathSegment> thrust_dev_paths_ptr(dev_paths);
-    auto thrust_end = thrust::remove_if(thrust::device, thrust_dev_paths_ptr, thrust_dev_paths_ptr + num_paths_active, isPathDone());
+    auto thrust_end = thrust::remove_if(thrust::device, thrust_dev_paths_ptr, thrust_dev_paths_ptr + num_paths_active, isPathInactive());
     num_paths_active = thrust_end - thrust_dev_paths_ptr;
 #endif
 
@@ -499,6 +508,10 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
     iterationComplete = num_paths_active <= 0 || traceDepth < depth; // TODO: should be based off stream compaction results.
 	}
 
+	timer().endGpuTimer();
+	if (iter < 101 && (iter % 10 == 0 || iter == 1)) {
+		cout << timer().getGpuElapsedTimeForPreviousOperation() << endl;
+	}
 
   ///////////////////////////////////////////////////////////////////////////
 

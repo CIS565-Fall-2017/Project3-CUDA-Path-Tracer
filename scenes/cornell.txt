@@ -139,7 +139,7 @@ MOTION	    -1 1 0
 // Cube
 OBJECT 7
 cube
-material 6
+material 1
 TRANS       2 6 -1
 ROTAT       45 45 0
 SCALE       2.5 2 3
@@ -153,3 +153,12 @@ TRANS       -3 2 2
 ROTAT       0 0 0
 SCALE       1 4 1
 MOTION	    1 1 0
+
+// Floor light
+OBJECT 9
+cube
+material 5
+TRANS       0 0 0
+ROTAT       0 0 0
+SCALE       5 .3 4
+
