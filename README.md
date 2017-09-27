@@ -52,7 +52,7 @@ Open scene with refraction, core features and anti-aliasing
 
 ![](img/optimizations-open.PNG)
 
-![](img/optimizations-closed.PNG)
+![](img/optimizations-closed-graph.PNG)
 
 ![](img/active-paths-graph.PNG)
 
