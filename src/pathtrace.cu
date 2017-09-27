@@ -18,6 +18,10 @@
 
 #define ERRORCHECK 1
 
+#define MATERIALS 1
+
+#define CACHEBOUNCE 1
+
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
 void checkCUDAErrorFn(const char *msg, const char *file, int line) {
@@ -40,10 +44,9 @@ void checkCUDAErrorFn(const char *msg, const char *file, int line) {
 #endif
 }
 
-struct has_bounces_left {
+struct has_no_bounces {
 	__host__ __device__
-		bool operator()(const PathSegment &path)
-	{
+		bool operator()(const PathSegment &path) {
 		return path.remainingBounces > 0;
 	}
 };
@@ -309,17 +312,9 @@ __global__ void shadeMaterial(
 			// like what you would expect from shading in a rasterizer like OpenGL.
 			// TODO: replace this! you should be able to start with basically a one-liner
 			else {
-				//float lightTerm = glm::dot(intersection.surfaceNormal, glm::vec3(0.0f, 1.0f, 0.0f));
-				//pathSegments[idx].color *= (materialColor * lightTerm) * 0.3f + ((1.0f - intersection.t * 0.02f) * materialColor) * 0.7f;
-				// pathSegments[idx].color *= u01(rng); // apply some noise because why not 
-
-				//glm::vec3 intersect = getPointOnRay(pathSegments[idx].ray, intersection.t);
-				//glm::vec3 intersect = pathSegments[idx].ray.origin + pathSegments[idx].ray.direction*intersection.t;
 				scatterRay(pathSegments[idx], pathSegments[idx].ray.intersect, intersection.surfaceNormal, material, rng);
 				pathSegments[idx].remainingBounces--;
 			}
-
-
 
 			// If there was no intersection, color the ray black.
 			// Lots of renderers use 4 channel color, RGBA, where A = alpha, often
@@ -329,7 +324,6 @@ __global__ void shadeMaterial(
 		else if (pathSegments[idx].remainingBounces > 0) {
 			pathSegments[idx].color = glm::vec3(0.0f);
 			pathSegments[idx].remainingBounces = 0;
-			//shadeableIntersections[idx].t = -1.0f;
 		}
 
 	}
@@ -341,8 +335,7 @@ __global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterati
 {
 	int index = (blockIdx.x * blockDim.x) + threadIdx.x;
 
-	if (index < nPaths)
-	{
+	if (index < nPaths) {
 		PathSegment iterationPath = iterationPaths[index];
 		image[iterationPath.pixelIndex] += iterationPath.color;
 	}
@@ -407,7 +400,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	// --- PathSegment Tracing Stage ---
 	// Shoot ray into scene, bounce between objects, push shading chunks
 
-  bool iterationComplete = false;
+    bool iterationComplete = false;
 	while (!iterationComplete) {
 
 	// clean shading chunks
@@ -437,6 +430,12 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
     // TODO: compare between directly shading the path segments and shading
     // path segments that have been reshuffled to be contiguous in memory.
 
+#if MATERIALS
+	//printf("what");
+	
+	//sort them
+#endif
+
     shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>> (
       iter,
       num_paths,
@@ -446,13 +445,15 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	  depth
     );
 
-	dev_path_end = thrust::partition(thrust::device, dev_paths, dev_paths + num_paths, has_bounces_left());
-	//num_paths = dev_path_end - dev_paths + pixelcount;
+	dev_path_end = thrust::partition(thrust::device, dev_paths, dev_paths + num_paths, has_no_bounces());
+	num_paths = dev_path_end - dev_paths;
 
-	if (depth > traceDepth) {
-		num_paths = pixelcount;
-		iterationComplete = true; // TODO: should be based off stream compaction results.
-	}
+	printf("numPaths: %d\n", num_paths);
+
+	if (depth == traceDepth || num_paths == 0) {
+			num_paths = pixelcount;
+			iterationComplete = true; // TODO: should be based off stream compaction results.
+		}
 	}
 
     // Assemble this iteration and apply it to the image
