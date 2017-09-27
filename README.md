@@ -14,6 +14,7 @@ CUDA Path Tracer
 
 # Bloopers
 
+### Naive 
 Unless noted otherwise, I don't entirely remember how most of these happened other than messing around in `scatterRay` and depth values.
 
 ![](img/bloopers/cornell.2017-09-23_14-30-34z.59samp.png)
@@ -25,8 +26,18 @@ Unless noted otherwise, I don't entirely remember how most of these happened oth
 I assumed the ray was coming from the camera to the object so I negated the outgoing ray which would definitely affect the reflection.
 ![](img/bloopers/cornell.2017-09-22_05-16-02z.436samp.png)
 
+### Sorting fails
+
 First attempt at sorting the paths by material. I did things on the CPU and also didn't update the paths.
 ![](img/bloopers/cornell.2017-09-23_22-06-11z.11samp.png)
 
 Forgot to sort the materials before shading. :unamused:
 ![](img/bloopers/cornell.2017-09-24_03-01-57z.51samp.png)
+
+### Direct Lighting
+
+I think for this one I added an extra lighting term.
+![](img/bloopers/cornell.2017-09-27_21-24-41z.296samp.png)
+
+I inverted the shadow ray, so everything was in shadow.
+![](img/bloopers/cornell.2017-09-27_19-19-43z.229samp.png)
