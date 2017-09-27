@@ -44,6 +44,10 @@ Open scene with motion blur, stream compaction and anti-aliasing
 
 ![](img/samples/motion.PNG)
 
+Open scene with refraction, core features and anti-aliasing
+
+![](img/samples/refract2.PNG)
+
 Open scene with reflection, core features and anti-aliasing
 
 ![](img/samples/refract.PNG)
