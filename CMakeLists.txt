@@ -2,7 +2,15 @@ cmake_minimum_required(VERSION 3.0)
 
 project(cis565_path_tracer)
 
+
+# Crucial magic for CUDA linking
+find_package(Threads REQUIRED)
+find_package(CUDA 8.0 REQUIRED)
+
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
+
+
+#set(CUDA_VERBOSE_BUILD ON)
 
 # Set up include and lib paths
 set(EXTERNAL "external")
@@ -42,7 +50,10 @@ set(CORELIBS
 set(CMAKE_CXX_STANDARD 11)
 
 # Enable CUDA debug info in debug mode builds
+#can build with this
 list(APPEND CUDA_NVCC_FLAGS_DEBUG -G -g)
+#fails to build
+#list(APPEND CUDA_NVCC_FLAGS_DEBUG "-gencode arch=compute_50,code=sm_50")
 
 # OSX-specific hacks/fixes
 if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
@@ -60,9 +71,6 @@ if (WIN32)
 	list(APPEND CORELIBS legacy_stdio_definitions.lib)
 endif()
 
-# Crucial magic for CUDA linking
-find_package(Threads REQUIRED)
-find_package(CUDA 8.0 REQUIRED)
 
 set(CUDA_ATTACH_VS_BUILD_RULE_TO_CUDA_FILE ON)
 set(CUDA_SEPARABLE_COMPILATION ON)

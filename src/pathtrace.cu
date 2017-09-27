@@ -212,7 +212,7 @@ __global__ void computeIntersections(
 	glm::vec3 normal;
 	float t_min = FLT_MAX;
 	int hit_geom_index = -1;
-	bool outside = true;
+	bool outside = true;//why is this needed if the normal is being corrected already
 
 	glm::vec3 tmp_intersect;
 	glm::vec3 tmp_normal;
@@ -298,13 +298,15 @@ __global__ void shadeMaterialNaive (
 	float bxdfPDF; glm::vec3 bxdfColor;
 	thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, path.remainingBounces);
 	scatterRayNaive(path, isect, material, bxdfPDF, bxdfColor, rng);
-	if (isBlack(bxdfColor)) {//for total internal reflection
+	if (isBlack(bxdfColor) || 0 >= bxdfPDF) {//for total internal reflection
 		path.color = glm::vec3(0.0f);
 		path.remainingBounces = 0;
 		return;
 	}
-	if (bxdfPDF != 0.f) { bxdfColor /= bxdfPDF; }
+	//if (bxdfPDF > 0.f) { bxdfColor /= bxdfPDF; }
+	bxdfColor /= bxdfPDF;
 	path.color *= bxdfColor * absDot(isect.surfaceNormal, path.ray.direction);
+
 }
 
 ///////////////////////////////////////////////////
@@ -317,46 +319,64 @@ __global__ void shadeMaterialMIS(const int iter, const int depth,
 	const int* dev_geomLightIndices, const Geom* dev_geoms, const int numgeoms) 
 {
 	const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	const int terminatenumber = -100;
 
 	if (idx >= num_paths) { return; }
-
 	PathSegment& path = pathSegments[idx];
 	const ShadeableIntersection& isect = shadeableIntersections[idx];
+	
+	/////////////
+	////DEBUG////
+	/////////////
+	//if (idx == 0) { 
+		//printf("\nhello %i", idx); //you can printf from the gpu!
+	//}
+	int pixelx = path.MSPaintPixel.x;
+	int pixely = path.MSPaintPixel.y;
+	int debug = 1;
+	//if (760 == pixelx && 310 == pixely) {
+	//	printf("\npixelx: %i, pixely: %i, depth: %i, iter: %i", pixelx, pixely, depth, iter);
+	//}
+
+
+
+
 #if 0 == COMPACT
-	if (0 >= path.remainingBounces) { return; }
+	if (terminatenumber >= path.remainingBounces) { return; }
 #endif
 
 	//Hit Nothing
 	if (0.f >= isect.t) {
-		path.remainingBounces = 0;
+		path.remainingBounces = terminatenumber;
 		return;
 	}
 
 	const Material& m = materials[isect.materialId];
 
 	//First Bounce or Last bounce was specular
+	//NOTE: may want to remove spec bounce check as the matchesflags from 561 didnt work
 	const glm::vec3 wo = -path.ray.direction;
-	if (MAXBOUNCES == path.remainingBounces || path.specularbounce) {
-		path.color += path.throughput * Le(m, isect.surfaceNormal, wo); //m.color*m.emittance;//last bit is simply isect.Le(wo)
+	if (0 == depth || path.specularbounce) {
+		path.color += path.throughput * Le(m, isect.surfaceNormal, wo); 
 	}
 
 	//Hit Light
 	if (0.f < m.emittance) {
-		path.remainingBounces = 0;//already accounted for Le above
+		path.remainingBounces = terminatenumber;//already accounted for Le above
 		return;
 		//also has something where if a bxdf was not produced
 		//(lights just return) then set the origin at the intersect point 
 		//and continue on in same direction and path.remainingBounces++?
 	}
 
-	//if(material doesnt exist) { path.remainingBounces = 0; return; }
+	//if(material doesnt exist) { path.remainingBounces = terminatenumber; return; }
 
 	path.specularbounce = (m.hasReflective || m.hasRefractive) ? 1 : 0;
 
 	//////////////////////
 	//////  DIRECT  //////
 	//////////////////////
-	thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, path.remainingBounces);
+	thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
 	thrust::uniform_real_distribution<float> u01(0, 1);
 	float pdfdirect = 0;
 	glm::vec3 widirect(0.f);
@@ -379,7 +399,8 @@ __global__ void shadeMaterialMIS(const int iter, const int depth,
 
 	//sample the light to get widirect, pdfdirect, and colordirect
 	//you'll want to switch the cube light to a planar light to make things easier?
-	colordirect = sampleLight(randlight, mlight, pisect, isect.surfaceNormal, rng, widirect, pdfdirect);
+	colordirect = sampleLight(randlight, mlight, pisect, 
+		isect.surfaceNormal, rng, widirect, pdfdirect);
 	pdfdirect /= numlights;
 
 	//spawn ray from isect point and use widirect for direction 
@@ -396,9 +417,10 @@ __global__ void shadeMaterialMIS(const int iter, const int depth,
 		colordirect = glm::vec3(0);
 	} else if (0.f < pdfdirect) {//condition needed? is OR async on gpu?
 		glm::vec3 bxdfcolordirect; float bxdfpdfdirect;
-		bxdf_FandPDF(wo, widirect, isect.surfaceNormal, m, bxdfcolordirect, bxdfpdfdirect);
+		bxdf_FandPDF(wo, widirect, isect.surfaceNormal, 
+			m, bxdfcolordirect, bxdfpdfdirect); 
 		const float absdotdirect = absDot(widirect, isect.surfaceNormal);
-		const float powerheuristic_direct = powerHeuristic(1, pdfdirect, 1, bxdfpdfdirect);
+		const float powerheuristic_direct = powerHeuristic(1,pdfdirect,1,bxdfpdfdirect);
 		colordirect = (bxdfcolordirect * colordirect * absdotdirect * powerheuristic_direct) / pdfdirect;
 	}
 
@@ -433,6 +455,7 @@ __global__ void shadeMaterialMIS(const int iter, const int depth,
 	}
 
 	colordirect = colordirect + colordirectsample;
+	//colordirect = glm::vec3(0);//does not change the result! meaning DIRECT part is returning 0 for both components
 	path.color += path.throughput*colordirect;
 
 	////////////////////////
@@ -455,7 +478,7 @@ __global__ void shadeMaterialMIS(const int iter, const int depth,
 	if(depth>3) {
 		const float max = glm::compMax(path.throughput);
 		if (max < u01(rng)) {
-			path.remainingBounces = 0;
+			path.remainingBounces = terminatenumber;
 			return;
 		}
 		//in the off chance this ray is still going after a long time
@@ -591,13 +614,12 @@ void pathtrace(uchar4 *pbo, int frame, int iter) { //, const int MAXBOUNCES) {
 #endif
 
 		depth++;
-		//Do compact and determine how many paths are still left, our compact only operates on ints...so use thrust
-		//PathSegment *end = thrust::remove_if(dev_paths, dev_paths + num_paths, isDead());
-		//remove_if not working, try partition
 
+		//Do compact and determine how many paths are still left, our compact only operates on ints...so use thrust
 #if 0 == COMPACT
-		if (8 == depth) { iterationComplete = true; num_paths = 0; }
+		if (traceDepth == depth) { iterationComplete = true; num_paths = 0; }
 #elif 1 == COMPACT
+		//PathSegment *compactend = thrust::remove_if(dev_paths, dev_paths + num_paths, isDead());
 		PathSegment *compactend = thrust::partition(thrust::device, dev_paths, dev_paths + num_paths, isDead());
 		checkCUDAError("thrust::partition");
 		num_paths = compactend - dev_paths;

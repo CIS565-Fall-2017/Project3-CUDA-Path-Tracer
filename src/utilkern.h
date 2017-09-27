@@ -17,8 +17,15 @@ __host__ __device__ float absCosTheta(const glm::vec3 a, const glm::vec3 b) {
 	return glm::abs(glm::dot(a, b));
 }
 
-__host__ __device__ bool sameHemisphere(const glm::vec3 a, const glm::vec3 b) {
-	return glm::dot(a, b) > 0.f;
+__host__ __device__ bool sameHemisphere(const glm::vec3& wo, const glm::vec3& wi, const glm::vec3& n) {
+	const float woDotN = glm::dot(wo, n);
+	const float wiDotN = glm::dot(wi, n);
+	if ( (woDotN > 0.f && wiDotN > 0.f) ||
+		 (woDotN < 0.f && wiDotN < 0.f) )
+	{
+		return true;
+	} 
+	return false;
 }
 
 
@@ -28,12 +35,12 @@ __host__ __device__ glm::vec3 Faceforward(const glm::vec3 &n, const glm::vec3 &v
 
 __host__ __device__ void CoordinateSystem(const glm::vec3& norm, 
 	glm::vec3& tan, glm::vec3& bit) {
-    if (std::abs(norm.x) > std::abs(norm.y))
-            tan = glm::vec3(-norm.z, 0, norm.x) / std::sqrt(norm.x * norm.x + norm.z * norm.z);
-        else
-            tan = glm::vec3(0, norm.z, -norm.y) / std::sqrt(norm.y * norm.y + norm.z * norm.z);
-        bit = glm::cross(norm, tan);
-
+	if (std::abs(norm.x) > std::abs(norm.y)) {
+		tan = glm::vec3(-norm.z, 0, norm.x) / std::sqrt(norm.x * norm.x + norm.z * norm.z);
+	} else {
+		tan = glm::vec3(0, norm.z, -norm.y) / std::sqrt(norm.y * norm.y + norm.z * norm.z);
+	}
+	bit = glm::cross(norm, tan);
 }
 /**
  * Computes a cosine-weighted random direction in a hemisphere.

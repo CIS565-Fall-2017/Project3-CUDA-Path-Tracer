@@ -53,21 +53,21 @@ __host__ __device__ glm::vec3 surfaceSampleSphereAny(glm::vec3& nlightsamp, cons
 	
 }
 
-__host__ __device__ glm::vec3 surfaceSampleSphere(glm::vec3& nlightsamp, const Geom& randlight, 
-	const glm::vec3& pisect, const glm::vec3& nisect, 
-	thrust::default_random_engine& rng, float& pdf) 
-{
+__host__ __device__ glm::vec3 surfaceSampleSphere(glm::vec3& nlightsamp, const Geom& randlight,
+	const glm::vec3& pisect, const glm::vec3& nisect,
+	thrust::default_random_engine& rng, float& pdf) {
 	glm::vec3 center = randlight.translation;
-    glm::vec3 centerToRef = glm::normalize(center - pisect);
-    glm::vec3 tan, bit;
+	glm::vec3 centerToRef = glm::normalize(center - pisect);
+	glm::vec3 tan, bit;
 
-    CoordinateSystem(centerToRef, tan, bit);
+	CoordinateSystem(centerToRef, tan, bit);
 
-    glm::vec3 pOrigin;
-    if(glm::dot(center - pisect, nisect) > 0)
-        pOrigin = pisect + nisect * EPSILON;
-    else
-        pOrigin = pisect - nisect * EPSILON;
+	glm::vec3 pOrigin;
+	if (glm::dot(center - pisect, nisect) > 0) {
+		pOrigin = pisect + nisect * EPSILON;//i belived pisect is already offset along the normal before it gets here
+	} else {
+		pOrigin = pisect - nisect * EPSILON;
+	}
 
 	//r=1 in obj space, inside sphere test
 	if (glm::distance2(pOrigin, center) <= 1.f) {// r^2 also 1
@@ -131,7 +131,7 @@ __host__ __device__ glm::vec3 surfaceSampleShape(glm::vec3& nlightsamp, const Ge
 		if (randlight.type == GeomType::CUBE) {
 			//TODO: give CUBE its own surface sampling, otherwise the cube light can't be near anything
 			//screws up occlusion check for really close objects to the light
-			//set it to plightsamp, dont return yet
+			//set it to plightsamp, dont return yet, like the other planar shapes
 			return surfaceSampleSphere(nlightsamp, randlight, pisect, nisect, rng, pdf);
 
 		} else if (randlight.type == GeomType::PLANE) {

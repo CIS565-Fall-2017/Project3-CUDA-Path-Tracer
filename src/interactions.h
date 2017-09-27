@@ -109,6 +109,8 @@ void chooseTransmission( PathSegment & path, const ShadeableIntersection& isect,
 	//Get wi.
 	glm::vec3 wi;
 	///THIS SORTA WORKS WITH KEEPING SPHEREINTERSETIONTEST NORMAL FLIP
+	///we are always entering since intersectiontest flips the normal for us, but -wo would be the "correct" way (same as 561)
+	///if we keep the normal flip -wo here results should equal the Refract with wo as first arg
 	wi = glm::refract(wo, norm, etaI / etaT);
 
 	///THIS SEEMS SORTA OK WHEN SPHEREINTERSECTIONTEST NORMAL FLIP IS COMMENTED
@@ -117,6 +119,10 @@ void chooseTransmission( PathSegment & path, const ShadeableIntersection& isect,
 	//	path.remainingBounces = 0;
 	//	return;
 	//}
+
+	///
+	///ALSO CHECK THE RAY ORIGIN CALC WHEN CHANGIN NORMAL FLIP IN SPHEREINTERSECTIONTEST
+	///
 
 	//Set Color and PDF and path ray
 	const bool exiting = glm::dot(normal, wi) > 0.f;
@@ -189,7 +195,7 @@ void scatterRayNaive(
 		path.ray.origin += normal*EPSILON;
 		path.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
 		const glm::vec3 wi = path.ray.direction;
-		bxdfPDF = sameHemisphere(wo, wi) ? cosTheta(normal, wi)*InvPI : 0.f;
+		bxdfPDF = sameHemisphere(wo, wi,normal) ? cosTheta(normal, wi)*InvPI : 0.f;
 		bxdfColor = m.color * InvPI;
 	} else if ( m.hasReflective && !m.hasRefractive) {//just reflective
 		chooseReflection(path, isect, m, bxdfPDF, bxdfColor, rng, false, 1.f);
@@ -224,8 +230,8 @@ glm::vec3 sampleLight( const Geom& randlight, const Material& mlight,
 	glm::vec3& widirect, float& pdfdirect) 
 {
 
-	glm::vec3 nlightsamp; glm::vec3 plightsamp;
-	glm::vec3 lightsamplepoint = surfaceSampleShape(nlightsamp,
+	glm::vec3 nlightsamp; 
+	glm::vec3 plightsamp = surfaceSampleShape(nlightsamp,
 			randlight, pisect, nisect, rng, pdfdirect);
 
 	if ( 0.f >= pdfdirect || glm::all(glm::equal(pisect, plightsamp)) ) {
@@ -243,7 +249,13 @@ void bxdf_FandPDF(const glm::vec3& wo, const glm::vec3& wi,
 	glm::vec3& bxdfColor, float& bxdfPDF) 
 {
 	if (!m.hasReflective && !m.hasRefractive) {//pure diffuse
-		bxdfPDF = sameHemisphere(wo, wi) ? cosTheta(normal, wi)*InvPI : 0.f;
+		const float wodotwi = glm::dot(wo, wi);
+		//if (wodotwi > 0.f) {
+		//	bxdfPDF = glm::dot(normal, wi)*InvPI;
+		//} else {
+		//	bxdfPDF = 0;
+		//}
+		bxdfPDF = sameHemisphere(wo, wi, normal) ? cosTheta(normal, wi)*InvPI : 0.f;
 		bxdfColor = m.color * InvPI;
 	} else if (m.hasReflective || m.hasRefractive) {
 		bxdfPDF = 0;
@@ -292,12 +304,8 @@ __host__ __device__
 glm::vec3 Le(const Material& misect, const glm::vec3 nisect, 
 	const glm::vec3 source_dir)
 {
-	if(0.f > misect.emittance || 
-	   0.f > glm::dot(source_dir, nisect))
-	{
-		return glm::vec3(0);
-	} else {
+	if(0.f < misect.emittance && 0.f < glm::dot(source_dir, nisect)) {
 		return misect.color*misect.emittance;
-	}
-
+	} 
+	return glm::vec3(0);
 }
