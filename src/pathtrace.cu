@@ -76,6 +76,8 @@ static Geom * dev_geoms = NULL;
 static Material * dev_materials = NULL;
 static PathSegment * dev_paths = NULL;
 static ShadeableIntersection * dev_intersections = NULL;
+unsigned *dev_pathTypes = nullptr;
+unsigned *dev_pathIndices = nullptr;
 // TODO: static variables for device memory, any extra info you need, etc
 // ...
 
@@ -102,6 +104,11 @@ void pathtraceInit(Scene *scene) {
 	cudaMalloc(&dev_flag, pixelcount * sizeof(bool));
 	cudaMemset(dev_flag, true, pixelcount * sizeof(bool));
 
+	cudaMalloc(&dev_pathTypes, pixelcount * sizeof(unsigned));
+	cudaMemset(dev_pathTypes, UINT_MAX, pixelcount * sizeof(unsigned));
+
+	cudaMalloc(&dev_pathIndices, pixelcount * sizeof(unsigned));
+
     checkCUDAError("pathtraceInit");
 }
 
@@ -113,6 +120,9 @@ void pathtraceFree() {
   	cudaFree(dev_intersections);
     // TODO: clean up any extra device memory you created
 	cudaFree(dev_flag);
+	cudaFree(dev_pathTypes);
+	cudaFree(dev_pathIndices);
+
     checkCUDAError("pathtraceFree");
 }
 
@@ -152,6 +162,17 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 	}
 }
 
+void MaterialSort(int num_paths, PathSegment *dev_paths, ShadeableIntersection *dev_intersections)
+{
+	thrust::device_ptr<PathSegment> dev_ptrPath(dev_paths);
+	thrust::device_ptr<ShadeableIntersection> dev_ptrIntersection(dev_intersections);
+
+	typedef thrust::tuple<thrust::device_ptr<PathSegment>, thrust::device_ptr<ShadeableIntersection>> IteratorTuple;
+	typedef thrust::zip_iterator<IteratorTuple> ZipIterator;
+	ZipIterator zip_begin = thrust::make_zip_iterator(thrust::make_tuple(dev_ptrPath, dev_ptrIntersection));
+	ZipIterator zip_end = zip_begin + num_paths;
+	thrust::sort(zip_begin, zip_end, Global::MaterialCmp());
+}
 // TODO:
 // computeIntersections handles generating ray intersections ONLY.
 // Generating new rays is handled in your shader(s).
@@ -211,6 +232,7 @@ __global__ void computeIntersections(
 		if (hit_geom_index == -1)
 		{
 			intersections[path_index].t = -1.0f;
+
 		}
 		else
 		{
@@ -218,6 +240,7 @@ __global__ void computeIntersections(
 			intersections[path_index].t = t_min;
 			intersections[path_index].materialId = geoms[hit_geom_index].materialid;
 			intersections[path_index].surfaceNormal = normal;
+
 		}
 	}
 }
@@ -276,10 +299,10 @@ __global__ void shadeFakeMaterial (
 }
 void compressedPath(int& num_paths, PathSegment *paths, bool *flag)
 {
-	thrust::device_ptr<bool> dev_ptrFlag(flag);
+	thrust::device_ptr<bool> dev_bool(flag);
 	thrust::device_ptr<PathSegment> dev_ptrPaths(paths);
-	thrust::remove_if(dev_ptrPaths, dev_ptrPaths + num_paths, dev_ptrFlag, thrust::logical_not<bool>());
-	num_paths = thrust::count_if(dev_ptrFlag, dev_ptrFlag + num_paths, thrust::identity<bool>());
+	thrust::remove_if(dev_ptrPaths, dev_ptrPaths + num_paths, dev_bool, thrust::logical_not<bool>());
+	num_paths = thrust::count_if(dev_bool, dev_bool + num_paths, thrust::identity<bool>());
 }
 __global__ void shakeBSDFMaterail(
 	int iter
@@ -318,12 +341,8 @@ __global__ void shakeBSDFMaterail(
 			// TODO: replace this! you should be able to start with basically a one-liner
 			else {
 				scatterRay(curPath, intersection.t * curPath.ray.direction + curPath.ray.origin, intersection.surfaceNormal, material, rng);
-				if(curPath.remainingBounces)
-					dev_flag[idx] = true;
-				else {
-					dev_flag[idx] = false;
-					//img[curPath.pixelIndex] += curPath.color;
-				}
+				curPath.remainingBounces--;
+				dev_flag[idx] = curPath.remainingBounces ? true : false;
 			}
 			// If there was no intersection, color the ray black.
 			// Lots of renderers use 4 channel color, RGBA, where A = alpha, often
@@ -331,11 +350,11 @@ __global__ void shakeBSDFMaterail(
 			// This can be useful for post-processing and image compositing.
 		}
 		else {
-			//pathSegments[idx].color = glm::vec3(0.0f);
 			dev_flag[idx] = false;
 		}
 	}
 }
+
 
 // Add the current iteration's output to the overall image
 __global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterationPaths)
@@ -437,6 +456,9 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		// materials you have in the scenefile.
 		// TODO: compare between directly shading the path segments and shading
 		// path segments that have been reshuffled to be contiguous in memory.
+
+
+		//MaterialSort(num_paths, dev_paths, dev_intersections);
 		shakeBSDFMaterail << <numblocksPathSegmentTracing, blockSize1d >> > (
 			iter,
 			num_paths,

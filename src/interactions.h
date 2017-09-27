@@ -8,45 +8,58 @@
  * Used for diffuse lighting.
  */
 #define pushoutTolerance 0.01f;
-__host__ __device__ float cosWeightedHemispherePdf(
-	const glm::vec3 &normal, const glm::vec3 &dir)
-{
-	return fmax(0.f, glm::dot(normal, dir)) / PI;
+namespace Global {
+	typedef thrust::tuple<PathSegment, ShadeableIntersection> Tuple;
+	class MaterialCmp
+	{
+	public:
+		__host__ __device__ bool operator()(const Tuple &a, const Tuple &b)
+		{
+			return a.get<1>().materialId < b.get<1>().materialId;
+		}
+	};
+	__host__ __device__ float cosWeightedHemispherePdf(
+		const glm::vec3 &normal, const glm::vec3 &dir)
+	{
+		return fmax(0.f, glm::dot(normal, dir)) / PI;
+	}
+	__host__ __device__
+		glm::vec3 calculateRandomDirectionInHemisphere(
+			glm::vec3 normal, thrust::default_random_engine &rng) {
+		thrust::uniform_real_distribution<float> u01(0, 1);
+
+		float up = sqrt(u01(rng)); // cos(theta)
+		float over = sqrt(1 - up * up); // sin(theta)
+		float around = u01(rng) * TWO_PI;
+
+		// Find a direction that is not the normal based off of whether or not the
+		// normal's components are all equal to sqrt(1/3) or whether or not at
+		// least one component is less than sqrt(1/3). Learned this trick from
+		// Peter Kutz.
+
+		glm::vec3 directionNotNormal;
+		if (abs(normal.x) < SQRT_OF_ONE_THIRD) {
+			directionNotNormal = glm::vec3(1, 0, 0);
+		}
+		else if (abs(normal.y) < SQRT_OF_ONE_THIRD) {
+			directionNotNormal = glm::vec3(0, 1, 0);
+		}
+		else {
+			directionNotNormal = glm::vec3(0, 0, 1);
+		}
+
+		// Use not-normal direction to generate two perpendicular directions
+		glm::vec3 perpendicularDirection1 =
+			glm::normalize(glm::cross(normal, directionNotNormal));
+		glm::vec3 perpendicularDirection2 =
+			glm::normalize(glm::cross(normal, perpendicularDirection1));
+		glm::vec3 dir = glm::normalize(up * normal
+			+ cos(around) * over * perpendicularDirection1
+			+ sin(around) * over * perpendicularDirection2);
+		return dir;
+	}
 }
-__host__ __device__
-glm::vec3 calculateRandomDirectionInHemisphere(
-        glm::vec3 normal, thrust::default_random_engine &rng, float& pdf) {
-    thrust::uniform_real_distribution<float> u01(0, 1);
 
-    float up = sqrt(u01(rng)); // cos(theta)
-    float over = sqrt(1 - up * up); // sin(theta)
-    float around = u01(rng) * TWO_PI;
-
-    // Find a direction that is not the normal based off of whether or not the
-    // normal's components are all equal to sqrt(1/3) or whether or not at
-    // least one component is less than sqrt(1/3). Learned this trick from
-    // Peter Kutz.
-
-    glm::vec3 directionNotNormal;
-    if (abs(normal.x) < SQRT_OF_ONE_THIRD) {
-        directionNotNormal = glm::vec3(1, 0, 0);
-    } else if (abs(normal.y) < SQRT_OF_ONE_THIRD) {
-        directionNotNormal = glm::vec3(0, 1, 0);
-    } else {
-        directionNotNormal = glm::vec3(0, 0, 1);
-    }
-
-    // Use not-normal direction to generate two perpendicular directions
-    glm::vec3 perpendicularDirection1 =
-        glm::normalize(glm::cross(normal, directionNotNormal));
-    glm::vec3 perpendicularDirection2 =
-        glm::normalize(glm::cross(normal, perpendicularDirection1));
-	glm::vec3 dir = glm::normalize(up * normal
-		+ cos(around) * over * perpendicularDirection1
-		+ sin(around) * over * perpendicularDirection2);
-	pdf = cosWeightedHemispherePdf(normal, dir);
-	return dir;
-}
 
 /**
  * Scatter a ray with some probabilities according to the material properties.
@@ -73,6 +86,35 @@ glm::vec3 calculateRandomDirectionInHemisphere(
  *
  * You may need to change the parameter list for your purposes!
  */
+namespace BSDF {
+	__host__ __device__ float LambertPDF(const glm::vec3 &normal, const glm::vec3 &dir) {
+		return Global::cosWeightedHemispherePdf(normal, dir);
+	}
+	__host__ __device__ glm::vec3 LambertSample_f(const glm::vec3& normal, glm::vec3& woW, 
+		float& pdf, thrust::default_random_engine &rng,const glm::vec3& mc) {
+		woW = Global::calculateRandomDirectionInHemisphere(normal, rng);
+		pdf = LambertPDF(normal, woW);
+		return mc / PI;
+	}
+	__host__ __device__ float SpecularPDF() {
+		return 0.0f;
+	}
+	__host__ __device__ glm::vec3 SpecularSample_f(const glm::vec3& wiW,const glm::vec3& normal, glm::vec3& woW,
+		float& pdf, thrust::default_random_engine &rng, const glm::vec3& mc) {
+		woW = glm::normalize(glm::reflect(wiW, normal));
+		pdf = SpecularPDF();
+		return mc;
+	}
+	__host__ __device__ float GlassPDF() {
+		return 0.0f;
+	}
+	__host__ __device__ glm::vec3 GlassBRDF(const glm::vec3) { 
+		return glm::vec3(); 
+	}
+}
+
+
+
 __host__ __device__
 void scatterRay(
 		PathSegment & pathSegment,
@@ -85,10 +127,55 @@ void scatterRay(
     // calculateRandomDirectionInHemisphere defined above.
 	//lambert
 	float pdf = 0;
-	glm::vec3 lambertBrdf = m.color / PI;
-	pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng, pdf);
+	glm::vec3 f;
+	glm::vec3 wiW = pathSegment.ray.direction;
+	glm::vec3 woW;
+	if (m.hasReflective) {
+		//pathSegment.ray.direction= glm::normalize(glm::reflect(pathSegment.ray.direction, normal));
+		f = BSDF::SpecularSample_f(wiW, normal, woW, pdf, rng, m.color);
+		pdf = 1;
+	}
+	//else if (m.hasRefractive) {
+	//	float fresnel;
+	//	float cosi, cost;
+	//	float etai, etat;
+	//	glm::vec3 reflectDir, refractDir;
+	//	glm::vec3 isecPt;
+
+	//	isecPt = pathSegment.ray.origin + intersection.t * pathSegment.ray.direction;
+	//	cosi = glm::dot(pathSegment.ray.direction, intersection.surfaceNormal);
+	//	etai = 1.f;
+	//	etat = material.indexOfRefraction;
+
+	//	if (cosi > 0.f)
+	//	{
+	//		MyUtilities::swap(etai, etat);
+	//		intersection.surfaceNormal = -intersection.surfaceNormal;
+	//	}
+
+	//	reflectDir = glm::normalize(glm::reflect(pathSegment.ray.direction, intersection.surfaceNormal));
+	//	refractDir = glm::normalize(glm::refract(pathSegment.ray.direction, intersection.surfaceNormal, etai / etat));
+	//	cost = glm::dot(refractDir, intersection.surfaceNormal);
+	//	fresnel = Fresnel::frDiel(fabs(cosi), etai, fabs(cost), etat);
+
+	//	float rn = u01(rng);
+	//	if (rn < fresnel || glm::length2(refractDir) < FLT_EPSILON) // deal with total internal reflection
+	//	{
+	//		pathSegments[idx].ray = { isecPt + 1e-4f * intersection.surfaceNormal, reflectDir };
+	//		pathSegments[idx].misWeight *= materialColor;
+	//	}
+	//	else
+	//	{
+	//		pathSegments[idx].ray = { isecPt - 1e-4f * intersection.surfaceNormal, refractDir };
+	//		pathSegments[idx].misWeight *= materialColor;
+	//	}
+	//}
+	else {
+		f = BSDF::LambertSample_f(normal, woW, pdf, rng, m.color);
+	}
+	pathSegment.ray.direction = woW;
 	pathSegment.ray.origin = intersect + pathSegment.ray.direction*pushoutTolerance;
-	//pathSegment.color *= lambertBrdf * fmax(0.f, glm::dot(normal, pathSegment.ray.direction)) / (pdf + FLT_EPSILON);
-	pathSegment.color *= m.color;
-	pathSegment.remainingBounces--;
+	pathSegment.color *= f * fmax(0.f, glm::dot(normal, pathSegment.ray.direction)) / (pdf + FLT_EPSILON);
+	
+
 }
