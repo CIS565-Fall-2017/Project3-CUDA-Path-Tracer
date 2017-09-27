@@ -51,32 +51,31 @@ __host__ __device__ bool Refract(const glm::vec3 &wi, const glm::vec3 &n, float 
     float cosThetaT = std::sqrt(1 - sin2ThetaT);
     wt = eta * -wi + (eta * cosThetaI - cosThetaT) * n;
     return true;
-
 }
 
+//from 561: return this->fresnel->Evaluate(CosTheta(*wi)) * R / AbsCosTheta(*wi);
 __host__ __device__
 void chooseReflection( PathSegment & path, const ShadeableIntersection& isect, const Material& m,
 	float& bxdfPDF, glm::vec3& bxdfColor, thrust::default_random_engine &rng, const bool isDielectric, const float probR) 
 {
+	//setup
 	const glm::vec3 normal = isect.surfaceNormal;
 	const glm::vec3 wo = -path.ray.direction;
 	const bool entering = glm::dot(normal, wo) > 0.f;
-	const glm::vec3 norm = (entering ? normal : -normal);
-	const float etaA = 1.f;
-	const float etaB = m.indexOfRefraction;
-	const float etaI = entering ? etaA : etaB;
-	const float etaT = entering ? etaB : etaA;
+	const float etaI = 1.f;
+	const float etaT = m.indexOfRefraction;
 	const glm::vec3 colorR = m.color;
 
-	path.ray.origin += norm*EPSILON;
-	path.ray.direction = glm::reflect(-wo, norm);//glm assumes incoming ray
+	//get bxdfcolor pdf and set path ray
+	path.ray.direction = glm::reflect(-wo, normal);//glm assumes incoming ray
 	const glm::vec3 wi = path.ray.direction;
-	//from 561: return this->fresnel->Evaluate(CosTheta(*wi)) * R / AbsCosTheta(*wi);
-	if (isDielectric) {
-		bxdfColor = evaluateFresnelDielectric(cosTheta(norm, wi), etaI, etaT) * colorR / absCosTheta(norm, wi);
+	const bool exiting = glm::dot(normal, wi) > 0.f;
+	path.ray.origin += (exiting ? normal*EPSILON : -normal*EPSILON);
+	if (isDielectric) {//evaluateFresnel will flip for us
+		bxdfColor = evaluateFresnelDielectric(cosTheta(normal, wi), etaI, etaT) * colorR / absCosTheta(normal, wi);
 		bxdfPDF = probR;
 	} else {
-		bxdfColor = colorR / absCosTheta(norm, wi);
+		bxdfColor = colorR / absCosTheta(normal, wi);
 		bxdfPDF = 1.f;
 	}
 }
@@ -100,7 +99,6 @@ void chooseTransmission( PathSegment & path, const ShadeableIntersection& isect,
 	const glm::vec3 normal = isect.surfaceNormal;
 	const glm::vec3 wo = -path.ray.direction;
 	const bool entering = glm::dot (normal, wo) > 0.f;
-	const glm::vec3 norm = (entering ? normal : -normal);
 	const float etaA = 1.f;
 	const float etaB = m.indexOfRefraction;
 	const float etaI = entering ? etaA : etaB;
@@ -108,29 +106,20 @@ void chooseTransmission( PathSegment & path, const ShadeableIntersection& isect,
 
 	//Get wi.
 	glm::vec3 wi;
-	///THIS SORTA WORKS WITH KEEPING SPHEREINTERSETIONTEST NORMAL FLIP
-	///we are always entering since intersectiontest flips the normal for us, but -wo would be the "correct" way (same as 561)
-	///if we keep the normal flip -wo here results should equal the Refract with wo as first arg
-	wi = glm::refract(wo, norm, etaI / etaT);
-
-	///THIS SEEMS SORTA OK WHEN SPHEREINTERSECTIONTEST NORMAL FLIP IS COMMENTED
-	//if (!Refract(wo, Faceforward(norm, wo), etaI / etaT, wi)) {
-	//	bxdfColor = glm::vec3(0);
-	//	path.remainingBounces = 0;
-	//	return;
-	//}
-
-	///
-	///ALSO CHECK THE RAY ORIGIN CALC WHEN CHANGIN NORMAL FLIP IN SPHEREINTERSECTIONTEST
-	///
+	if (!Refract(wo, Faceforward(normal, wo), etaI / etaT, wi)) {//561
+		bxdfColor = glm::vec3(0);
+		bxdfPDF = 0;
+		path.remainingBounces = -100;
+		return;
+	}
 
 	//Set Color and PDF and path ray
 	const bool exiting = glm::dot(normal, wi) > 0.f;
 	path.ray.origin += (exiting ? normal*EPSILON : -normal*EPSILON);
 	path.ray.direction = wi;
 	const glm::vec3 colorT = m.specular.color;
-	if (isDielectric) {
-		bxdfColor = colorT * (1.f - evaluateFresnelDielectric(cosTheta(norm, wi), etaI, etaT)) / absCosTheta(normal, wi);
+	if (isDielectric) {//evalfresnel will correct IoR for us
+		bxdfColor = colorT * (1.f - evaluateFresnelDielectric(cosTheta(normal, wi), etaA, etaB)) / absCosTheta(normal, wi);
 		bxdfPDF = 1.f - probR;
 	} else {
 		bxdfColor = colorT / absCosTheta(normal, wi);
