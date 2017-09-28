@@ -13,6 +13,7 @@
 #include "pathtrace.h"
 #include "intersections.h"
 #include "interactions.h"
+#include "device_launch_parameters.h"
 
 #define ERRORCHECK 1
 
