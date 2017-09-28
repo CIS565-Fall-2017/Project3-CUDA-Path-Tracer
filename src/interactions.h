@@ -81,14 +81,45 @@ void scatterRay(
 	Ray& ray = pathSegment.ray;
 	int p = pathSegment.pixelIndex;
 	if (m.hasRefractive > 0) {
-		if (glm::dot(ray.direction, normal) > 0) {
-			float eta = m.indexOfRefraction;
-			ray.direction = glm::normalize(glm::refract(ray.direction, -normal, eta));
+		//if (pathSegment.outside) {
+		//	float eta = 1.0f / m.indexOfRefraction;
+		//	ray.direction = glm::normalize(glm::refract(ray.direction, normal, eta));
+		//	//pathSegment.outside = false;
+		//}
+		//else {
+		//	float eta = m.indexOfRefraction / 1.0f;
+		//	ray.direction = glm::normalize(glm::refract(ray.direction, normal, eta));
+		//	//pathSegment.outside = true;
+		//	//printf("HERE\n");
+
+
+		//}
+		float n1 = 1.0f, n2 = 1.5f;
+		pathSegment.ray.origin = intersect;
+		float cosTheta = glm::dot(pathSegment.ray.direction, normal); // function "sphereIntersectionTest" has been modified and the normal is always pointing from inside to outside
+		float eta;
+		glm::vec3 realNormal;
+		if (cosTheta > 0.0f) // glass to air
+		{
+			realNormal = -normal;
+			eta = n2 / n1;
 		}
-		else {
-			float eta = 1.0f / m.indexOfRefraction;
-			ray.direction = glm::normalize(glm::refract(ray.direction, normal, eta));
+		else // air to glass
+		{
+			realNormal = normal;
+			eta = n1 / n2;
+			cosTheta = -cosTheta; // ensure cos to be positive
 		}
+		thrust::uniform_real_distribution<float> u01(0, 1);
+		if (u01(rng) < (n2 - n1) / (n2 + n1) * (n2 - n1) / (n2 + n1) + (1 - (n2 - n1) / (n2 + n1) * (n2 - n1) / (n2 + n1)) * pow(1 - cosTheta, 5))
+		{
+			pathSegment.ray.direction = -2 * glm::dot(pathSegment.ray.direction, realNormal) * realNormal + pathSegment.ray.direction;
+		}
+		else
+		{
+			pathSegment.ray.direction = glm::refract(pathSegment.ray.direction, realNormal, eta);
+		}
+		//printf("REFRACTIVE\n");
 	}
 	else {
 		if (probability > 0.5f) {
@@ -96,6 +127,7 @@ void scatterRay(
 		}
 		else {
 			ray.direction = glm::reflect(ray.direction, normal);
+			printf("reflect\n");
 		}
 	}
 	pathSegment.color *= m.color * glm::clamp(glm::abs(glm::dot(ray.direction, normal)), 0.0f, 1.0f);

@@ -73,7 +73,7 @@ CAMERA
 RES         800 800
 FOVY        45
 ITERATIONS  5000
-DEPTH       6
+DEPTH       10
 FILE        cornell
 EYE         0.0 5 10.5
 LOOKAT      0 5 0
@@ -131,7 +131,7 @@ SCALE       .01 10 10
 // Sphere
 OBJECT 6
 sphere
-material 4
+material 6
 TRANS       -1 4 -1
 ROTAT       0 0 0
 SCALE       3 3 3
@@ -162,8 +162,8 @@ SCALE      4 4 0.3
 
 //Refractive sphere
 OBJECT 10
-cube
+sphere
 material 6
 TRANS -1 5 4
 ROTAT 0 0 0
-SCALE 5 5 .1
+SCALE 1 1 1

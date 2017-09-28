@@ -169,6 +169,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 
 		segment.pixelIndex = index;
 		segment.remainingBounces = traceDepth;
+		segment.outside = true;
 	}
 }
 
@@ -189,7 +190,7 @@ __global__ void computeIntersections(
 
 	if (path_index < num_paths)
 	{
-		PathSegment pathSegment = pathSegments[path_index];
+		PathSegment& pathSegment = pathSegments[path_index];
 
 		float t;
 		glm::vec3 intersect_point;
@@ -209,11 +210,11 @@ __global__ void computeIntersections(
 
 			if (geom.type == CUBE)
 			{
-				t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+				t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, pathSegment.outside);
 			}
 			else if (geom.type == SPHERE)
 			{
-				t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+				t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, pathSegment.outside);
 			}
 			// TODO: add more intersection tests here... triangle? metaball? CSG?
 
