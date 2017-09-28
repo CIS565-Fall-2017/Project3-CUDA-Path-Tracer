@@ -4,6 +4,7 @@
 #include <thrust/execution_policy.h>
 #include <thrust/random.h>
 #include <thrust/remove.h>
+#include <chrono>
 
 #include "sceneStructs.h"
 #include "scene.h"
@@ -15,9 +16,11 @@
 #include "interactions.h"
 
 #define ERRORCHECK 1
-#define STREAM_COMPACTION 1
+#define STREAM_COMPACTION 0
 //#define DIRECT_LIGHTING
-#define MATERIAL_SORT
+//#define MATERIAL_SORT
+//#define ANTIALIASING
+//#define DEPTH_OF_FIELD
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -40,6 +43,40 @@ void checkCUDAErrorFn(const char *msg, const char *file, int line) {
     exit(EXIT_FAILURE);
 #endif
 }
+
+// ***** Timer *****
+using time_point_t = std::chrono::high_resolution_clock::time_point;
+bool cpuTimerStarted = false;
+time_point_t timeStartCpu;
+time_point_t timeEndCpu;
+float prevElapsedTime = 0.0f;
+
+void startCpuTimer() {
+	if (cpuTimerStarted) {
+		throw std::runtime_error("CPU timer already started");
+	}
+
+	cpuTimerStarted = true;
+	timeStartCpu = std::chrono::high_resolution_clock::now();
+}
+
+void endCpuTimer() {
+	timeEndCpu = std::chrono::high_resolution_clock::now();
+
+	if (!cpuTimerStarted) {
+		throw std::runtime_error("CPU timer not started");
+	}
+
+	std::chrono::duration<double, std::milli> duration = timeEndCpu - timeStartCpu;
+	prevElapsedTime = static_cast<decltype(prevElapsedTime)>(duration.count());
+
+	cpuTimerStarted = false;
+}
+
+void printTimer(int depth) {
+	printf("Depth %d: %f milliseconds\n", depth, prevElapsedTime);
+}
+// **************
 
 struct not_zero {
 	__host__ __device__ bool operator()(const PathSegment& path) {
@@ -82,11 +119,9 @@ static Geom * dev_geoms = NULL;
 static Geom * dev_lights = NULL;
 static Material * dev_materials = NULL;
 static PathSegment * dev_paths = NULL;
-static PathSegment * dev_sortedPaths = NULL;
 static ShadeableIntersection * dev_intersections = NULL;
-static ShadeableIntersection * dev_sortedIntersections = NULL;
 static int * dev_materialType = NULL;
-static int * dev_indices = NULL;
+static int * dev_materialTypeCopy = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
 // ...
 
@@ -100,8 +135,6 @@ void pathtraceInit(Scene *scene) {
 
   	cudaMalloc(&dev_paths, pixelcount * sizeof(PathSegment));
 
-	cudaMalloc(&dev_sortedPaths, pixelcount * sizeof(PathSegment));
-
   	cudaMalloc(&dev_geoms, scene->geoms.size() * sizeof(Geom));
   	cudaMemcpy(dev_geoms, scene->geoms.data(), scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
 
@@ -114,12 +147,10 @@ void pathtraceInit(Scene *scene) {
   	cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
   	cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
-	cudaMalloc(&dev_sortedIntersections, pixelcount * sizeof(ShadeableIntersection));
-
 	cudaMalloc(&dev_materialType, pixelcount * sizeof(int));
 	cudaMemset(dev_materialType, -1, pixelcount * sizeof(int));
 
-	cudaMalloc(&dev_indices, pixelcount * sizeof(int));
+	cudaMalloc(&dev_materialTypeCopy, pixelcount * sizeof(int));
 
     checkCUDAError("pathtraceInit");
 }
@@ -127,14 +158,12 @@ void pathtraceInit(Scene *scene) {
 void pathtraceFree() {
     cudaFree(dev_image);  // no-op if dev_image is null
   	cudaFree(dev_paths);
-	cudaFree(dev_sortedPaths);
   	cudaFree(dev_geoms);
 	cudaFree(dev_lights);
   	cudaFree(dev_materials);
   	cudaFree(dev_intersections);
-	cudaFree(dev_sortedIntersections);
 	cudaFree(dev_materialType);
-	cudaFree(dev_indices);
+	cudaFree(dev_materialTypeCopy);
 
     checkCUDAError("pathtraceFree");
 }
@@ -159,9 +188,13 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		segment.ray.origin = cam.position;
 		segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
-		// Antialiasing by jittering
+#if defined(ANTIALIASING) || defined(DEPTH_OF_FIELD)
 		thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
 		thrust::uniform_real_distribution<float> u01(0, 1);
+#endif
+
+#ifdef ANTIALIASING
+		// Antialiasing by jittering
 		float jitterX = u01(rng);
 		float jitterY = u01(rng);
 
@@ -169,10 +202,17 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 			- cam.right * cam.pixelLength.x * ((x + jitterX) - (float)cam.resolution.x * 0.5f)
 			- cam.up * cam.pixelLength.y * ((y + jitterY) - (float)cam.resolution.y * 0.5f)
 			);
+#else
+		segment.ray.direction = glm::normalize(cam.view
+			- cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
+			- cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
+		);
+#endif
 
+#ifdef DEPTH_OF_FIELD
 		// Depth of field
-		float lensRadius = 0.0f;
-		float focalDistance = 10.0f;
+		float lensRadius = 2.0f;
+		float focalDistance = 11.5f;
 		if (lensRadius > 0.0f) {
 			float u1 = u01(rng);
 			float u2 = u01(rng);
@@ -186,6 +226,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 			segment.ray.origin += (cam.right * lensU) + (cam.up * lensV);
 			segment.ray.direction = glm::normalize(focalPoint - segment.ray.origin);
 		}
+#endif
 
 		segment.pixelIndex = index;
 		segment.remainingBounces = traceDepth;
@@ -246,15 +287,14 @@ __global__ void computeIntersections(
 	, int geoms_size
 	, ShadeableIntersection * intersections
 	, int * materialType
+	, int * materialTypeCopy
 	, Material * materials
-	, int * indices
 	)
 {
 	int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (path_index < num_paths)
 	{
-		indices[path_index] = path_index;
 		PathSegment pathSegment = pathSegments[path_index];
 
 		float t;
@@ -298,6 +338,7 @@ __global__ void computeIntersections(
 			intersections[path_index].t = -1.0f;
 
 			materialType[path_index] = NONE;
+			materialTypeCopy[path_index] = NONE;
 		}
 		else {
 			//The ray hits something
@@ -309,12 +350,15 @@ __global__ void computeIntersections(
 			Material material = materials[materialId];
 			if (material.hasReflective) {
 				materialType[path_index] = REFLECTIVE;
+				materialTypeCopy[path_index] = REFLECTIVE;
 			}
 			else {
 				materialType[path_index] = DIFFUSE;
+				materialTypeCopy[path_index] = DIFFUSE;
 			}
 			if (material.emittance > 0.0f) {
 				materialType[path_index] = LIGHT;
+				materialTypeCopy[path_index] = LIGHT;
 			}
 		}
 	}
@@ -438,16 +482,6 @@ __global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterati
 	}
 }
 
-__global__ void sortByNewIndices(int num_paths, PathSegment *pathSegments, PathSegment *sortedPathSegments, ShadeableIntersection *intersections, ShadeableIntersection *sortedIntersections, int *indices) {
-	int index = (blockIdx.x * blockDim.x) + threadIdx.x;
-
-	if (index < num_paths) {
-		int oldIndex = indices[index];
-		sortedPathSegments[index] = pathSegments[oldIndex];
-		sortedIntersections[index] = intersections[oldIndex];
-	}
-}
-
 /**
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
  * of memory management
@@ -509,6 +543,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	// Shoot ray into scene, bounce between objects, push shading chunks
 
 	bool iterationComplete = false;
+	startCpuTimer();
 	while (!iterationComplete) {
 
 		// clean shading chunks
@@ -524,8 +559,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 			, hst_scene->geoms.size()
 			, dev_intersections
 			, dev_materialType
+			, dev_materialTypeCopy
 			, dev_materials
-			, dev_indices
 			);
 		checkCUDAError("Failed to trace one bounce");
 		cudaDeviceSynchronize();
@@ -533,17 +568,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
 #ifdef MATERIAL_SORT
 		// Sort path segments by material
-		thrust::sort_by_key(thrust::device, dev_materialType, dev_materialType + num_paths, dev_indices);
-		sortByNewIndices<<<numblocksPathSegmentTracing, blockSize1d>>>(num_paths, dev_paths, dev_sortedPaths, dev_intersections, dev_sortedIntersections, dev_indices);
-
-		// Swap buffers
-		PathSegment *tempPaths = dev_paths;
-		dev_paths = dev_sortedPaths;
-		dev_sortedPaths = tempPaths;
-
-		ShadeableIntersection *tempIntersections = dev_intersections;
-		dev_intersections = dev_sortedIntersections;
-		dev_sortedIntersections = tempIntersections;
+		thrust::sort_by_key(thrust::device, dev_materialType, dev_materialType + num_paths, dev_paths);
+		thrust::sort_by_key(thrust::device, dev_materialTypeCopy, dev_materialTypeCopy + num_paths, dev_intersections);
 #endif
 
 
@@ -577,8 +603,11 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		else {
 			iterationComplete = (depth == traceDepth);
 		}
+
 	}
 
+	endCpuTimer();
+	printTimer(iter);
 	num_paths = dev_path_end - dev_paths;
 
 	// Assemble this iteration and apply it to the image
