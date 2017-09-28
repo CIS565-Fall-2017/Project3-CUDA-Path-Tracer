@@ -38,10 +38,17 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+
     const char *sceneFile = argv[1];
+	float aniTime = 0;
+
+	if (argc == 3) {
+		aniTime = stof(argv[2]);
+	}
+
 
     // Load scene file
-    scene = new Scene(sceneFile);
+    scene = new Scene(sceneFile, aniTime);
 
     // Set up camera stuff from loaded path tracer settings
     iteration = 0;
