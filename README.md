@@ -21,7 +21,7 @@ University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 3
 #### Shading Kernel with BSDF
 | Diffuse | Reflective | Glossy  | Refractive |
 | ----- | ----- | ----- | ----- |
-| ![diffuse](img/diffuse.png) | ![reflect](img/reflect.png) | ![glossy](img/glossy.png) | ![refract](refract.png) |
+| ![diffuse](img/diffuse.png) | ![reflect](img/reflect.png) | ![glossy](img/glossy.png) | ![refract](img/refract.png) |
 
 (Figure 1-4: Diffuse, Reflect, Glossy, Refract Shading)
 
