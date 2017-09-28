@@ -241,7 +241,7 @@ void scatterRay(
 	// Diffuse Surface
 	else {
 		wi = glm::normalize(calculateRandomDirectionInHemisphere(normal, rng));
-		
+
 		//pdf = getPdf(wo, wi, normal);
 		//color *= INVPI;
 		//if (pdf > 0.f) {
@@ -258,6 +258,125 @@ void scatterRay(
 	spawnRay(pathSegment, normal, wi, intersect);
 	// Update color 
 	pathSegment.color *= m.color * AbsDot(normal, wi);
+}
+
+__host__ __device__
+void IntersectRay(
+	PathSegment &pathSegment,
+	Geom *geoms,
+	int geoms_size,
+	ShadeableIntersection &intersection)
+{
+	float t;
+	glm::vec3 intersect_point;
+	glm::vec3 normal;
+	float t_min = FLT_MAX;
+	int hit_geom_index = -1;
+	bool outside = true;
+
+	glm::vec3 tmp_intersect;
+	glm::vec3 tmp_normal;
+
+	// naive parse through global geoms
+
+	for (int i = 0; i < geoms_size; i++)
+	{
+		Geom & geom = geoms[i];
+
+		if (geom.type == CUBE)
+		{
+			t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+		}
+		else if (geom.type == SPHERE)
+		{
+			t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+		}
+		// TODO: add more intersection tests here... triangle? metaball? CSG?
+
+		// Compute the minimum t from the intersection tests to determine what
+		// scene geometry object was hit first.
+		if (t > 0.0f && t_min > t)
+		{
+			t_min = t;
+			hit_geom_index = i;
+			intersect_point = tmp_intersect;
+			normal = tmp_normal;
+		}
+	}
+
+	if (hit_geom_index == -1)
+	{
+		intersection.t = -1.0f;
+	}
+	else
+	{
+		//The ray hits something
+		intersection.t = t_min;
+		intersection.materialId = geoms[hit_geom_index].materialid;
+		intersection.surfaceNormal = normal;
+		intersection.intersectPoint = intersect_point;
+	}
+}
+
+// http://www.davepagurek.com/blog/volumes-subsurface-scattering/
+__host__ __device__
+void scatterRaySubsurface(
+	PathSegment & pathSegment,
+	ShadeableIntersection &isect,
+	const Material &m,
+	Geom *geoms,
+	int geom_size,
+	float density,
+	thrust::default_random_engine &rng)
+{
+	// Make a ray at the intersection going in the same direction.
+	// This will get updated in the loop.
+	Ray nextRay;
+	nextRay.origin = isect.intersectPoint + EPSILON * pathSegment.ray.direction;
+	nextRay.direction = pathSegment.ray.direction;
+
+	PathSegment offsetPath = pathSegment;
+	offsetPath.ray = nextRay;
+	offsetPath.color *= m.color;
+
+	ShadeableIntersection prevIsect = isect;
+	ShadeableIntersection final;
+	while (true) {
+		// Get the end point of the path 
+		// This should still be the same object
+		ShadeableIntersection end;
+		IntersectRay(offsetPath, geoms, geom_size, end);
+
+		// Should always be the case.
+		if (end.t > 0.f) {
+			glm::vec3 path = end.intersectPoint - nextRay.origin;
+
+			thrust::uniform_real_distribution<float> u01(0, 1);
+			thrust::uniform_real_distribution<float> u(-1, 1);
+			float log = glm::log(u01(rng));
+			float distanceTraveled = -log / density;
+			if (distanceTraveled < path.length()) {
+				nextRay.origin = nextRay.origin + glm::normalize(path) * distanceTraveled;
+				nextRay.direction = glm::normalize(glm::vec3(u(rng), u(rng), u(rng)));
+
+				offsetPath.ray = nextRay;
+				offsetPath.color *= /*m.color * */offsetPath.color;
+
+				prevIsect = end;
+			}
+			else {
+				final = end;
+				break;
+			}
+		}
+		else {
+			final = prevIsect;
+			break;
+		}
+	}
+
+	pathSegment.ray = nextRay;
+	pathSegment.color = offsetPath.color;
 }
 
 

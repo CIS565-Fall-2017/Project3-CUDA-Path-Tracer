@@ -483,6 +483,8 @@ __global__ void shadeMaterialNaive(
 	ShadeableIntersection * shadeableIntersections,
 	PathSegment * pathSegments,
 	Material * materials,
+	Geom *geoms,
+	int num_geom,
 	int depth)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -516,7 +518,13 @@ __global__ void shadeMaterialNaive(
 		// Ray hits an object.
 		// Scatter the ray to get a new ray and update the color
 		else {
-			scatterRay(pathSegments[idx], intersection.intersectPoint, intersection.surfaceNormal, material, rng);
+			// Test subsurface effect
+			if (intersection.materialId == 6) {
+				scatterRaySubsurface(pathSegments[idx], intersection, material, geoms, num_geom, .2f, rng);
+			}
+			else {
+				scatterRay(pathSegments[idx], intersection.intersectPoint, intersection.surfaceNormal, material, rng);
+			}
 			pathSegments[idx].remainingBounces--;
 		}
 	}
@@ -731,7 +739,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
 #define CACHE true
 #define SORTBYMATERIAL true
-#define DIRECTLIGHTING true
+#define DIRECTLIGHTING false
 
 		// Store the very first bounce into dev_intersections_cached.
 		if (CACHE && depth == 0 && iter == 1) {
@@ -783,7 +791,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 				shadeMaterialDirect << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections_cached, dev_paths, dev_materials, dev_geoms, hst_scene->geoms.size(), depth);
 			}
 			else {
-				shadeMaterialNaive << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections_cached, dev_paths, dev_materials, depth);
+				shadeMaterialNaive << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections_cached, dev_paths, dev_materials, dev_geoms, hst_scene->geoms.size(), depth);
 			}
 		}
 		// Otherwise use the new ray.
@@ -800,7 +808,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 				shadeMaterialDirect << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections, dev_paths, dev_materials, dev_geoms, hst_scene->geoms.size(), depth);
 			}
 			else {
-				shadeMaterialNaive << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections, dev_paths, dev_materials, depth);
+				shadeMaterialNaive << < numblocksPathSegmentTracing, blockSize1d >> > (iter, num_paths, dev_intersections, dev_paths, dev_materials, dev_geoms, hst_scene->geoms.size(), depth);
 			}
 		}
 
