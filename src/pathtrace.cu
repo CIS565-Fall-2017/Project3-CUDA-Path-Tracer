@@ -456,48 +456,6 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	dev_path_end = dev_paths + pixelcount;
 #endif
 
-#if CACHEBOUNCE
-	if (iter == 0) {
-		generateRayFromCamera << <blocksPerGrid2d, blockSize2d >> >(cam, iter, traceDepth, dev_first_paths);
-		checkCUDAError("generate camera ray");
-
-		//dev_path_end = dev_first_paths + pixelcount;
-
-		// cudaMemcpy(dev_first_paths, dev_paths, sizeof(PathSegment)* num_paths, cudaMemcpyDeviceToDevice);
-		// tracing
-		dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
-		computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
-			depth
-			, num_paths
-			, dev_first_paths
-			, dev_geoms
-			, hst_scene->geoms.size()
-			, dev_first_intersections
-			);
-		checkCUDAError("trace one bounce");
-
-		shadeMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
-			iter,
-			num_paths,
-			dev_first_intersections,
-			dev_first_paths,
-			dev_materials,
-			depth
-			);
-	}
-	else {
-		printf("num_paths before cached: %d\n", num_paths);
-		cudaMemcpy(dev_paths, dev_first_paths, sizeof(PathSegment)* num_paths, cudaMemcpyDeviceToDevice);
-		cudaMemcpy(dev_intersections, dev_first_intersections, sizeof(ShadeableIntersection)* num_paths, cudaMemcpyDeviceToDevice);
-		dev_path_end = dev_paths + pixelcount;
-	}
-#else
-	generateRayFromCamera << <blocksPerGrid2d, blockSize2d >> >(cam, iter, traceDepth, dev_paths);
-	checkCUDAError("generate camera ray");
-
-	dev_path_end = dev_paths + pixelcount;
-#endif
-
     bool iterationComplete = false;
 	while (!iterationComplete) {
 
