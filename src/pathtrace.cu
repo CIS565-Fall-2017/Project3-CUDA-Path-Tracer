@@ -19,7 +19,7 @@
 #define STREAM_COMPACTION 0
 //#define DIRECT_LIGHTING
 //#define MATERIAL_SORT
-//#define ANTIALIASING
+#define ANTIALIASING
 //#define DEPTH_OF_FIELD
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
@@ -607,7 +607,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	}
 
 	endCpuTimer();
-	printTimer(iter);
+	//printTimer(iter);
 	num_paths = dev_path_end - dev_paths;
 
 	// Assemble this iteration and apply it to the image
