@@ -401,42 +401,59 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
     // TODO: perform one iteration of path tracing
 
-	generateRayFromCamera <<<blocksPerGrid2d, blockSize2d >>>(cam, iter, traceDepth, dev_paths);
-	checkCUDAError("generate camera ray");
+	//generateRayFromCamera <<<blocksPerGrid2d, blockSize2d >>>(cam, iter, traceDepth, dev_paths);
+	//checkCUDAError("generate camera ray");
 
-	int depth = 0;
-	PathSegment* dev_path_end = dev_paths + pixelcount;
-	int num_paths = dev_path_end - dev_paths;
+	//int depth = 0;
+	//PathSegment* dev_path_end = dev_paths + pixelcount;
+	//int num_paths = dev_path_end - dev_paths;
 
 	// --- PathSegment Tracing Stage ---
 	// Shoot ray into scene, bounce between objects, push shading chunks
+	int num_paths = pixelcount;
+	int depth = 0;
+	PathSegment* dev_path_end = NULL;
 
 #if CACHEBOUNCE
-	cudaMemcpy(dev_first_paths, dev_paths, sizeof(PathSegment)* num_paths, cudaMemcpyDeviceToDevice);
-	// tracing
-	dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
-	computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
-		depth
-		, num_paths
-		, dev_first_paths
-		, dev_geoms
-		, hst_scene->geoms.size()
-		, dev_intersections
-		);
-	checkCUDAError("trace one bounce");
+	if (iter == 0) {
+		generateRayFromCamera << <blocksPerGrid2d, blockSize2d >> >(cam, iter, traceDepth, dev_first_paths);
+		checkCUDAError("generate camera ray");
 
-	shadeMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
-		iter,
-		num_paths,
-		dev_intersections,
-		dev_first_paths,
-		dev_materials,
-		depth
-		);
+		//dev_path_end = dev_first_paths + pixelcount;
 
-	//dev_path_end = thrust::partition(thrust::device, dev_first_paths, dev_first_paths + num_paths, has_no_bounces());
-	//num_paths = dev_path_end - dev_first_paths;
+		// cudaMemcpy(dev_first_paths, dev_paths, sizeof(PathSegment)* num_paths, cudaMemcpyDeviceToDevice);
+		// tracing
+		dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
+		computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
+			depth
+			, num_paths
+			, dev_first_paths
+			, dev_geoms
+			, hst_scene->geoms.size()
+			, dev_first_intersections
+			);
+		checkCUDAError("trace one bounce");
 
+		shadeMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
+			iter,
+			num_paths,
+			dev_first_intersections,
+			dev_first_paths,
+			dev_materials,
+			depth
+			);
+	}
+	else {
+		printf("num_paths before cached: %d\n", num_paths);
+		cudaMemcpy(dev_paths, dev_first_paths, sizeof(PathSegment)* num_paths, cudaMemcpyDeviceToDevice);
+		cudaMemcpy(dev_intersections, dev_first_intersections, sizeof(ShadeableIntersection)* num_paths, cudaMemcpyDeviceToDevice);
+		dev_path_end = dev_paths + pixelcount;
+	}
+#else
+	generateRayFromCamera << <blocksPerGrid2d, blockSize2d >> >(cam, iter, traceDepth, dev_paths);
+	checkCUDAError("generate camera ray");
+
+	dev_path_end = dev_paths + pixelcount;
 #endif
 
     bool iterationComplete = false;
@@ -447,17 +464,22 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
 
 	#if CACHEBOUNCE
-		if (depth == 0) {
-			// cache the first bounce
-			//printf("first bounce: %d\n", num_paths);
-			cudaMemcpy(dev_paths, dev_first_paths, sizeof(PathSegment)* num_paths, cudaMemcpyDeviceToDevice);
+		if (depth == 0)  {
+			// use cached bounce
+			printf("first bounce: %d\n", num_paths);
+			cudaMemcpy(dev_paths, dev_first_paths, sizeof(PathSegment)* pixelcount, cudaMemcpyDeviceToDevice);
+			cudaMemcpy(dev_intersections, dev_first_intersections, sizeof(ShadeableIntersection)* num_paths, cudaMemcpyDeviceToDevice);
+			cudaDeviceSynchronize();
 			depth++;
+			dev_path_end = dev_paths + pixelcount;
 			continue;
 		}
 		else {
 			cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
+			//dev_path_end = dev_paths + num_paths;
 		}
-
+	#else
+		cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 	#endif
 
 	// tracing
@@ -498,10 +520,13 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	  depth
     );
 
+	printf("numPaths before thrust: %d\n", num_paths);
+
+
 	dev_path_end = thrust::partition(thrust::device, dev_paths, dev_paths + num_paths, has_no_bounces());
 	num_paths = dev_path_end - dev_paths;
 
-	printf("numPaths: %d\n", num_paths);
+	printf("numPaths after thrust: %d\n", num_paths);
 
 	if (depth == traceDepth || num_paths == 0) {
 			num_paths = pixelcount;
