@@ -58,6 +58,15 @@ REFR        0
 REFRIOR     0
 EMITTANCE   0
 
+//Glass
+MATERIAL    6
+RGB         0.1 0.7 0.1
+SPECEX      0
+REFL        1
+REFR        0
+REFRIOR     1.5
+EMITTANCE   0
+
 // Camera
 CAMERA
 RES         800 800
@@ -147,5 +156,13 @@ OBJECT 9
 cube
 material 5
 TRANS       2 5 -2
-ROT        .5 6 0
+ROTAT       .5 45 0
 SCALE      4 4 0.3
+
+//Refractive sphere
+OBJECT 10
+sphere
+material 6
+TRANS -1 8 -1
+ROTAT 0 0 0
+SCALE 1 1 1
