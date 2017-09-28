@@ -39,6 +39,7 @@ struct Material {
 	float hasRefractive;
     float indexOfRefraction;
 	float hasSubsurface;
+	float density;
 	float emittance;
 };
 

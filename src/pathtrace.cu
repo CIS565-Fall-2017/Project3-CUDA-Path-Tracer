@@ -518,13 +518,7 @@ __global__ void shadeMaterialNaive(
 		// Ray hits an object.
 		// Scatter the ray to get a new ray and update the color
 		else {
-			// Test subsurface effect
-			if (intersection.materialId == 6) {
-				scatterRaySubsurface(pathSegments[idx], intersection, material, geoms, num_geom, .2f, rng);
-			}
-			else {
-				scatterRay(pathSegments[idx], intersection.intersectPoint, intersection.surfaceNormal, material, rng);
-			}
+			scatterRay(pathSegments[idx], intersection, material, geoms, num_geom, rng);
 			pathSegments[idx].remainingBounces--;
 		}
 	}

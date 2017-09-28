@@ -142,124 +142,6 @@ void spawnRay(PathSegment &pathSegment, const glm::vec3 &normal, const glm::vec3
 	pathSegment.ray.direction = wi;
 }
 
-/**
-* Scatter a ray with some probabilities according to the material properties.
-* For example, a diffuse surface scatters in a cosine-weighted hemisphere.
-* A perfect specular surface scatters in the reflected ray direction.
-* In order to apply multiple effects to one surface, probabilistically choose
-* between them.
-*
-* The visual effect you want is to straight-up add the diffuse and specular
-* components. You can do this in a few ways. This logic also applies to
-* combining other types of materias (such as refractive).
-*
-* - Always take an even (50/50) split between a each effect (a diffuse bounce
-*   and a specular bounce), but divide the resulting color of either branch
-*   by its probability (0.5), to counteract the chance (0.5) of the branch
-*   being taken.
-*   - This way is inefficient, but serves as a good starting point - it
-*     converges slowly, especially for pure-diffuse or pure-specular.
-* - Pick the split based on the intensity of each material color, and divide
-*   branch result by that branch's probability (whatever probability you use).
-*
-* This method applies its changes to the Ray parameter `ray` in place.
-* It also modifies the color `color` of the ray in place.
-*
-* You may need to change the parameter list for your purposes!
-*/
-__host__ __device__
-void scatterRay(
-	PathSegment & pathSegment,
-	glm::vec3 intersect,
-	glm::vec3 normal,
-	const Material &m,
-	thrust::default_random_engine &rng)
-{
-	// TODO: implement this.
-	// A basic implementation of pure-diffuse shading will just call the
-	// calculateRandomDirectionInHemisphere defined above.
-
-	glm::vec3 wo = -pathSegment.ray.direction;
-	glm::vec3 wi(0.f);
-	glm::vec3 color(1.f);
-	float pdf;
-
-	// Reflective Surface
-	if (m.hasReflective) {
-		wi = glm::reflect(-wo, normal);
-
-		//pdf = 1.f;
-		//color *= m.specular.color;
-		// Set up ray direction for next bounce
-		//spawnRay(pathSegment, normal, wi, intersect);
-		// Update color
-		//pathSegment.color *= m.color * color;
-		
-		pathSegment.color *= m.specular.color;
-	}
-	// Refractive Surface
-	else if (m.hasRefractive) {
-		// Needa fix PBRT implementation
-		//bool entering = CosTheta(wo, normal) > 0;
-		//float etaA = 1.f;
-		//float etaB = m.indexOfRefraction;
-		//float etaI = entering ? etaA : etaB;
-		//float etaT = entering ? etaB : etaA;
-		//if (!Refract(wo, Faceforward(glm::vec3(0, 0, 1), wo), etaI / etaT, wi)) {
-		//	pdf = 0.f;
-		//	color = glm::vec3(0.f);
-		//}
-		//else {
-		//	pdf = 1.f;
-		//	color = m.specular.color * (glm::vec3(1.f) - fresnelDielectric(wo, wi, normal, etaI, etaT)) / AbsCosTheta(wi, normal);
-		//}
-
-		float n1 = 1.f;					// air
-		float n2 = m.indexOfRefraction;	// material
-
-		// CosTheta > 0 --> ray outside
-		// CosTheta < 0 --> ray inside
-		bool entering = CosTheta(normal, pathSegment.ray.direction) > 0.f;
-		if (!entering) {
-			n2 = 1.f / m.indexOfRefraction;
-		}
-
-		// Schlick's Approximation
-		float r0 = powf((n1 - n2) / (n1 + n2), 2.f);
-		float rTheta = r0 + (1 - r0) * powf((1 - glm::abs(glm::dot(normal, pathSegment.ray.direction))), 5.f);
-
-		thrust::uniform_real_distribution<float> u01(0, 1);
-		if (rTheta < u01(rng)) {
-			wi = glm::normalize(glm::refract(pathSegment.ray.direction, normal, n2));
-		}
-		else {
-			wi = glm::normalize(glm::reflect(pathSegment.ray.direction, normal));
-		}
-
-		pathSegment.color *= m.specular.color;
-	}
-	// Diffuse Surface
-	else {
-		wi = glm::normalize(calculateRandomDirectionInHemisphere(normal, rng));
-
-		//pdf = getPdf(wo, wi, normal);
-		//color *= INVPI;
-		//if (pdf > 0.f) {
-		//	pathSegment.color /= pdf;
-		//}
-		//else {
-		//	pathSegment.color = glm::vec3(0.f);
-		//}
-		// Update color
-		//pathSegment.color *= m.color * color;
-	}
-	
-	// Set up ray for the next bounce
-	spawnRay(pathSegment, normal, wi, intersect);
-	// Update color 
-	pathSegment.color *= m.color * AbsDot(normal, wi);
-}
-
 __host__ __device__
 void IntersectRay(
 	PathSegment &pathSegment,
@@ -318,67 +200,178 @@ void IntersectRay(
 	}
 }
 
-// http://www.davepagurek.com/blog/volumes-subsurface-scattering/
+/**
+* Scatter a ray with some probabilities according to the material properties.
+* For example, a diffuse surface scatters in a cosine-weighted hemisphere.
+* A perfect specular surface scatters in the reflected ray direction.
+* In order to apply multiple effects to one surface, probabilistically choose
+* between them.
+*
+* The visual effect you want is to straight-up add the diffuse and specular
+* components. You can do this in a few ways. This logic also applies to
+* combining other types of materias (such as refractive).
+*
+* - Always take an even (50/50) split between a each effect (a diffuse bounce
+*   and a specular bounce), but divide the resulting color of either branch
+*   by its probability (0.5), to counteract the chance (0.5) of the branch
+*   being taken.
+*   - This way is inefficient, but serves as a good starting point - it
+*     converges slowly, especially for pure-diffuse or pure-specular.
+* - Pick the split based on the intensity of each material color, and divide
+*   branch result by that branch's probability (whatever probability you use).
+*
+* This method applies its changes to the Ray parameter `ray` in place.
+* It also modifies the color `color` of the ray in place.
+*
+* You may need to change the parameter list for your purposes!
+*/
 __host__ __device__
-void scatterRaySubsurface(
+void scatterRay(
 	PathSegment & pathSegment,
-	ShadeableIntersection &isect,
+	ShadeableIntersection &intersection,
 	const Material &m,
 	Geom *geoms,
-	int geom_size,
-	float density,
+	int num_geom,
 	thrust::default_random_engine &rng)
 {
-	// Make a ray at the intersection going in the same direction.
-	// This will get updated in the loop.
-	Ray nextRay;
-	nextRay.origin = isect.intersectPoint + EPSILON * pathSegment.ray.direction;
-	nextRay.direction = pathSegment.ray.direction;
+	// TODO: implement this.
+	// A basic implementation of pure-diffuse shading will just call the
+	// calculateRandomDirectionInHemisphere defined above.
 
-	PathSegment offsetPath = pathSegment;
-	offsetPath.ray = nextRay;
-	offsetPath.color *= m.color;
+	glm::vec3 wo = -pathSegment.ray.direction;
+	glm::vec3 wi(0.f);
+	glm::vec3 color(1.f);
+	float pdf;
 
-	ShadeableIntersection prevIsect = isect;
-	ShadeableIntersection final;
-	while (true) {
-		// Get the end point of the path 
-		// This should still be the same object
-		ShadeableIntersection end;
-		IntersectRay(offsetPath, geoms, geom_size, end);
+	// Reflective Surface
+	if (m.hasReflective) {
+		wi = glm::reflect(-wo, intersection.surfaceNormal);
 
-		// Should always be the case.
-		if (end.t > 0.f) {
-			glm::vec3 path = end.intersectPoint - nextRay.origin;
+		//pdf = 1.f;
+		//color *= m.specular.color;
+		// Set up ray direction for next bounce
+		//spawnRay(pathSegment, normal, wi, intersect);
+		// Update color
+		//pathSegment.color *= m.color * color;
+		
+		pathSegment.color *= m.specular.color;
+	}
+	// Refractive Surface
+	else if (m.hasRefractive) {
+		// Needa fix PBRT implementation
+		//bool entering = CosTheta(wo, normal) > 0;
+		//float etaA = 1.f;
+		//float etaB = m.indexOfRefraction;
+		//float etaI = entering ? etaA : etaB;
+		//float etaT = entering ? etaB : etaA;
+		//if (!Refract(wo, Faceforward(glm::vec3(0, 0, 1), wo), etaI / etaT, wi)) {
+		//	pdf = 0.f;
+		//	color = glm::vec3(0.f);
+		//}
+		//else {
+		//	pdf = 1.f;
+		//	color = m.specular.color * (glm::vec3(1.f) - fresnelDielectric(wo, wi, normal, etaI, etaT)) / AbsCosTheta(wi, normal);
+		//}
 
-			thrust::uniform_real_distribution<float> u01(0, 1);
-			thrust::uniform_real_distribution<float> u(-1, 1);
-			float log = glm::log(u01(rng));
-			float distanceTraveled = -log / density;
-			if (distanceTraveled < path.length()) {
-				nextRay.origin = nextRay.origin + glm::normalize(path) * distanceTraveled;
-				nextRay.direction = glm::normalize(glm::vec3(u(rng), u(rng), u(rng)));
+		float n1 = 1.f;					// air
+		float n2 = m.indexOfRefraction;	// material
 
-				offsetPath.ray = nextRay;
-				offsetPath.color *= /*m.color * */offsetPath.color;
+		// CosTheta > 0 --> ray outside
+		// CosTheta < 0 --> ray inside
+		bool entering = CosTheta(intersection.surfaceNormal, pathSegment.ray.direction) > 0.f;
+		if (!entering) {
+			n2 = 1.f / m.indexOfRefraction;
+		}
 
-				prevIsect = end;
+		// Schlick's Approximation
+		float r0 = powf((n1 - n2) / (n1 + n2), 2.f);
+		float rTheta = r0 + (1 - r0) * powf((1 - glm::abs(glm::dot(intersection.surfaceNormal, pathSegment.ray.direction))), 5.f);
+
+		thrust::uniform_real_distribution<float> u01(0, 1);
+		if (rTheta < u01(rng)) {
+			wi = glm::normalize(glm::refract(pathSegment.ray.direction, intersection.surfaceNormal, n2));
+		}
+		else {
+			wi = glm::normalize(glm::reflect(pathSegment.ray.direction, intersection.surfaceNormal));
+		}
+
+		pathSegment.color *= m.specular.color;
+	}
+	// Subsurface
+	// http://www.davepagurek.com/blog/volumes-subsurface-scattering/
+	else if (m.hasSubsurface) {
+		// Make a ray at the intersection going in the same direction.
+		// This will get updated in the loop.
+		Ray nextRay;
+		nextRay.origin = intersection.intersectPoint + EPSILON * pathSegment.ray.direction;
+		nextRay.direction = pathSegment.ray.direction;
+
+		PathSegment offsetPath = pathSegment;
+		offsetPath.ray = nextRay;
+		offsetPath.color *= m.color;
+
+		ShadeableIntersection prevIsect = intersection;
+		ShadeableIntersection final;
+		while (true) {
+			// Get the end point of the path 
+			// This should still be the same object
+			ShadeableIntersection end;
+			IntersectRay(offsetPath, geoms, num_geom, end);
+
+			// Should always be the case.
+			if (end.t > 0.f) {
+				glm::vec3 path = end.intersectPoint - nextRay.origin;
+
+				thrust::uniform_real_distribution<float> u01(0, 1);
+				thrust::uniform_real_distribution<float> u(-1, 1);
+				float log = glm::log(u01(rng));
+				float distanceTraveled = -log / m.density;
+				if (distanceTraveled < path.length()) {
+					nextRay.origin = nextRay.origin + glm::normalize(path) * distanceTraveled;
+					nextRay.direction = glm::normalize(glm::vec3(u(rng), u(rng), u(rng)));
+
+					offsetPath.ray = nextRay;
+					offsetPath.color *= /*m.color * */offsetPath.color;
+
+					prevIsect = end;
+				}
+				else {
+					final = end;
+					break;
+				}
 			}
 			else {
-				final = end;
+				final = prevIsect;
 				break;
 			}
 		}
-		else {
-			final = prevIsect;
-			break;
-		}
+
+		pathSegment.ray = nextRay;
+		pathSegment.color = offsetPath.color;
+
+		return;
 	}
+	// Diffuse Surface
+	else {
+		wi = glm::normalize(calculateRandomDirectionInHemisphere(intersection.surfaceNormal, rng));
 
-	pathSegment.ray = nextRay;
-	pathSegment.color = offsetPath.color;
+		//pdf = getPdf(wo, wi, normal);
+		//color *= INVPI;
+		//if (pdf > 0.f) {
+		//	pathSegment.color /= pdf;
+		//}
+		//else {
+		//	pathSegment.color = glm::vec3(0.f);
+		//}
+		// Update color
+		//pathSegment.color *= m.color * color;
+	}
+	
+	// Set up ray for the next bounce
+	spawnRay(pathSegment, intersection.surfaceNormal, wi, intersection.intersectPoint);
+	// Update color 
+	pathSegment.color *= m.color * AbsDot(intersection.surfaceNormal, wi);
 }
-
 
 // http://corysimon.github.io/articles/uniformdistn-on-sphere/
 __host__ __device__
@@ -415,34 +408,6 @@ bool L(const ShadeableIntersection &isect, const glm::vec3 &w)
 	}
 
 	return false;
-}
-
-// Diffuse Area Light
-// ref		- the point on the object the ray hit
-// light	- the random light chosen
-// wi		- the direction from the object to the light
-__host__ __device__
-glm::vec3 Sample_Li(const ShadeableIntersection &ref, 
-					const Geom &light,
-					glm::vec3 &wi,
-					float &pdf,
-					thrust::default_random_engine &rng)
-{
-	// Get sample point on light
-	glm::vec3 samplePoint = SphereSample(rng);
-	if (samplePoint == ref.intersectPoint) {
-		return glm::vec3(0.f);
-	}
-
-	// Get light position based on the sample
-	glm::vec3 lightPos(light.transform * glm::vec4(samplePoint, 1.f));
-
-	// Make a ray based on this direction
-	wi = glm::normalize(lightPos - ref.intersectPoint);
-
-	//glm::vec3 color = L();
-
-	return glm::vec3(0.f);
 }
 
 __host__ __device__
