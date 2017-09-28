@@ -68,7 +68,7 @@ struct PathSegment {
 	glm::vec3 color;
 	int pixelIndex;
 	int remainingBounces;
-  bool refractEnter = true;
+  bool refractEnter;
 };
 
 // Use with a corresponding PathSegment to do:

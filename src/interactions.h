@@ -2,6 +2,11 @@
 
 #include "intersections.h"
 
+
+/***********************/
+/******* SAMPLING ******/
+/***********************/
+
 // CHECKITOUT
 /**
  * Computes a cosine-weighted random direction in a hemisphere.
@@ -82,34 +87,65 @@ glm::vec2 squareToDiskConcentric(const glm::vec2 &sample)
   return glm::vec2(u, v);
 }
 
-// PBRT like Thin Lens Camera..
 __host__ __device__
-void applyDof(Ray &ray, thrust::default_random_engine &rng, Camera cam)
+glm::vec3 sampleSphereUniform(thrust::default_random_engine &rng)
 {
-  if (cam.lensRadius > 0)
-  {
-    //    Generate Sample
-    thrust::uniform_real_distribution<float> u01(0, 1);
-    glm::vec2 p(u01(rng),u01(rng));
-   
-    // FIX THIS
-   /* WarpFunctions wf;
-    p = Point2f(wf.squareToDiskConcentric(p));*/
-    p = squareToDiskConcentric(p);
+  thrust::uniform_real_distribution<float> u01(0, 1);
+  glm::vec2 sample(u01(rng), u01(rng));
+  float z = 1.0f - 2.0f * sample[0];
+  float r = sqrt(max(0.0f, 1.0f - z * z));
+  float phi = TWO_PI * sample[1];
+  return glm::vec3(r * std::cos(phi), r * std::sin(phi), z);
+}
 
-    //    scale to get a point on lens
-    glm::vec2 pLens = cam.lensRadius * p;
+__host__ __device__
+glm::vec3 sampleCubeUniform(thrust::default_random_engine &rng)
+{
+  thrust::uniform_real_distribution<float> u55(-0.5, 0.5);
+  int fixedAxis = 3.f * (u55(rng) + 0.5f); // choose a fix axis
+  float val = u55(rng) > 0 ? 0.5 : -0.5;
 
-    //    Compute point on plane of focus
-    glm::vec3 pFocus = cam.focalLength * ray.direction + ray.origin;
-
-    //    Update ray for effect of lens
-    ray.origin = ray.origin + (cam.up*pLens.y) + (cam.right*pLens.x);
-    ray.direction = glm::normalize(pFocus - ray.origin);
+  if (fixedAxis == 0) {
+    return glm::vec3(val, u55(rng), u55(rng));
+  }
+  else if (fixedAxis == 1) {
+    return glm::vec3(u55(rng), val, u55(rng));
+  }
+  else {
+    return glm::vec3(u55(rng), u55(rng), val);
   }
 }
 
 
+/************************/
+/**** DEPTH OF FIELD ****/
+/************************/
+
+// PBRT like Thin Lens Camera..
+__host__ __device__
+void applyDof(Ray &ray, thrust::default_random_engine &rng, Camera cam)
+{
+  // Generate Sample
+  thrust::uniform_real_distribution<float> u01(0, 1);
+  glm::vec2 p(u01(rng),u01(rng));
+   
+  // Sample on a disk
+  p = squareToDiskConcentric(p);
+
+  // Scale to get a point on lens
+  glm::vec2 pLens = cam.lensRadius * p;
+
+  // Compute point on plane of focus
+  glm::vec3 pFocus = cam.focalLength * ray.direction + ray.origin;
+
+  // Update ray for effect of lens
+  ray.origin = ray.origin + (cam.up*pLens.y) + (cam.right*pLens.x);
+  ray.direction = glm::normalize(pFocus - ray.origin);
+}
+
+/***********************/
+/******* SHADING *******/
+/***********************/
 
 /**
  * Scatter a ray with some probabilities according to the material properties.
@@ -147,45 +183,126 @@ void scatterRay(
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
 
-  glm::vec3 col(1.f);
   glm::vec3 dir;
 
   if (m.hasReflective) {
     dir = glm::reflect(pathSegment.ray.direction, normal); // pure specular reflection
-    col *= m.specular.color * m.color;
-    pathSegment.ray.origin = intersect + normal * EPSILON; // double check this..
+    pathSegment.color *= m.specular.color;
   }
   else if (m.hasRefractive) {
     // ..
-        // TODO: replace with Schlick's approximation or fresnel dielectric..
-    thrust::uniform_real_distribution<float> u01(0, 1);
-    if (u01(rng) > 0.5f) {
       // DIFFUSE and specular split..
-          dir = calculateRandomDirectionInHemisphere(normal, rng);
-          col *= m.color * 2.f;
+    dir = calculateRandomDirectionInHemisphere(normal, rng);
+    pathSegment.color *= fabs(glm::dot(normal, pathSegment.ray.direction));
       // REFRACTIVE
-          //float ior = pathSegment.refractEnter ? m.indexOfRefraction : 1.f / m.indexOfRefraction;
+          //float ior = glm::dot(normal, pathSegment.ray.direction) > 0 ? m.indexOfRefraction : 1.f / m.indexOfRefraction;
           //dir = glm::refract(pathSegment.ray.direction, normal, ior);
-          //col *= m.color * 1.f;
+          //pathSegment.color *= m.specular.color / glm::abs(glm::dot(dir, normal));
 
           //glm::vec3 nor = pathSegment.refractEnter ? normal : -normal;
-          pathSegment.ray.origin = intersect + normal * EPSILON; // double check this..
-
+          //pathSegment.ray.origin = intersect +normal * EPSILON; // double check this..
           //pathSegment.refractEnter = !pathSegment.refractEnter;
-    }
-    else {
-      dir = glm::reflect(pathSegment.ray.direction, normal); // pure specular reflection
-      col *= m.specular.color * 2.f;
-      pathSegment.ray.origin = intersect + normal * EPSILON; // double check this..
-    }
   }
   else {
     dir = calculateRandomDirectionInHemisphere(normal, rng);
-    col *= m.color;//*InvPI;
-    pathSegment.ray.origin = intersect + normal * EPSILON; // double check this..
+    pathSegment.color *= fabs(glm::dot(normal, pathSegment.ray.direction));
   }
 
-  pathSegment.color *= fabs(glm::dot(normal, dir)) * col;
   pathSegment.ray.direction = glm::normalize(dir);
-  //pathSegment.ray.origin = intersect + normal * EPSILON; // double check this..
+  pathSegment.ray.origin = intersect + normal * EPSILON; // double check this..
+  pathSegment.color *= m.color;
+}
+
+
+
+/***********************/
+/*** DIRECT LIGHTING ***/
+/***********************/
+
+
+__host__ __device__
+void computeDirectLight(
+  PathSegment & pathSegment, glm::vec3 intersect, glm::vec3 normal,
+  const Material &m, const Material * materials,
+  thrust::default_random_engine &rng,
+  Geom * geoms, Geom * lights, int numGeoms, int numLights) 
+{
+  // DIRECT LIGHTING SHADING COMPUTATION
+  // 1. generate light sample
+  // 2. check for occlusion
+  // 3. add contribution
+
+  // RETURN BLACK FOR SPECULAR???
+  if (m.hasReflective) {
+    pathSegment.color *= 0.f;
+    return;
+  }
+
+  thrust::uniform_real_distribution<float> u01(0, 1);
+  // glm::vec2 p(u01(rng), u01(rng));
+
+  // choose light...
+  int lrand = numLights * u01(rng);
+  const Geom &light = lights[lrand];
+  float pdf;
+
+  // sample light...
+  glm::vec3 sample;
+  if (light.type == CUBE) {
+    sample = sampleCubeUniform(rng);
+    pdf += 1.f / 6.f;
+  }
+  else if (light.type == SPHERE) {
+    sample = sampleSphereUniform(rng);
+    pdf += Inv4Pi;
+  }
+  else return; // INVALID CASE
+
+  // return if direction is not proper..
+  sample = glm::vec3(light.transform * glm::vec4(sample, 1.0f));
+  glm::vec3 rayToSample = sample - intersect;
+  float dotProd = glm::dot(glm::normalize(rayToSample), normal);
+  //if (dotProd < 0.0) {
+  //  pathSegment.color *= 0.f;
+  //  return;
+  //}
+  
+  float sample_t = glm::length(rayToSample);
+
+  // detect occlusion...
+  PathSegment ps = pathSegment;
+  ps.ray.origin = intersect + EPSILON * normal;
+  ps.ray.direction = glm::normalize(rayToSample);
+  float t;
+  bool outside = true;
+  glm::vec3 tmp_intersect;
+  glm::vec3 tmp_normal;
+
+  for (int i = 0; i < numGeoms; i++) {
+    Geom & geom = geoms[i];
+    if (geom.materialid == light.materialid) continue;
+
+    if (geom.type == CUBE) {
+      t = boxIntersectionTest(geom, ps.ray, tmp_intersect, tmp_normal, outside);
+      pdf = 1.f/6.f; // 6 * area of unit square??
+    }
+    else if (geom.type == SPHERE) {
+      t = sphereIntersectionTest(geom, ps.ray, tmp_intersect, tmp_normal, outside);
+      pdf = Inv4Pi;
+    }
+
+    // compare with light intersection point's t to detect occlusion
+    if (t + 3*EPSILON < sample_t && t != -1) {
+      pathSegment.color *= 0.f;
+      return;
+    }
+  }
+
+  pdf = 1.f / numLights;
+  if (pdf != 0) {
+    // diffuse only..
+    pathSegment.color = m.color * Inv4Pi *// 0.1f * 
+      materials[light.materialid].color * materials[light.materialid].emittance *
+      fabs(dotProd) / pdf;
+  }
 }

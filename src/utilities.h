@@ -16,14 +16,7 @@
 
 #define InvPi 0.31830988618379067154f
 #define PiOver4 0.78539816339744830961f
-
-#ifndef imax
-#define imax( a, b ) ( ((a) > (b)) ? (a) : (b) )
-#endif
-
-#ifndef imin
-#define imin( a, b ) ( ((a) < (b)) ? (a) : (b) )
-#endif
+#define Inv4Pi 0.07957747154594766788f
 
 namespace utilityCore {
     extern float clamp(float f, float min, float max);
