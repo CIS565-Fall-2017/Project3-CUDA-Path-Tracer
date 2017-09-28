@@ -6,6 +6,7 @@
 
 static std::string startTimeString;
 
+
 // For camera controls
 static bool leftMousePressed = false;
 static bool rightMousePressed = false;
@@ -138,6 +139,7 @@ void runCuda() {
 
         // execute the kernel
         int frame = 0;
+		
 		pathtrace(pbo_dptr, frame, iteration);// , renderState->traceDepth);
 
         // unmap buffer object

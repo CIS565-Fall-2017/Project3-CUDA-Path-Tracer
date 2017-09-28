@@ -48,7 +48,7 @@ __host__ __device__ void CoordinateSystem(const glm::vec3& norm,
  */
 __host__ __device__
 glm::vec3 calculateRandomDirectionInHemisphere(
-        glm::vec3 normal, thrust::default_random_engine &rng) {
+        const glm::vec3 normal, thrust::default_random_engine &rng) {
     thrust::uniform_real_distribution<float> u01(0, 1);
 
     float up = sqrt(u01(rng)); // cos(theta)
@@ -78,4 +78,14 @@ glm::vec3 calculateRandomDirectionInHemisphere(
     return up * normal
         + cos(around) * over * perpendicularDirection1
         + sin(around) * over * perpendicularDirection2;
+}
+__global__ void copyMaterialIDsToArrays(const int num_paths,
+	int* dev_materialIDsForIntersectionsSort,
+	int* dev_materialIDsForPathsSort,
+	const ShadeableIntersection* dev_intersections) 
+{
+	const int thid = blockDim.x * blockIdx.x + threadIdx.x;
+	if (thid >= num_paths) { return; }
+	dev_materialIDsForIntersectionsSort[thid]	= dev_intersections[thid].materialId;
+	dev_materialIDsForPathsSort[thid]			= dev_intersections[thid].materialId;
 }

@@ -106,12 +106,13 @@ void chooseTransmission( PathSegment & path, const ShadeableIntersection& isect,
 
 	//Get wi.
 	glm::vec3 wi;
-	if (!Refract(wo, Faceforward(normal, wo), etaI / etaT, wi)) {//561
-		bxdfColor = glm::vec3(0);
-		bxdfPDF = 0;
-		path.remainingBounces = -100;
-		return;
-	}
+	wi = glm::refract(-wo, Faceforward(normal, wo), etaI / etaT);
+	//if (!Refract(wo, Faceforward(normal, wo), etaI / etaT, wi)) {//561
+	//	bxdfColor = glm::vec3(0);
+	//	bxdfPDF = 0;
+	//	path.remainingBounces = -100;
+	//	return;
+	//}
 
 	//Set Color and PDF and path ray
 	const bool exiting = glm::dot(normal, wi) > 0.f;
@@ -239,11 +240,6 @@ void bxdf_FandPDF(const glm::vec3& wo, const glm::vec3& wi,
 {
 	if (!m.hasReflective && !m.hasRefractive) {//pure diffuse
 		const float wodotwi = glm::dot(wo, wi);
-		//if (wodotwi > 0.f) {
-		//	bxdfPDF = glm::dot(normal, wi)*InvPI;
-		//} else {
-		//	bxdfPDF = 0;
-		//}
 		bxdfPDF = sameHemisphere(wo, wi, normal) ? cosTheta(normal, wi)*InvPI : 0.f;
 		bxdfColor = m.color * InvPI;
 	} else if (m.hasReflective || m.hasRefractive) {
