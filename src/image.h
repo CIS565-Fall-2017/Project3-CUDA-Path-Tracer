@@ -4,7 +4,8 @@
 
 using namespace std;
 
-class image {
+class image 
+{
 private:
     int xSize;
     int ySize;

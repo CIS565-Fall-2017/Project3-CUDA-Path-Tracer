@@ -32,7 +32,8 @@ int height;
 //-------------MAIN--------------
 //-------------------------------
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv) 
+{
     startTimeString = currentTimeString();
 
     if (argc < 2) {
@@ -80,13 +81,16 @@ int main(int argc, char** argv) {
     return 0;
 }
 
-void saveImage() {
+void saveImage() 
+{
     float samples = iteration;
     // output image file
     image img(width, height);
 
-    for (int x = 0; x < width; x++) {
-        for (int y = 0; y < height; y++) {
+    for (int x = 0; x < width; x++) 
+	{
+        for (int y = 0; y < height; y++) 
+		{
             int index = x + (y * width);
             glm::vec3 pix = renderState->image[index];
             img.setPixel(width - 1 - x, y, glm::vec3(pix) / samples);
@@ -203,27 +207,32 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
     }
 }
 
-void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
+void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) 
+{
   leftMousePressed = (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS);
   rightMousePressed = (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS);
   middleMousePressed = (button == GLFW_MOUSE_BUTTON_MIDDLE && action == GLFW_PRESS);
 }
 
-void mousePositionCallback(GLFWwindow* window, double xpos, double ypos) {
+void mousePositionCallback(GLFWwindow* window, double xpos, double ypos) 
+{
   if (xpos == lastX || ypos == lastY) return; // otherwise, clicking back into window causes re-start
-  if (leftMousePressed) {
+  if (leftMousePressed) 
+  {
     // compute new camera parameters
     phi -= (xpos - lastX) / width;
     theta -= (ypos - lastY) / height;
     theta = std::fmax(0.001f, std::fmin(theta, PI));
     camchanged = true;
   }
-  else if (rightMousePressed) {
+  else if (rightMousePressed) 
+  {
     zoom += (ypos - lastY) / height;
     zoom = std::fmax(0.1f, zoom);
     camchanged = true;
   }
-  else if (middleMousePressed) {
+  else if (middleMousePressed) 
+  {
     renderState = &scene->state;
     Camera &cam = renderState->camera;
     glm::vec3 forward = cam.view;

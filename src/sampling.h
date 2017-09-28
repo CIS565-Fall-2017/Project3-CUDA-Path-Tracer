@@ -36,6 +36,14 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(glm::vec3 nor
         + sin(around) * over * perpendicularDirection2;
 }
 
+__host__ __device__ Point3f sampling_SquareToSphereUniform(const Point2f &sample)
+{
+	float z = 1 - 2 * sample[0];
+	float r = std::sqrt(std::max(0.0f, 1.0f - z*z));
+	float phi = 2 * PI*sample[1];
+	return Point3f(r*std::cos(phi), r* std::sin(phi), z);
+}
+
 __host__ __device__ Point3f sampling_SquareToDiskConcentric(const Point2f &sample)
 {
 	glm::vec2 sampleOffset = 2.0f*sample - glm::vec2(1, 1);
