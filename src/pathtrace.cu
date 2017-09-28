@@ -20,7 +20,7 @@
 #include "interactions.h"
 
 #define ERRORCHECK 1
-#define ANIMATION 0
+#define ANIMATION 1
 #define MOTIONBLUR 0
 #define BOUNDING_VOLUME_CULLING 1
 #define STREAMCOMPACTION 0
@@ -480,8 +480,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 				float t_p = max(0.f, min(1.f, aTime));
 				g.transform = glm::translate(g.transform, g.mt * t_p);
 				g.transform = glm::rotate(g.transform, (float)deg2rag(g.mr.x) * t_p, glm::vec3(1, 0, 0));
-				g.transform = glm::rotate(g.transform, (float)deg2rag(g.mr.x) * t_p, glm::vec3(0, 1, 0));
-				g.transform = glm::rotate(g.transform, (float)deg2rag(g.mr.x) * t_p, glm::vec3(0, 0, 1));
+				g.transform = glm::rotate(g.transform, (float)deg2rag(g.mr.y) * t_p, glm::vec3(0, 1, 0));
+				g.transform = glm::rotate(g.transform, (float)deg2rag(g.mr.z) * t_p, glm::vec3(0, 0, 1));
 
 				g.inverseTransform = glm::inverse(g.transform);
 				g.invTranspose = glm::inverse(glm::transpose(g.transform));

@@ -41,9 +41,9 @@ University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 3
 
 (Firgure 7: Motion Blur Comparison)
 #### Mesh Loading and Rendering
-![motionblur](img/low_poly_bunny.gif)
+![mesh](img/mesh.png)
 
-(Firgure 8: Low-Poly Bunny)
+(Firgure 8: Mesh)
 
 For loading custom *.obj mesh into program please use the following format in scene file.
 
@@ -66,6 +66,10 @@ FPATH	  [relative_path]   // relative path for *.obj file
 
 
 #### Batch Render (Only support Windows 7+ OS or Windows Server 2012+ with .Net Framework)
+![batch](img/batch.gif)
+
+(Figure 9: Batch Render)
+
 **For render a sequence of images, please read the following instructions.**
 First you have to assign animation to at least one object in scene. This will need to make some slightly change in scene file.
 
