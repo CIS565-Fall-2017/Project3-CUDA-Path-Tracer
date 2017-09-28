@@ -268,11 +268,11 @@ __global__ void shadeMaterial(
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-	if (glm::length(pathSegments[idx].color - glm::vec3(0.f)) <= FLT_EPSILON)
-	{
-		pathSegments[idx].remainingBounces = 0;
-		return;
-	}
+	//if (glm::length(pathSegments[idx].color - glm::vec3(0.f)) <= FLT_EPSILON)
+	//{
+	//	pathSegments[idx].remainingBounces = 0;
+	//	return;
+	//}
 
 	if (idx < num_paths)
 	{
@@ -385,7 +385,7 @@ __global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterati
 	{
 		PathSegment iterationPath = iterationPaths[index];
 		//glm::vec3 colorToShow = Clamp(iterationPath.color, 0.f, 1.f);
-		glm::vec3 colorToShow = glm::clamp(iterationPath.color, 0.f, 4.f);
+		glm::vec3 colorToShow = glm::clamp(iterationPath.color, 0.f, 2.f);
 		image[iterationPath.pixelIndex] += colorToShow;
 	}
 }
@@ -602,6 +602,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
   bool iterationComplete = false;
   dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
+  int traceSize = num_paths;
 	while (!iterationComplete) {
 
 	// clean shading chunks
@@ -670,6 +671,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
   newEnd = thrust::remove(steamCompactionOut, steamCompactionOut + pixelcount, 0);
   
+  traceSize = newEnd - steamCompactionOut;
 
   if (newEnd == steamCompactionOut)
   {

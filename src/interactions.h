@@ -181,6 +181,7 @@ void scatterRay(
     // calculateRandomDirectionInHemisphere defined above.
 	if (pathSegment.remainingBounces <= 0)
 	{
+		pathSegment.color = glm::vec3(0.f);
 		return;
 	}
 	//terminate the black rays	
@@ -199,23 +200,24 @@ void scatterRay(
 		finalColor = m.color*pathSegment.color;
 	}
 	//FresnelDielectric
-	//else if((m.hasReflective>0.f)&&(m.hasRefractive>0.f))
-	//{
-	//	FresnelDielectric fresnel = FresnelDielectric(m.hasReflective, m.hasRefractive);
-	//	float randomResult = u01(rng);
+	else if((m.hasReflective>0.f)&&(m.hasRefractive>0.f))
+	{
+		FresnelDielectric fresnel = FresnelDielectric(m.hasReflective, m.hasRefractive);
+		float randomResult = u01(rng);
 
-	//	if (randomResult > 0.5)
-	//	{
-	//		newRayDir = glm::reflect(pathSegment.ray.direction, normal);
-	//		finalColor = lastColor * m.specular.color;
-	//	}
-	//	else
-	//	{
-	//		SpecularBTDF btdf = SpecularBTDF(m.specular.color, m.hasReflective, m.hasRefractive, &fresnel);
-	//		fColor = btdf.Sample_f(lastRayDir, &newRayDir, &pdf);
-	//		finalColor = fColor*lastColor*abs(glm::dot(newRayDir, normal) / pdf);
-	//	}
-	//}
+		if (randomResult > 0.5)
+		{
+			newRayDir = glm::reflect(pathSegment.ray.direction, normal);
+			finalColor = lastColor * m.specular.color;
+		}
+		else
+		{
+			SpecularBTDF btdf = SpecularBTDF(m.specular.color, m.hasReflective, m.hasRefractive, &fresnel);
+			float pdf;
+			glm::vec3 fColor = btdf.Sample_f(lastRayDir, &newRayDir, &pdf);
+			finalColor = fColor*lastColor*abs(glm::dot(newRayDir, normal) / pdf);
+		}
+	}
 	//perfect specular
 	else if (m.specular.exponent==1.0f)
 	{
@@ -245,7 +247,7 @@ void scatterRay(
 
 	//pathSegment.color = glm::clamp(finalColor, 0.f, 1.f);
 	pathSegment.color = finalColor;
-	pathSegment.ray.origin = intersect + newRayDir*FLT_EPSILON;
+	pathSegment.ray.origin = intersect + newRayDir*0.001f;
 	pathSegment.ray.direction = newRayDir;
 
 }
