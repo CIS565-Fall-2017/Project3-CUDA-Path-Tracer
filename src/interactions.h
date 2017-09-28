@@ -41,6 +41,64 @@ glm::vec3 calculateRandomDirectionInHemisphere(
         + sin(around) * over * perpendicularDirection2;
 }
 
+__host__ __device__
+glm::vec3 cosineWeightedSample(glm::vec3 normal, thrust::default_random_engine &rng) {
+	thrust::uniform_real_distribution<float> u01(0, 1);
+	float u1 = u01(rng);
+	float u2 = u01(rng);
+
+	float r = sqrt(u1);
+	float theta = TWO_PI * u2;
+
+	float x = r * glm::cos(theta);
+	float y = r * glm::sin(theta);
+	float z = sqrt(max(0.0f, 1.0f - u1));
+	glm::vec3 tangentSpaceSample = glm::normalize(glm::vec3(x, y, z));
+
+	glm::vec3 tangentSpaceNormal(0.0f, 0.0f, 1.0f);
+	float angle = glm::acos(glm::dot(tangentSpaceNormal, normal));
+	glm::vec3 cross = glm::cross(tangentSpaceNormal, normal);
+	glm::vec3 axis = cross / glm::length(cross);
+
+	glm::vec3 v0(0.0f, axis[2], -axis[1]);
+	glm::vec3 v1(-axis[2], 0.0f, axis[0]);
+	glm::vec3 v2(axis[1], -axis[0], 0.0f);
+	glm::mat3 axisSkewed(v0, v1, v2);
+
+	glm::mat3 rotation = glm::mat3(1.0f) + glm::sin(angle)*axisSkewed + ((1.0f - glm::cos(angle)) * axisSkewed * axisSkewed);
+
+	return glm::normalize(rotation * tangentSpaceSample);
+}
+
+__host__ __device__
+glm::vec3 generateSphereSample(Geom& sphere, thrust::default_random_engine &rng) {
+	thrust::uniform_real_distribution<float> u01(0, 1);
+
+	float u1 = u01(rng);
+	float u2 = u01(rng);
+
+	float z = 1.0f - 2.0f * u1;
+	float r = sqrt(max(0.0f, 1.0f - z * z));
+	float phi = TWO_PI * u2;
+
+	glm::vec4 localSample(r * glm::cos(phi), r * glm::sin(phi), z, 1.0f);
+	glm::vec4 worldSample = sphere.transform * localSample;
+	return glm::vec3(worldSample);
+}
+
+__host__ __device__
+glm::vec3 generateCubeSample(Geom& cube, thrust::default_random_engine &rng) {
+	thrust::uniform_real_distribution<float> u01(0, 1);
+	
+	float x = u01(rng) - 0.5f;
+	float y = u01(rng) - 0.5f;
+	float z = u01(rng) - 0.5f;
+
+	glm::vec4 localSample(x, y, z, 1.0f);
+	glm::vec4 worldSample = cube.transform * localSample;
+	return glm::vec3(worldSample);
+}
+
 /**
  * Scatter a ray with some probabilities according to the material properties.
  * For example, a diffuse surface scatters in a cosine-weighted hemisphere.
@@ -67,13 +125,13 @@ glm::vec3 calculateRandomDirectionInHemisphere(
  * You may need to change the parameter list for your purposes!
  */
 __host__ __device__
-void scatterRay(
+glm::vec3 scatterRay(
 		PathSegment & pathSegment,
-        glm::vec3 intersect,
         glm::vec3 normal,
         const Material &m,
         thrust::default_random_engine &rng) {
     // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
+	return cosineWeightedSample(normal, rng);
 }

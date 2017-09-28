@@ -12,6 +12,13 @@ enum GeomType {
     CUBE,
 };
 
+enum MaterialType {
+	LIGHT,
+	DIFFUSE,
+	REFLECTIVE,
+	NONE
+};
+
 struct Ray {
     glm::vec3 origin;
     glm::vec3 direction;
