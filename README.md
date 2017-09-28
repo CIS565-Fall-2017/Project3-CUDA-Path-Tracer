@@ -6,7 +6,7 @@ CUDA Path Tracer
 * Ricky Rajani
 * Tested on: Windows 7, i7-6700 @ 3.40GHz 16GB, NVIDIA Quadro K620 (Moore 100C Lab)
 
-This project implements a CUDA-based path tracer capable of rendering globally-illuminated images very quickly. Base code was provided; hpwever, the core renderer was implemented by the author.
+This project implements a CUDA-based path tracer capable of rendering globally-illuminated images very quickly. Base code was provided; however, the core renderer was implemented by the author.
 
 ### Core Features:
 - A shading kernel with BSDF evaluation for Ideal Diffuse surfaces [PBRT 8.3] and perfectly specular-reflective (mirrored) surfaces
