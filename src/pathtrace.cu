@@ -35,6 +35,7 @@ extern FILE *fp;
 #define Sorting_Toggle 0
 #define AntiAliasing_Toggle 1
 #define MotionBlur_Toggle 0
+#define Depth_Of_Field_Toggle 1
 
 void checkCUDAErrorFn(const char *msg, const char *file, int line) {
 #if ERRORCHECK
@@ -140,6 +141,49 @@ void pathtraceFree() {
     checkCUDAError("pathtraceFree");
 }
 
+//Reference: PBRT source code https://www.dartdocs.org/documentation/dartray/0.0.1/core/ConcentricSampleDisk.html
+//ConcentricSampleDisk
+__device__ glm::vec2 ConcentricSampleDisk(float u1, float u2) {
+	float r, theta;
+	float a, b;
+	// Map uniform random numbers to $[-1,1]^2$
+	float sx = 2 * u1 - 1;
+	float sy = 2 * u2 - 1;
+	if (sx == 0.0 && sy == 0.0) {
+		return glm::vec2(0.f);
+	}
+	if (sx >= -sy) {
+		if (sx > sy) {
+			// Handle first region of disk
+			r = sx;
+			if (sy > 0.0) theta = sy / r;
+			else          theta = 8.0f + sy / r;
+		}
+		else {
+			// Handle second region of disk
+			r = sy;
+			theta = 2.0f - sx / r;
+		}
+	}
+	else {
+		if (sx <= sy) {
+			// Handle third region of disk
+			r = -sx;
+			theta = 4.0f - sy / r;
+		}
+		else {
+			// Handle fourth region of disk
+			r = -sy;
+			theta = 6.0f + sx / r;
+		}
+	}
+	theta *= PI / 4.f;
+	a = r * cosf(theta);
+	b = r * sinf(theta);
+	glm::vec2 returnValue(a, b);
+	return returnValue;
+}
+
 /**
 * Generate PathSegments with rays from the camera through the screen into the
 * scene, which is the first bounce of rays.
@@ -159,24 +203,35 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 
 		segment.ray.origin = cam.position;
 		segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
+		thrust::default_random_engine rng = makeSeededRandomEngine(iter, x + y, 0);
+		thrust::uniform_real_distribution<float> u01(0, 1);
 
-		
-		// TODO: implement antialiasing by jittering the ray
-		
+// TODO: implement antialiasing by jittering the ray
+//Stochastic Sampling
+#if AntiAliasing_Toggle
+		segment.ray.direction = glm::normalize(cam.view
+			- cam.right * cam.pixelLength.x * ((float)(x + u01(rng)) - (float)cam.resolution.x * 0.5f)
+			- cam.up * cam.pixelLength.y * ((float)(y + u01(rng)) - (float)cam.resolution.y * 0.5f)
+		);
+#else
 		segment.ray.direction = glm::normalize(cam.view
 			- cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
 			- cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
 		);
-		thrust::default_random_engine rng = makeSeededRandomEngine(iter, x + y, 0);
-#if AntiAliasing_Toggle
-		float offset = 0.001;
-		thrust::uniform_real_distribution<float> ux(-offset, offset);
-		thrust::uniform_real_distribution<float> uy(-offset, offset);
-		thrust::uniform_real_distribution<float> uz(-offset, offset);
-		segment.ray.direction += glm::vec3(ux(rng), uy(rng), uz(rng));
 #endif
-		thrust::uniform_real_distribution<float> u01(0,1);
+//Depth of Field
+#if Depth_Of_Field_Toggle
+		float u1 = u01(rng), u2 = u01(rng);
+		glm::vec2 pLens = cam.lensRadius * ConcentricSampleDisk(u1, u2);
+		glm::vec3 pFocus = segment.ray.origin + glm::abs(cam.focalLength / segment.ray.direction.z) * segment.ray.direction;
+
+		segment.ray.origin += pLens.x * cam.right + pLens.y * cam.up;
+		segment.ray.direction = glm::normalize(pFocus - segment.ray.origin);
+#endif
+
+
 		segment.rand_time = u01(rng);
+
 		segment.pixelIndex = index;
 		segment.remainingBounces = traceDepth;
 	}
@@ -527,7 +582,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	StreamCompaction::Efficient::timer().startGpuTimer();
 	
 
-#if Caching_Toggle && !AntiAliasing_Toggle && £¡MotionBlur_Toggle
+#if Caching_Toggle && !AntiAliasing_Toggle && !MotionBlur_Toggle && !Depth_Of_Field_Toggle
 	if (iter == 1) {
 		generateRayFromCamera << <blocksPerGrid2d, blockSize2d >> >(cam, iter, traceDepth, dev_paths);
 		checkCUDAError("generate camera ray");
@@ -566,7 +621,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		
 		if (firstStage) {
 			firstStage = false;
-#if Caching_Toggle && !AntiAliasing_Toggle && £¡MotionBlur_Toggle
+#if Caching_Toggle && !AntiAliasing_Toggle && !MotionBlur_Toggle && !Depth_Of_Field_Toggle
 			cudaMemcpy(dev_paths, dev_cache_paths, num_paths * sizeof(PathSegment), cudaMemcpyDeviceToDevice);
 			cudaMemcpy(dev_intersections, dev_cache_intersections, num_paths * sizeof(ShadeableIntersection), cudaMemcpyDeviceToDevice);
 #else
