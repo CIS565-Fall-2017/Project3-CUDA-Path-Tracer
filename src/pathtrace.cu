@@ -178,8 +178,9 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		segment.pixelIndex = index;
 		segment.remainingBounces = traceDepth;
 		
-		//thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
 
+		//LOOK:special code for realistic camera
+		//thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
 		//RealisticCamera(pathSegments[index], rng);
 	}
 
@@ -384,7 +385,7 @@ __global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterati
 	{
 		PathSegment iterationPath = iterationPaths[index];
 		//glm::vec3 colorToShow = Clamp(iterationPath.color, 0.f, 1.f);
-		glm::vec3 colorToShow = glm::clamp(iterationPath.color, 0.f, 1.f);
+		glm::vec3 colorToShow = glm::clamp(iterationPath.color, 0.f, 3.f);
 		image[iterationPath.pixelIndex] += colorToShow;
 	}
 }
