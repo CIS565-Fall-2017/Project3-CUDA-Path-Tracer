@@ -15,6 +15,8 @@ set(SOURCE_FILES
     "preview.cpp"
     "utilities.cpp"
     "utilities.h"
+    "Octree.h"
+    "Octree.cpp"
     )
 
 cuda_add_library(src

@@ -10,6 +10,7 @@
 enum GeomType {
     SPHERE,
     CUBE,
+	OCTREE,
 };
 
 struct Ray {
@@ -27,6 +28,13 @@ struct Geom {
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
 };
+
+// the world space min and max of a geometry
+struct AxisBoundingBox {
+	glm::vec3 minXYZ;
+	glm::vec3 maxXYZ;
+};
+
 
 struct Material {
     glm::vec3 color;

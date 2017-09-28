@@ -21,6 +21,7 @@ public:
     ~Scene();
 
     std::vector<Geom> geoms;
+	std::vector<AxisBoundingBox> geomBounds;
     std::vector<Material> materials;
     RenderState state;
 };
