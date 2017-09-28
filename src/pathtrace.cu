@@ -22,11 +22,11 @@
 #include "stream_compaction\radix.h" 
 
 #define ERRORCHECK 1
-#define COMPACT 0 //0 NONE, 1 THRUST, 2 CUSTOM
-#define PT_TECHNIQUE 0 //0 NAIVE, 1 MIS
-#define FIRSTBOUNCECACHING 1// NAIVE 59.1vs57.2 //MIS 112.6 vs 111.3 
-#define TIMER 1
-#define MATERIALSORTING 1
+#define COMPACT 0 //0 NONE, 1 THRUST, 2 CUSTOM //0 1 2 for NAIVE and MIS: //NAIVE: 57.1, 140.7, 88.7 //MIS: 113.7, 153.6, 98.2
+#define PT_TECHNIQUE 1 //0 NAIVE, 1 MIS //WITH OPTIMAL SETTINGS NAIVE 55.2 vs MIS: 112.3
+#define FIRSTBOUNCECACHING 0//without vs with: NAIVE 57.1vs55.2 //MIS 113.6 vs 112.3 
+#define TIMER 0
+#define MATERIALSORTING 0 //without vs with: NAIVE 59.1 vs 530.2 // MIS 112.6 vs 584.3
 //https://thrust.1ithub.io/doc/group__stream__compaction.html#ga5fa8f86717696de88ab484410b43829b
 //https://stackoverflow.com/questions/34103410/glmvec3-and-epsilon-comparison
 struct isDead { //needed for thrust's predicate, the last arg in remove_if

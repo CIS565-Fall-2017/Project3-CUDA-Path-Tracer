@@ -106,7 +106,7 @@ void chooseTransmission( PathSegment & path, const ShadeableIntersection& isect,
 
 	//Get wi.
 	glm::vec3 wi;
-	wi = glm::refract(-wo, Faceforward(normal, wo), etaI / etaT);
+	wi = glm::refract(-wo, Faceforward(normal, wo), etaI / etaT);//same as below
 	//if (!Refract(wo, Faceforward(normal, wo), etaI / etaT, wi)) {//561
 	//	bxdfColor = glm::vec3(0);
 	//	bxdfPDF = 0;
