@@ -28,7 +28,7 @@ We expect this to give us a drastic improvement in speed, but here are the timin
 
 ![](img/figure1.png)
 
-As can be seen here, stream compaction ends up being slower! This is likely because there is a significant overhead to doing stream compaction compared to not. One observation that we can make is that with stream compaction, the simulation becomes much faster with increasing depth compared to without stream compaction. We only allow our rays to bounce up to 12 times, but in move productions, rays are likely allowed to bounce much more in order to account for global illumination as best as possible. With a larger depth cap, we would likely see the stream compaction at large depth values have faster speeds than without.
+As can be seen here, stream compaction ends up being slower! This is likely because there is a significant overhead to doing stream compaction compared to not. One observation that we can make is that with stream compaction, the simulation becomes much faster with increasing depth compared to without stream compaction. We only allow our rays to bounce up to 12 times, but in movie productions, rays are likely allowed to bounce much more in order to account for global illumination as best as possible. With a larger depth cap, we would likely see the stream compaction at large depth values have faster speeds than without.
 
 ### Material Sorting
 
