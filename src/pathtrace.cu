@@ -22,6 +22,8 @@
 
 #define ERRORCHECK 1
 
+#define NOINTERSECTMATERIALID 8
+
 // #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 // #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
 void checkCUDAErrorFn(const char *msg, const char *file, int line) {
@@ -85,14 +87,16 @@ static ShadeableIntersection * dev_intersections = NULL;
 static ShadeableIntersection * dev_first_bounce_intersections = NULL;
 
 
-//static int* radix_sort_b_array;
-//static int* radix_sort_e_array;
-//static int* radix_sort_f_array;
-//
-//static int* radix_sort_host_f_array;
-//
-//static PathSegment * dev_paths_after_sort = NULL;
-//static ShadeableIntersection * dev_intersections_after_sort = NULL;
+// Radix Sort Stuff
+static int* radix_sort_e_array;
+static int* radix_sort_f_array;
+static int* radix_sort_totalFalses;
+
+static RadixSortElement* dev_RadixSort = NULL;
+static RadixSortElement* dev_RadixSort_after_sort = NULL;
+
+static PathSegment * dev_paths_after_sort = NULL;
+static ShadeableIntersection * dev_intersections_after_sort = NULL;
 
 
 // TODO: static variables for device memory, any extra info you need, etc
@@ -108,8 +112,6 @@ void pathtraceInit(Scene *scene) {
 
   	cudaMalloc(&dev_paths, pixelcount * sizeof(PathSegment));
 	cudaMalloc(&dev_first_bounce_paths, pixelcount * sizeof(PathSegment));
-	//cudaMalloc(&dev_paths_after_sort, pixelcount * sizeof(PathSegment));
-
 
 
   	cudaMalloc(&dev_geoms, scene->geoms.size() * sizeof(Geom));
@@ -121,18 +123,25 @@ void pathtraceInit(Scene *scene) {
   	cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
   	cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
-	//cudaMalloc(&dev_intersections_after_sort, pixelcount * sizeof(ShadeableIntersection));
-	//cudaMemset(dev_intersections_after_sort, 0, pixelcount * sizeof(ShadeableIntersection));
-
 	cudaMalloc(&dev_first_bounce_intersections, pixelcount * sizeof(ShadeableIntersection));
 	cudaMemset(dev_first_bounce_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
     // TODO: initialize any extra device memeory you need
-	/*cudaMalloc((void**)&radix_sort_b_array, pixelcount * sizeof(int));
+
+	// Radix Sort Stuff
+	cudaMalloc(&dev_paths_after_sort, pixelcount * sizeof(PathSegment));
+
+	cudaMalloc(&dev_intersections_after_sort, pixelcount * sizeof(ShadeableIntersection));
+	cudaMemset(dev_intersections_after_sort, 0, pixelcount * sizeof(ShadeableIntersection));
+
+	//cudaMalloc((void**)&radix_sort_b_array, pixelcount * sizeof(int));
 	cudaMalloc((void**)&radix_sort_e_array, pixelcount * sizeof(int));
 	cudaMalloc((void**)&radix_sort_f_array, pixelcount * sizeof(int));
 
-	radix_sort_host_f_array = new int[pixelcount];*/
+	cudaMalloc((void**)&radix_sort_totalFalses, sizeof(int));
+
+	cudaMalloc((void**)&dev_RadixSort, pixelcount * sizeof(RadixSortElement));
+	cudaMalloc((void**)&dev_RadixSort_after_sort, pixelcount * sizeof(RadixSortElement));
 
     checkCUDAError("pathtraceInit");
 }
@@ -142,21 +151,27 @@ void pathtraceFree() {
 
   	cudaFree(dev_paths);
 	cudaFree(dev_first_bounce_paths);
-	//cudaFree(dev_paths_after_sort);
 
   	cudaFree(dev_geoms);
   	cudaFree(dev_materials);
 
   	cudaFree(dev_intersections);
 	cudaFree(dev_first_bounce_intersections);
-	//cudaFree(dev_intersections_after_sort);
+
     // TODO: clean up any extra device memory you created
 
-	/*cudaFree(radix_sort_b_array);
+	// Radix Sort Stuff
+	cudaFree(dev_paths_after_sort);
+	cudaFree(dev_intersections_after_sort);
+
+	//cudaFree(radix_sort_b_array);
 	cudaFree(radix_sort_e_array);
 	cudaFree(radix_sort_f_array);
 
-	delete[] radix_sort_host_f_array;*/
+	cudaFree(radix_sort_totalFalses);
+	cudaFree(dev_RadixSort);
+	cudaFree(dev_RadixSort_after_sort);
+
 
     checkCUDAError("pathtraceFree");
 }
@@ -253,7 +268,7 @@ __global__ void computeIntersections(
 			intersections[path_index].t = -1.0f;
 
 			// we need sort by this, assign -1 for those have no intersections
-			//intersections[path_index].materialTypeID = -1;
+			intersections[path_index].materialId = NOINTERSECTMATERIALID; // May need to change this number
 		}
 		else
 		{
@@ -324,7 +339,7 @@ __global__ void shadeFakeMaterial (
 __global__ void shadeMaterialNaive(
 	int iter
 	, int num_paths
-	, int depth
+	, int depth 
 	, ShadeableIntersection * shadeableIntersections
 	, PathSegment * pathSegments
 	, Material * materials
@@ -355,7 +370,6 @@ __global__ void shadeMaterialNaive(
 			}
 			
 			else {
-				
 				scatterRay(pathSegment, 
 						   getPointOnRay(pathSegment.ray, intersection.t),
 						   intersection.surfaceNormal,
@@ -363,9 +377,7 @@ __global__ void shadeMaterialNaive(
 						   rng);
 
 				pathSegment.remainingBounces--;
-			}
-
-			
+			}	
 		}
 		// If there was no intersection, color the ray black.
 		// Lots of renderers use 4 channel color, RGBA, where A = alpha, often
@@ -396,35 +408,84 @@ __global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterati
 
 
 // ----------------- Radix Sort ------------------------
-__global__ void kernGen_b_e_array(int N, int idxBit, int* b_array, int* e_array, const ShadeableIntersection *dev_data) {
+__global__ void kernGen_e_array(int N, int idxBit, int* e_array, const RadixSortElement *dev_data) {
 	int index = threadIdx.x + (blockIdx.x * blockDim.x);
 	if (index >= N) {
 		return;
 	}
 
 	int temp_result = (dev_data[index].materialId >> idxBit) & 1;
-	b_array[index] = temp_result;
 	e_array[index] = 1 - temp_result;
 }
 
-__global__ void kern_Gen_d_array_and_scatter(int N, const int totalFalses, const int* b_array, const int* f_array, 
-	ShadeableIntersection* dev_odata1, ShadeableIntersection* dev_idata1,
-	PathSegment* dev_odata2, PathSegment* dev_idata2)
-{
+template<int SIZE>
+__global__ void kernGen_d_array_and_scatter(int N, const int* dev_totalFalse, const int* e_array, const int* f_array, 
+	RadixSortElement* dev_odata, const RadixSortElement* dev_idata)
+	//ShadeableIntersection* dev_odata1, const ShadeableIntersection* dev_idata1,
+	//PathSegment* dev_odata2, const PathSegment* dev_idata2
+	//)
+{	
+	__shared__ int totalFalse[SIZE];
+
 	int index = threadIdx.x + (blockIdx.x * blockDim.x);
 	if (index >= N) {
 		return;
 	}
 
-	int t_array_value = index - f_array[index] + totalFalses;
+	// Latency hiding
+	//ShadeableIntersection temp1 = dev_idata1[index];
+	//PathSegment temp2 = dev_idata2[index];
 
-	int d_array_value = b_array[index] ? t_array_value : f_array[index];
+	RadixSortElement temp = dev_idata[index];
 
-	dev_odata1[d_array_value] = dev_idata1[index];
+	if (threadIdx.x == 0) {
+		totalFalse[0] = dev_totalFalse[0];
+	}
+	__syncthreads();
 
-	dev_odata2[d_array_value] = dev_idata2[index];
+
+	int t_array_value = index - f_array[index] + totalFalse[0];
+
+	//int d_array_value = b_array[index] ? t_array_value : f_array[index];
+	int d_array_value = e_array[index] ?  f_array[index] : t_array_value;
+
+	//dev_odata1[d_array_value] = dev_idata1[index];
+	//dev_odata2[d_array_value] = dev_idata2[index];
+
+	//dev_odata1[d_array_value] = temp1;
+	//dev_odata2[d_array_value] = temp2;
+
+	dev_odata[d_array_value] = temp;
 }
 
+__global__ void kernGetTotalFalses(int N, int* totalFalses, const int* e_array, const int* f_array) {
+	totalFalses[0] = e_array[N - 1] + f_array[N - 1];
+}
+
+
+__global__ void kernGenRadixSortElementArray(int N, RadixSortElement* dev_RadixSort, ShadeableIntersection* dev_intersections) {
+	int index = threadIdx.x + (blockIdx.x * blockDim.x);
+	if (index >= N) {
+		return;
+	}
+	ShadeableIntersection temp = dev_intersections[index];
+
+	dev_RadixSort[index].OriIndex = index;
+	dev_RadixSort[index].materialId = temp.materialId;
+}
+
+__global__ void kernSortByRadixSortResult(int N, const RadixSortElement* dev_RadixSort,
+	ShadeableIntersection* dev_odata1, const ShadeableIntersection* dev_idata1,
+	PathSegment* dev_odata2, const PathSegment* dev_idata2) {
+	int index = threadIdx.x + (blockIdx.x * blockDim.x);
+	if (index >= N) {
+		return;
+	}
+
+	int OriIndex = dev_RadixSort[index].OriIndex;
+	dev_odata1[index] = dev_idata1[OriIndex];
+	dev_odata2[index] = dev_idata2[OriIndex];
+}
 // ------------------------------------------------------
 
 
@@ -479,11 +540,12 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
     // TODO: perform one iteration of path tracing
 	int depth = 0;
-	PathSegment* dev_path_end = dev_paths + pixelcount;
-	int num_paths = dev_path_end - dev_paths;
+	//PathSegment* dev_path_end = dev_paths + pixelcount;
+	//int num_paths = dev_path_end - dev_paths;
+	int num_paths = pixelcount;
 
-	// Cache camera rays the very first sample per pixel
-	// and the intersections of these rays
+	// Cache camera rays and the intersections of these rays 
+	// the very first sample per pixel
 	if (iter == 1) {
 		generateRayFromCamera << <blocksPerGrid2d, blockSize2d >> > (cam, iter, traceDepth, dev_first_bounce_paths);
 		checkCUDAError("generate camera ray");
@@ -551,51 +613,66 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	    // path segments that have been reshuffled to be contiguous in memory.
 
 		// Sort here by ShadeableIntersection's material ID
-		//thrust::device_ptr<ShadeableIntersection> dev_thrust_keys(dev_intersections);
-		//thrust::device_ptr<PathSegment> dev_thrust_values(dev_paths);
-		//thrust::sort_by_key(dev_thrust_keys, dev_thrust_keys + num_paths, dev_thrust_values, thrust::greater<ShadeableIntersection>());
 
+//#define RADIXSORT
+//#define THRUSTSORT
 
-		
-		// Radix Sort
-		// 4 kinds of materials, we temporarily set numbOfBits to 3
-		//int numOfBits = 3;
-		//for (int k = 0; k <= numOfBits - 1; k++) {
-		//	kernGen_b_e_array << <numblocksPathSegmentTracing, blockSize1d >> > (num_paths, k, radix_sort_b_array, radix_sort_e_array, dev_intersections);
+#ifdef THRUSTSORT
+		// ------------------------ thrust Sort -------------------------
+		thrust::device_ptr<ShadeableIntersection> dev_thrust_keys(dev_intersections);
+		thrust::device_ptr<PathSegment> dev_thrust_values(dev_paths);
+		thrust::sort_by_key(dev_thrust_keys, dev_thrust_keys + num_paths, dev_thrust_values);
+#else
+#ifdef RADIXSORT
+		// ------------------------ Radix Sort -------------------------
+		kernGenRadixSortElementArray << <numblocksPathSegmentTracing, blockSize1d >> > (num_paths, dev_RadixSort, dev_intersections);
 
-		//	cudaMemcpy(radix_sort_host_f_array, radix_sort_e_array, sizeof(int) * num_paths, cudaMemcpyDeviceToHost);
+		// 7 kinds of materials, numbOfBits -> 3
+		int numOfBits = ilog2ceil(hst_scene->materials.size());
 
-		//	// totalFalses = e_array[n-1]
-		//	int totalFalses = radix_sort_host_f_array[num_paths - 1];
+		for (int k = 0; k <= numOfBits; k++) {
+			// This should based on material ID
+			kernGen_e_array << <numblocksPathSegmentTracing, blockSize1d >> > (num_paths, k, radix_sort_e_array, dev_RadixSort);
 
-		//	// Get Exclusive scan result as a whole
-		//	StreamCompaction::Efficient::scanDynamicShared(num_paths, radix_sort_host_f_array, radix_sort_host_f_array);
+			// Get Exclusive scan result as a whole
+			StreamCompaction::Efficient::scanDynamicShared(num_paths, radix_sort_f_array, radix_sort_e_array);
 
-		//	// totalFalses += f_array[n-1]
-		//	totalFalses += radix_sort_host_f_array[num_paths - 1];
+			kernGetTotalFalses << <dim3(1), dim3(1) >> > (num_paths, radix_sort_totalFalses, radix_sort_e_array, radix_sort_f_array);
 
-		//	cudaMemcpy(radix_sort_f_array, radix_sort_host_f_array, sizeof(int) * num_paths, cudaMemcpyHostToDevice);
+			// Since here we run exclusive scan as a whole,
+			// and we don't want each tile to run StreamCompaction::Efficient::scan individually.
+			// value in d_array here is actually index value in the whole data array, not just index in that tile
+			// so, there is NO need to merge here
+			kernGen_d_array_and_scatter<1> << <numblocksPathSegmentTracing, blockSize1d >> >
+				(num_paths, radix_sort_totalFalses,
+				 radix_sort_e_array, radix_sort_f_array, 
+				 dev_RadixSort_after_sort, dev_RadixSort);
+				//dev_intersections_after_sort, dev_intersections,
+				//dev_paths_after_sort, dev_paths);
 
-		//	// Since here we run exclusive scan as a whole,
-		//	// and we don't want each tile to run StreamCompaction::Efficient::scan individually.
-		//	// value in d_array here is actually index value in the whole data array, not just index in that tile
-		//	// so, there is NO need to merge here
-		//	kern_Gen_d_array_and_scatter<< <numblocksPathSegmentTracing, blockSize1d >> > 
-		//		(num_paths, totalFalses, 
-		//		radix_sort_b_array, radix_sort_f_array, 
-		//		dev_intersections_after_sort, dev_intersections, 
-		//		dev_paths_after_sort, dev_path s);
+			RadixSortElement* temp = dev_RadixSort;
+			dev_RadixSort = dev_RadixSort_after_sort;
+			dev_RadixSort_after_sort = temp;	
 
-		//	ShadeableIntersection* temp1 = dev_intersections;
-		//	dev_intersections = dev_intersections_after_sort;
-		//	dev_intersections_after_sort = temp1;
-		//	
-		//	PathSegment* temp2 = dev_paths;
-		//	dev_paths = dev_paths_after_sort;
-		//	dev_paths_after_sort = temp2;
-		//}
+			//ShadeableIntersection* temp1 = dev_intersections;
+			//dev_intersections = dev_intersections_after_sort;
+			//dev_intersections_after_sort = temp1;
 
+			//PathSegment* temp2 = dev_paths;
+			//dev_paths = dev_paths_after_sort;
+			//dev_paths_after_sort = temp2;
+		}
+		//cudaDeviceSynchronize();
 
+		kernSortByRadixSortResult << <numblocksPathSegmentTracing, blockSize1d >> > (num_paths, dev_RadixSort,
+			dev_intersections_after_sort, dev_intersections,
+			dev_paths_after_sort, dev_paths);
+
+		cudaMemcpy(dev_paths, dev_paths_after_sort, sizeof(PathSegment) * num_paths, cudaMemcpyDeviceToDevice);
+		cudaMemcpy(dev_intersections, dev_intersections_after_sort, sizeof(ShadeableIntersection) * num_paths, cudaMemcpyDeviceToDevice);
+		// -----------------------------------------------------------------
+#endif
+#endif
 
 	    /*shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>> (
 		  iter,
@@ -613,7 +690,6 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 			dev_paths,
 			dev_materials
 		);
-
 		
 		
 		// actually, for the last path tracing, there is not need to 

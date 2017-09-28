@@ -78,8 +78,14 @@ struct ShadeableIntersection {
   int materialId;
   //int materialTypeID;
 
-  //Sort our pathSegments and related ShadeableIntersections by materialTypeID
-  //bool operator<(const ShadeableIntersection& that) const { return this->materialTypeID < that.materialTypeID; }
-  //bool operator>(const ShadeableIntersection& that) const { return this->materialTypeID > that.materialTypeID; }
+  // Sort our pathSegments and related ShadeableIntersections by materialTypeID
+  // Used in thrust::sort_by_key
+  bool operator<(const ShadeableIntersection& that) const { return this->materialId < that.materialId; }
+  bool operator>(const ShadeableIntersection& that) const { return this->materialId > that.materialId; }
+};
 
+
+struct RadixSortElement {
+	int OriIndex;
+	int materialId;
 };
