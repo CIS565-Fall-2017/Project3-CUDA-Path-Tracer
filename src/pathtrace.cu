@@ -385,7 +385,7 @@ __global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterati
 	{
 		PathSegment iterationPath = iterationPaths[index];
 		//glm::vec3 colorToShow = Clamp(iterationPath.color, 0.f, 1.f);
-		glm::vec3 colorToShow = glm::clamp(iterationPath.color, 0.f, 3.f);
+		glm::vec3 colorToShow = glm::clamp(iterationPath.color, 0.f, 4.f);
 		image[iterationPath.pixelIndex] += colorToShow;
 	}
 }
@@ -468,7 +468,9 @@ __global__ void DirectLightingIntegrator(
 	, PathSegment * pathSegments
 	, Material * materials
 	, Geom * geoms
-    , int lightCount)
+    , int lightCount
+    , int depth
+    , int geoSize)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -477,22 +479,59 @@ __global__ void DirectLightingIntegrator(
 		PathSegment pathSegment = pathSegments[idx];
 		ShadeableIntersection intersection = shadeableIntersections[idx];
 		Material materialIsc = materials[intersection.materialId];
-		glm::vec3 leColor = materialIsc.color;
+		int remainBounce = depth - pathSegment.remainingBounces;
 
-		thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
+		thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, remainBounce);
 		thrust::uniform_real_distribution<float> u01(0, 1);
 
-		//meets the light source
-		if (materialIsc.emittance > 0.f)
+		//hit something
+		if (intersection.t > 0.f)
 		{
-			pathSegments[idx].color = leColor;
+
+			//hit light source
+			if (materialIsc.emittance > 0.f)
+			{
+				pathSegment.color = materialIsc.color;
+				pathSegment.remainingBounces = 0;
+			}
+			//other situations 
+			else
+			{
+				ShadeableIntersection shadowIntersection = ShadeableIntersection();
+				DirectShadowIntersection(pathSegment, geoms, geoSize, shadowIntersection);
+				Material shadowMaterial = materials[shadowIntersection.materialId];
+
+				if (shadowIntersection.t > 0.f)
+				{
+					if (shadowMaterial.emittance > 0.f)
+					{
+						pathSegment.color += shadowMaterial.color;
+						
+					}
+					else
+					{
+						pathSegment.color = glm::vec3(0.f);
+						
+					}
+				}
+				else
+				{
+					glm::vec3 lastIntersectionPoint = pathSegments[idx].ray.origin;
+					glm::vec3 lastIntersectionDir = pathSegments[idx].ray.direction;
+					glm::vec3 intersectionPoint = lastIntersectionPoint + lastIntersectionDir*intersection.t;
+					scatterRay(pathSegment, intersectionPoint, intersection.surfaceNormal, materialIsc, rng);
+					
+				}
+			}
+
 		}
 		else
 		{
-			int chosenLight = (int)(u01(rng)*lightCount);
-			glm::vec3 liColor = materials[0].color;
+			pathSegment.color = glm::vec3(0.f);
+			
 		}
-	}
+		pathSegment.remainingBounces = 0;
+	}	
 }
 
 
@@ -599,6 +638,9 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
   //  dev_paths,
   //  dev_materials
   //);
+
+	//TODO
+	//Naive path tracing integrator
 	shadeMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
 		iter,
 		num_paths,
@@ -607,10 +649,22 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		dev_materials,
 		traceDepth);
 
-	
-	//finalGather << <numBlocksPixels, blockSize1d >> >(num_paths, dev_image, dev_paths);
-  
-  //TODO I added
+
+	//TODO
+	//direct lighting path tracing integrator 
+	//DirectLightingIntegrator << <numblocksPathSegmentTracing, blockSize1d >> >
+	//	(iter,
+	//		num_paths,
+	//		dev_intersections,
+	//		dev_paths,
+	//		dev_materials,
+	//		dev_geoms,
+	//		1,
+	//		traceDepth,
+	//		hst_scene->geoms.size());
+ 
+   //TODO I added
+	//for Naive integrator
   BouncesLeft << <blocksPerGrid1d, blockSize1d >> > (dev_paths, compactSteamsIn, pixelcount);
   cudaMemcpy(steamCompactionOut, compactSteamsIn, sizeof(int)*pixelcount, cudaMemcpyDeviceToHost);
 
@@ -621,6 +675,11 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
   {
 	  iterationComplete = true; // TODO: should be based off stream compaction results.
   }
+	
+
+	//TODO I added
+	//For direct lighting 
+	//iterationComplete = true;
   
 	}
 
