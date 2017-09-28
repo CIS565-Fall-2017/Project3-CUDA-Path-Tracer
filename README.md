@@ -14,9 +14,11 @@ In this project, I was able to implement a simple CUDA Monte Carlo path tracer. 
 
 ### A Naive Path Tracer
 
-To begin with, I simply stuck with rendering basic shapes without any additional features. These included rendering diffuse and specular materials with light contributions from area lights. As expected of a Monte Carlo path tracer, samples are processed in sequence. For each sample, a kernel casts a ray for each pixel into the scene and bounces up to some terminal depth. If an ray interescts a light source or nothing, the ray will either return an accumulated color along bounces or black, respectively. If a ray bounces around the scene and fails to reach a light source by the maximum depth condition, the sample's contribution is void and black is returned. With this, we can create simple images such as this Cornell Box with 5,000 samples.
+To begin with, I simply stuck with rendering basic shapes without any additional features. These included rendering diffuse and specular materials with light contributions from area lights. As expected of a Monte Carlo path tracer, samples are processed in sequence. For each sample, a kernel casts a ray for each pixel into the scene and bounces up to some terminal depth. If an ray interescts a light source or nothing, the ray will either return an accumulated color along bounces or black, respectively. If a ray bounces around the scene and fails to reach a light source by the maximum depth condition, the sample's contribution is void and black is returned. With this, we can create simple images such as these Cornell Boxes with 5,000 samples and a ray depth of 12 bounces.
 
 ![](img/cornell_naive_5000.png)
+
+![](img/cornell_reflective_5000.png)
 
 ### Stream Compaction for Ray Culling
 
@@ -85,3 +87,5 @@ We see that stream compaction is much faster than in the Cornell Box scene, but 
 ![](img/table3.png)
 
 ![](img/figure3.png)
+
+The remaining features stay fairly consistent with the previous results in Figure 2. The only difference is that direct lighting is no longer slightly slower than the naive path tracer because we will never enter the case in which we need to cast a ray directly to the light source.
