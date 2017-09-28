@@ -60,10 +60,11 @@ EMITTANCE   0
 
 //Glass
 MATERIAL    6
-RGB         0.1 0.7 0.1
+RGB         0.98 0.98 0.98
 SPECEX      0
-REFL        1
-REFR        0
+SPECRGB		.98 .98 .98
+REFL        0
+REFR        1
 REFRIOR     1.5
 EMITTANCE   0
 
@@ -72,7 +73,7 @@ CAMERA
 RES         800 800
 FOVY        45
 ITERATIONS  5000
-DEPTH       4
+DEPTH       6
 FILE        cornell
 EYE         0.0 5 10.5
 LOOKAT      0 5 0
@@ -106,7 +107,7 @@ SCALE       .01 10 10
 // Back wall
 OBJECT 3
 cube
-material 1
+material 2
 TRANS       0 5 -5
 ROTAT       0 90 0
 SCALE       .01 10 10
@@ -156,13 +157,13 @@ OBJECT 9
 cube
 material 5
 TRANS       2 5 -2
-ROTAT       .5 45 0
+ROTAT       .5 -45 0
 SCALE      4 4 0.3
 
 //Refractive sphere
 OBJECT 10
-sphere
+cube
 material 6
-TRANS -1 8 -1
+TRANS -1 5 4
 ROTAT 0 0 0
-SCALE 1 1 1
+SCALE 5 5 .1
