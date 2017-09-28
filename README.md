@@ -21,44 +21,47 @@ University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 3
 #### Shading Kernel with BSDF
 | Diffuse | Reflective | Glossy  | Refractive |
 | ----- | ----- | ----- | ----- |
-| ![diffuse](https://lh5.googleusercontent.com/lS1mUL5Dk2joLi-XUz5ljRwIrHTVG1zNTYDg0OuHyfBq4kkUcxvMRcieRLlczB-WgTHl4sQmp6UXOw=w1920-h974) | ![reflect](https://lh4.googleusercontent.com/V4gqZ3T_ud08JsOUMUt1BxJQmaYo7TYu3PKVwXaliEHHU35WiGWX4V2r-cyipsjL-ot-aJPrqADFGg=w1920-h974) | ![glossy](https://lh5.googleusercontent.com/1KHAlwcQa_YwfMyeWKq1lk17YVxKfUkDQhxlzAvTdJHthli1TcS_hv_co5q33u5u83EpdQMMWAokzQ=w1920-h974) | ![refact](https://lh3.googleusercontent.com/TgMGF1pwuuri-pZd488bmmdpCrdqBTwjvQSCFPhfI8WtrZ-4Vtf0d--W_mik7BzXGKzmXnsFcBV9vg=w1920-h974) |
+| ![diffuse](img/diffuse.png) | ![reflect](img/reflect.png) | ![glossy](img/glossy.png) | ![refract](refract.png) |
+
 (Figure 1-4: Diffuse, Reflect, Glossy, Refract Shading)
 
 
 #### Depth of Field
-Left image enable the depth of field
+![dof](img/DOF.png)
 
-![dof](https://lh5.googleusercontent.com/109u7xyr9j2umgy1SennMrucULRhAvHrlEPd_EyFLp2hMaFd_HTHxojidum6F1acxyA3LcpgPVOcBA=w1920-h974-rw)
 (Firgure 5: Depth of Field Comparison)
 
 #### Anti- Aliasing
-![aa](https://lh6.googleusercontent.com/4j2UHz_O4Tz5QNyqjS1cap4PF3b6lHkz01oy2Sdq2-jLzxQRdu8GpvT-joA-UB1M2Xe93V7movG3kg=w1920-h974-rw)
+![aa](img/AA.png)
+
 (Firgure 6: Anti- Aliasing Comparison)
 
 #### Motion Blur
+![motionblur](img/motionblur.gif)
 
 (Firgure 7: Motion Blur Comparison)
 #### Mesh Loading and Rendering
-
-
+![motionblur](img/low_poly_bunny.gif)
 
 (Firgure 8: Low-Poly Bunny)
 
 For loading custom *.obj mesh into program please use the following format in scene file.
 
-> OBJECT   [number]
-> **mesh       // indicate a custom mesh**
-> material  [material_id]
-> TRANS     [x] [y] [z]
-> ROTAT     [x] [y] [z]
-> SCALE     [x] [y] [z] 
-> **FPATH	  [relative_path]   // relative path for *.obj file**
-
+```
+OBJECT   [number]
+mesh       // indicate a custom mesh
+material  [material_id]
+TRANS     [x] [y] [z]
+ROTAT     [x] [y] [z]
+SCALE     [x] [y] [z] 
+FPATH	  [relative_path]   // relative path for *.obj file
+```
 
 
 
 **Third-party loading mesh function are list below**
-> tinyobjloader
+> tinyobjloader 
+>
 > https://github.com/syoyo/tinyobjloader
 
 
@@ -66,15 +69,17 @@ For loading custom *.obj mesh into program please use the following format in sc
 **For render a sequence of images, please read the following instructions.**
 First you have to assign animation to at least one object in scene. This will need to make some slightly change in scene file.
 
-> OBJECT   [number]
-> [type]
-> material  [material_id]
-> TRANS     [x] [y] [z]
-> ROTAT     [x] [y] [z]
-> SCALE     [x] [y] [z] 
-> FPATH	  [relative_path]   // option
-> **MT          [x] [y] [z]     // Translation**
-> **MR          [x] [y] [z]     // Rotation**
+```
+OBJECT   [number]
+[type]
+material  [material_id]
+TRANS     [x] [y] [z]
+ROTAT     [x] [y] [z]
+SCALE     [x] [y] [z] 
+FPATH	  [relative_path]   // option
+MT          [x] [y] [z]     // Translation
+MR          [x] [y] [z]     // Rotation
+```
 
 After this, you already define a basic animation.
 
