@@ -91,6 +91,7 @@ static PathSegment * dev_first_paths = NULL;
 static int * dev_isect_ids = NULL;
 static int * dev_ps_ids = NULL;
 
+
 void pathtraceInit(Scene *scene) {
     hst_scene = scene;
     const Camera &cam = hst_scene->state.camera;
@@ -118,6 +119,7 @@ void pathtraceInit(Scene *scene) {
 	cudaMalloc(&dev_ps_ids, pixelcount * sizeof(int));
 #endif
 
+
     checkCUDAError("pathtraceInit");
 }
 
@@ -134,6 +136,7 @@ void pathtraceFree() {
 	cudaFree(dev_isect_ids);
 	cudaFree(dev_ps_ids);
 #endif
+
     checkCUDAError("pathtraceFree");
 }
 
