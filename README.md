@@ -45,8 +45,5 @@ At the last of **generateRayFromCamera** kernel function, and rebuild the projec
 To test Fresnel effect, please use the **glass.txt** in scene files. 
 This scene is basically the same as the Cornell box scene, however, the sphere at the center is a glass ball, which has reflection and refraction. The Fresnel implementation here is quite naive, it simply add up Fresnel specular 
 
-![enter image description here](https://lh3.googleusercontent.com/-fBbqpyJxXKc/Wc7LwleBXdI/AAAAAAAAA5U/REzMMYDHyckmgMqQ8tRTFbVzL6LQwXYawCLcBGAs/s0/cornell.2017-09-29_22-36-07z.492samp.png "cornell.2017-09-29_22-36-07z.492samp.png")
-
-![enter image description here](https://lh3.googleusercontent.com/-Kg-Vc9s4snk/Wc7L00K-0WI/AAAAAAAAA5c/OCckdHya2a00K9hYeM6i5oW2nBHxERUwwCLcBGAs/s0/cornell.2017-09-29_22-36-07z.346samp.png "cornell.2017-09-29_22-36-07z.346samp.png")
 
 ### 3. Performance Analysis 
