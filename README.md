@@ -8,9 +8,76 @@ CUDA Path Tracer
 
 # Overview
 
-# Analysis
+In this project, I was able to implement a basic Monte Carlo Path Tracer in CUDA.
 
-# Results
+Features:
+- The Cornell Box
+- Depth of Field
+- Anti-Aliasing
+- Materials
+    - Diffuse*
+    - Specular*
+    - Refractive
+    - Subsurface 
+- Integration/Shading Techniques
+    - Naive*
+    - Direct Lighting
+- Stream Compaction for Ray Termination*
+- Material Sorting*
+- First Bounce Caching*
+
+(*) denotes required features
+
+# Results and Renders
+
+## Depth of Field
+
+No Depth of Field             |  Depth of Field
+:-------------------------:|:-------------------------:
+![](img/nodof_cornell.2017-09-29_04-40-15z.5000samp.png) Lens Radius: 0 & Focal Distance: 5  |  ![](img/dof_cornell.2017-09-29_04-28-53z.5000samp.png) Lens Radius: .2 & Focal Distance: 5 |
+
+## Anti-Aliasing
+
+NO AA      |  AA
+:-------------------------:|:-------------------------:
+![](img/noaa_cornell.2017-09-29_05-52-24z.5000samp.png)   |  ![](img/aa_cornell.2017-09-29_05-46-45z.5000samp.png)  |
+
+You can definitely see the jagged edges are more profound on the left since AA is turned off. AA was achieved by randomly offsetting/jittering the pixel at each iteration.
+
+## Materials
+
+![](img/materials.png)
+
+### Material Comparisons
+I placed a small spherical light inside each of the green cubes to mainly to demonstrate the subsurface scattering effect. 
+
+Diffuse             |  Specular
+:-------------------------:|:-------------------------:
+![](img/diffuse_cornell.2017-09-29_00-20-22z.5000samp.png)  |  ![](img/reflective_cornell.2017-09-29_00-34-30z.5000samp.png) |
+
+It may not look like it but the cube on the right is a perfectly specular green cube.
+
+Transmissive          |  Subsurface
+:-------------------------:|:-------------------------:
+![](img/transmissive_cornell.2017-09-29_00-25-51z.5000samp.png)  |  ![](img/subsurface_cornell.2017-09-29_00-14-23z.5000samp.png) 
+
+
+## Integration/Shading Techniques
+
+Naive             |  Direct Lighting
+:-------------------------:|:-------------------------:
+![](img/naive_cornell.2017-09-23_19-25-09z.1285samp.png)  |  ![](img/direct_cornell.2017-09-29_06-05-30z.5000samp.png)
+
+There is no global illumination in direct lighting. When a ray hits an object in the scene, we sample its BSDF and shoot a second ray towards the light. We sample a random position on the light and determine its contribution. If there is another object in between the original object and the light, then the point is in shadow, otherwise the light is not occluded and we account for the light's contribution. Direct lighting only does a single bounce as opposed to the naive integrator.
+
+In addition to not having Global Illumination, there is no support for transmissive and specular objects since there is only one bounce per iteration.
+
+# Future Work
+
+- Full Lighting/MIS
+- Photon Mapping
+- Acceleration Structures
+- OBJ Loader
 
 # Bloopers
 

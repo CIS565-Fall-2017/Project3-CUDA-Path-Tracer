@@ -84,6 +84,17 @@ DENSITY     0
 
 // Subsurface
 MATERIAL 7
+RGB         0 1 0
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     1.55
+EMITTANCE   0
+SUBSURF     1
+DENSITY     .75
+
+MATERIAL 8
 RGB         1 1 1
 SPECEX      0
 SPECRGB     0 0 0
@@ -92,7 +103,54 @@ REFR        0
 REFRIOR     0
 EMITTANCE   0
 SUBSURF     1
-DENSITY     .65
+DENSITY     .1
+
+MATERIAL 9
+RGB         .18 .84 .78
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+SUBSURF     1
+DENSITY     .75
+
+// Emissive material (light)
+MATERIAL 10
+RGB         1 1 1
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   5
+SUBSURF     0
+DENSITY     0
+
+// Subsurface
+MATERIAL 11
+RGB         0 1 0
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     1.55
+EMITTANCE   0
+SUBSURF     1
+DENSITY     .75
+
+// Subsurface
+MATERIAL 12
+RGB         1 0 0
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     1.55
+EMITTANCE   0
+SUBSURF     1
+DENSITY     .9
 
 // Camera
 CAMERA
@@ -156,18 +214,19 @@ TRANS       5 5 0
 ROTAT       0 0 0
 SCALE       .01 10 10
 
-// Sphere
+// Cube
 OBJECT 6
-sphere
-material 4
-TRANS       2 1.3 2
-ROTAT       0 0 0
+cube
+material 11
+TRANS       -2 1.52 0
+ROTAT       0 45 0
 SCALE       3 3 3
 
 // Cube
 OBJECT 7
 cube
-material 7
-TRANS       -2 2 -1
-ROTAT       0 45 0
-SCALE       3 3 3
+material 5
+TRANS       2 3 3
+ROTAT       0 75 0
+SCALE       2 2 2
+
