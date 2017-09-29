@@ -436,7 +436,7 @@ __global__ void pathTraceWithDirectLighting(int iter, int num_paths,
 						lights[lightIndex],
 						rng
 					);
-					pathSegment.remainingBounces--;
+					pathSegment.remainingBounces = 2;
 				}
 				else {
 					scatterRay(pathSegment,
@@ -566,7 +566,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	// Shoot ray into scene, bounce between objects, push shading chunks
 
 #if DIRECTLIGHTING
-	float dirLight = 1.0f;
+	float dirLight = 0.1f;
 #endif
 
 
