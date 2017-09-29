@@ -200,6 +200,21 @@ void IntersectRay(
 	}
 }
 
+__host__ __device__
+glm::vec3 randomVector(thrust::default_random_engine &rng)
+{
+	thrust::uniform_real_distribution<float> u(-1, 1);
+	
+	glm::vec3 v(u(rng), u(rng), u(rng));
+
+	if (pow(v.length(), 2.f) < 1.f) {
+		return v;
+	}
+	else {
+		return randomVector(rng);
+	}
+}
+
 /**
 * Scatter a ray with some probabilities according to the material properties.
 * For example, a diffuse surface scatters in a cosine-weighted hemisphere.
@@ -308,7 +323,8 @@ void scatterRay(
 
 		PathSegment offsetPath = pathSegment;
 		offsetPath.ray = nextRay;
-		offsetPath.color *= m.color;
+		//offsetPath.color *= pathSegment.color * m.color;
+		offsetPath.color = pathSegment.color * m.color;
 
 		ShadeableIntersection prevIsect = intersection;
 		ShadeableIntersection final;
@@ -324,14 +340,15 @@ void scatterRay(
 
 				thrust::uniform_real_distribution<float> u01(0, 1);
 				thrust::uniform_real_distribution<float> u(-1, 1);
-				float log = glm::log(u01(rng));
-				float distanceTraveled = -log / m.density;
-				if (distanceTraveled < path.length()) {
+				float ln = log(u01(rng));
+				float distanceTraveled = -ln / m.density;
+				if (distanceTraveled <= path.length()) {
 					nextRay.origin = nextRay.origin + glm::normalize(path) * distanceTraveled;
 					nextRay.direction = glm::normalize(glm::vec3(u(rng), u(rng), u(rng)));
 
 					offsetPath.ray = nextRay;
-					offsetPath.color *= /*m.color * */offsetPath.color;
+					offsetPath.color *= m.color /*offsetPath.color*/;
+					//offsetPath.color *= m.color * AbsDot(end.surfaceNormal, nextRay.direction);
 
 					prevIsect = end;
 				}
@@ -347,8 +364,8 @@ void scatterRay(
 		}
 
 		pathSegment.ray = nextRay;
-		pathSegment.color = offsetPath.color;
-
+		pathSegment.color = offsetPath.color;/* * AbsDot(pathSegment.ray.direction, final.intersectPoint);*/
+		//pathSegment.color = offsetPath.color * AbsDot(pathSegment.ray.direction, final.surfaceNormal);
 		return;
 	}
 	// Diffuse Surface
