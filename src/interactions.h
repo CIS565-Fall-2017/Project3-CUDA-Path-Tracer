@@ -1,7 +1,7 @@
 #pragma once
 
 #include "intersections.h"
-#include "build\src\BSDF.h"
+//#include "build\src\BSDF.h"
 
 
 // CHECKITOUT
@@ -144,6 +144,58 @@ __host__ __device__ glm::vec3 CosineWeightedRandomSample(
 
 	return TangentSpaceToWorldSpace(normal, glm::vec3(flatHemisphere[0], flatHemisphere[1], z_coordinate));
 }
+
+
+__host__ __device__ bool Refract(const glm::vec3 &wi, const glm::vec3 &n, float eta,
+	glm::vec3 *wt) {
+	// Compute cos theta using Snell's law
+	float cosThetaI = glm::dot(n, wi);
+	float sin2ThetaI = max(float(0), float(1 - cosThetaI * cosThetaI));
+	float sin2ThetaT = eta * eta * sin2ThetaI;
+
+	// Handle total internal reflection for transmission
+	if (sin2ThetaT >= 1) return false;
+	float cosThetaT = sqrt(1 - sin2ThetaT);
+	*wt = eta * -wi + (eta * cosThetaI - cosThetaT) * glm::vec3(n);
+	return true;
+}
+
+__host__ __device__ float FrDielectric(float cosThetaI, float etaI, float etaT)
+{
+	cosThetaI = glm::clamp(cosThetaI, -1.0f, 1.0f);
+
+	//potentially swap indicieds of refraction
+	bool entering = cosThetaI >0.f;
+
+	if (!entering)
+	{
+		swap(etaI, etaT);
+		cosThetaI = abs(cosThetaI);
+	}
+
+	//copmute cosThetaT using Snell's law
+	float sinThetaI = sqrt(max((float)0, 1 - cosThetaI*cosThetaI));
+	float sinThetaT = etaI / etaT*sinThetaI;
+
+	//handle total internal reflection
+	if (sinThetaT >= 1)
+	{
+		return 1.0f;
+	}
+
+	float cosThetaT = sqrt(max((float)0, 1 - sinThetaT*sinThetaT));
+
+	float Rparl = ((etaT*cosThetaI) - (etaI*cosThetaT)) / ((etaT*cosThetaI) + (etaI*cosThetaT));
+	float Rperp = ((etaI*cosThetaI) - (etaT*cosThetaT)) / ((etaI*cosThetaI) + (etaT*cosThetaT));
+
+	return (Rparl*Rparl + Rperp*Rperp) / 2;
+}
+
+__host__ __device__ glm::vec3 Evaluate(float cosThetaI,float etaI, float etaT) 
+{
+	return FrDielectric(cosThetaI, etaI, etaT)*glm::vec3(1.0f);
+}
+
 /**
  * Scatter a ray with some probabilities according to the material properties.
  * For example, a diffuse surface scatters in a cosine-weighted hemisphere.
@@ -202,20 +254,22 @@ void scatterRay(
 	//FresnelDielectric
 	else if((m.hasReflective>0.f)&&(m.hasRefractive>0.f))
 	{
-		FresnelDielectric fresnel = FresnelDielectric(m.hasReflective, m.hasRefractive);
+		float etaI = (float)m.hasReflective;
+		float etaT = (float)m.hasRefractive;
+		float cosThetaI = abs(glm::dot(normal, lastRayDir)) / glm::length(normal);
 		float randomResult = u01(rng);
 
-		if (randomResult > 0.5)
+		if (randomResult >= 0.5)
 		{
 			newRayDir = glm::reflect(pathSegment.ray.direction, normal);
-			finalColor = lastColor * m.specular.color;
+			finalColor = m.color + lastColor * m.specular.color*Evaluate(cosThetaI, etaI, etaT)*glm::vec3(0.1f);
 		}
 		else
-		{
-			SpecularBTDF btdf = SpecularBTDF(m.specular.color, m.hasReflective, m.hasRefractive, &fresnel);
-			float pdf;
-			glm::vec3 fColor = btdf.Sample_f(lastRayDir, &newRayDir, &pdf);
-			finalColor = fColor*lastColor*abs(glm::dot(newRayDir, normal) / pdf);
+		{			
+			if (Refract(lastRayDir, normal, etaI / etaT, &newRayDir))
+			{
+				finalColor = m.color + lastColor*m.specular.color*(glm::vec3(1.f) - Evaluate(cosThetaI, etaI, etaT))*glm::vec3(0.9f);
+			}
 		}
 	}
 	//perfect specular

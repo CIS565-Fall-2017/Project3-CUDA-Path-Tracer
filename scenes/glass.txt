@@ -44,7 +44,7 @@ RGB         .98 .98 .98
 SPECEX      0
 SPECRGB     .78 .88 .08
 REFL        1
-REFR        1.3
+REFR        1.15
 REFRIOR     0
 EMITTANCE   0
 

@@ -179,7 +179,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		segment.remainingBounces = traceDepth;
 		
 
-		//LOOK:special code for realistic camera
+		//TODO:special code for realistic camera
 		//thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
 		//RealisticCamera(pathSegments[index], rng);
 	}
@@ -640,48 +640,48 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
   //  dev_materials
   //);
 
+	//**************************************************Naive Integrator**********************************************
 	//TODO
 	//Naive path tracing integrator
-	shadeMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
-		iter,
-		num_paths,
-		dev_intersections,
-		dev_paths,
-		dev_materials,
-		traceDepth);
+	//shadeMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
+	//	iter,
+	//	num_paths,
+	//	dev_intersections,
+	//	dev_paths,
+	//	dev_materials,
+	//	traceDepth);
+
+  //BouncesLeft << <blocksPerGrid1d, blockSize1d >> > (dev_paths, compactSteamsIn, pixelcount);
+  //cudaMemcpy(steamCompactionOut, compactSteamsIn, sizeof(int)*pixelcount, cudaMemcpyDeviceToHost);
+
+  //newEnd = thrust::remove(steamCompactionOut, steamCompactionOut + pixelcount, 0);
+  //
+  //traceSize = newEnd - steamCompactionOut;
+
+  //if (newEnd == steamCompactionOut)
+  //{
+	 // iterationComplete = true; // TODO: should be based off stream compaction results.
+  //}
+
+	//**************************************End of naive integrator *****************************************************
 
 
-	//TODO
-	//direct lighting path tracing integrator 
-	//DirectLightingIntegrator << <numblocksPathSegmentTracing, blockSize1d >> >
-	//	(iter,
-	//		num_paths,
-	//		dev_intersections,
-	//		dev_paths,
-	//		dev_materials,
-	//		dev_geoms,
-	//		1,
-	//		traceDepth,
-	//		hst_scene->geoms.size());
- 
-   //TODO I added
-	//for Naive integrator
-  BouncesLeft << <blocksPerGrid1d, blockSize1d >> > (dev_paths, compactSteamsIn, pixelcount);
-  cudaMemcpy(steamCompactionOut, compactSteamsIn, sizeof(int)*pixelcount, cudaMemcpyDeviceToHost);
+	//**************************************Direct lighting***************************************************************
+  //TODO
+  //direct lighting path tracing integrator 
+	DirectLightingIntegrator << <numblocksPathSegmentTracing, blockSize1d >> >
+		(iter,
+			num_paths,
+			dev_intersections,
+			dev_paths,
+			dev_materials,
+			dev_geoms,
+			1,
+			traceDepth,
+			hst_scene->geoms.size());
 
-  newEnd = thrust::remove(steamCompactionOut, steamCompactionOut + pixelcount, 0);
-  
-  traceSize = newEnd - steamCompactionOut;
-
-  if (newEnd == steamCompactionOut)
-  {
-	  iterationComplete = true; // TODO: should be based off stream compaction results.
-  }
-	
-
-	//TODO I added
-	//For direct lighting 
-	//iterationComplete = true;
+	iterationComplete = true;
+	//****************************************End of direct lighting 
   
 	}
 
