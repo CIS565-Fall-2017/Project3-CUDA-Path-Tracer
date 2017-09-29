@@ -8,8 +8,9 @@
 //#include <thrust/device_vector.h>
 #include "stream_compaction/efficient.h"
 //#include "stream_compaction/thrust.h"
-#include "stream_compaction/common.h"
-#include <thrust/device_vector.h>
+//#include "stream_compaction/common.h"
+//#include <thrust/device_vector.h>
+#include <thrust/partition.h>
 
 #include "sceneStructs.h"
 #include "scene.h"
@@ -26,7 +27,8 @@
 #define DOF 0
 #define COMPACT 0
 #define SORTBYMATERIAL 0
-#define DIRECTLIGHTING 1
+#define DIRECTLIGHTING 0
+#define FULLLIGHTING 0
 
 //#define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 //#define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -212,11 +214,12 @@ __global__ void computeIntersections(
   )
 {
 	int index = blockIdx.x * blockDim.x + threadIdx.x;
-  int path_index = COMPACT ? compact_idx[index] - 1 : index;
-  //int path_index = index;
-  if (path_index > num_paths) return;
+  //int path_index = COMPACT ? compact_idx[index] - 1 : index;
+  int path_index = index;
+  if (path_index > num_paths || path_index == -1) return;
 
 	PathSegment pathSegment = pathSegments[path_index];
+  //if (pathSegment.remainingBounces == 0) return;
 
 	float t;
 	glm::vec3 intersect_point;
@@ -267,6 +270,7 @@ __global__ void computeIntersections(
 		intersections[path_index].materialId = geoms[hit_geom_index].materialid;
 		intersections[path_index].surfaceNormal = normal;
     material_type[path_index] = intersections[path_index].materialId;
+    intersections[path_index].outside = outside;
 	}
 }
 
@@ -341,7 +345,10 @@ __global__ void shadeBSDFMaterialNaive(
   // USE THE ACTIVE INDICES IF COMPACTION IS USED
   //int idx = COMPACT ? compact_idx[index] - 1 : index;
   int idx = index;
-  if (idx > num_paths) return;
+  if (idx > num_paths || idx == -1) {
+    compact_idx[index] = 0;
+    return;
+  }
   PathSegment& pathSegment = pathSegments[idx];
 #if !COMPACT
   if (pathSegment.remainingBounces <= 0) {
@@ -361,7 +368,7 @@ __global__ void shadeBSDFMaterialNaive(
         pathSegment.remainingBounces = 0;
       } else {
         glm::vec3 intpt = pathSegment.ray.origin + intersection.t * pathSegment.ray.direction;
-        scatterRay(pathSegment, intpt, intersection.surfaceNormal, material, rng);
+        scatterRay(pathSegment, intpt, intersection.surfaceNormal, intersection.outside, material, rng);
         pathSegment.remainingBounces--;
       }
     }
@@ -383,11 +390,11 @@ __global__ void shadeBSDFMaterialDirect(
   Geom * geoms, Geom * lights, int numGeoms, int numLights)
 {
   int index = blockIdx.x * blockDim.x + threadIdx.x;
-
   // USE THE ACTIVE INDICES IF COMPACTION IS USED
   //int idx = COMPACT ? compact_idx[index] - 1 : index;
   int idx = index;
-  if (idx > num_paths) return;
+  if (idx > num_paths || idx == -1) 
+    return;
   PathSegment& pathSegment = pathSegments[idx];
 
 #if !COMPACT
@@ -399,6 +406,9 @@ __global__ void shadeBSDFMaterialDirect(
   if (idx < num_paths) {
     ShadeableIntersection intersection = shadeableIntersections[idx];
     if (intersection.t > 0.0f) {
+      /*thrust::default_random_engine rng1 = makeSeededRandomEngine(iter, idx, 0);
+      thrust::uniform_real_distribution<int> u01(0, 100);
+      thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, u01(rng1));*/
       thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
       Material& material = materials[intersection.materialId];
 
@@ -413,9 +423,65 @@ __global__ void shadeBSDFMaterialDirect(
         computeDirectLight(pathSegment, intpt, intersection.surfaceNormal, material, materials, 
           rng, geoms, lights, numGeoms, numLights);
         pathSegment.remainingBounces = 0; // NO BOUNCES
-        /*if (glm::dot(pathSegment.ray.direction, intersection.surfaceNormal) > 0.0) {
-          pathSegment.color *= (material.color * material.emittance);
-        }*/
+      }
+    }
+    else {
+      pathSegment.color = glm::vec3(0.0f);
+      pathSegment.remainingBounces = 0;
+    }
+  }
+
+  if (pathSegment.remainingBounces == 0 && COMPACT) {
+    compact_idx[index] = 0;
+  }
+}
+
+__global__ void shadeBSDFMaterialFull(
+  int iter, int depth, int num_paths, ShadeableIntersection * shadeableIntersections,
+  PathSegment * pathSegments, int * compact_idx, Material * materials,
+  Geom * geoms, Geom * lights, int numGeoms, int numLights)
+{
+  int index = blockIdx.x * blockDim.x + threadIdx.x;
+
+  // USE THE ACTIVE INDICES IF COMPACTION IS USED
+  //int idx = COMPACT ? compact_idx[index] - 1 : index;
+  int idx = index;
+  if (idx > num_paths || idx == -1) {
+    compact_idx[index] = 0;
+    return;
+  }
+  PathSegment& pathSegment = pathSegments[idx];
+  PathSegment psCopy = pathSegments[idx];
+
+#if !COMPACT
+  if (pathSegment.remainingBounces <= 0) {
+    return;
+  }
+#endif
+  if (idx < num_paths) {
+    ShadeableIntersection intersection = shadeableIntersections[idx];
+    if (intersection.t > 0.0f) {
+      thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
+
+      Material& material = materials[intersection.materialId];
+
+      if (material.emittance > 0.0f) {
+        pathSegment.color *= (material.color * material.emittance);
+        pathSegment.remainingBounces = 0;
+      }
+      else {
+        glm::vec3 intpt = pathSegment.ray.origin + intersection.t * pathSegment.ray.direction;
+        scatterRay(pathSegment, intpt, intersection.surfaceNormal, intersection.outside, material, rng);
+        pathSegment.remainingBounces--;
+#if 1 // DL at last bounce only
+        if (pathSegment.remainingBounces == 0) {
+          computeDirectLight(psCopy, intpt, intersection.surfaceNormal, material, materials,
+            rng, geoms, lights, numGeoms, numLights);
+        }
+#else
+        computeDirectLight(psCopy, intpt, intersection.surfaceNormal, material, materials,
+          rng, geoms, lights, numGeoms, numLights);
+#endif
       }
     }
     else {
@@ -458,11 +524,8 @@ __global__ void sortUpdate(int nPaths, int * indices, PathSegment * pathSegments
 // struct used for predicate for thrust::remove_if / thrust::partition
 struct isTerminated {
   __host__ __device__
-  //bool operator()(const PathSegment &segment) {
-  //  return (segment.remainingBounces > 0);
-  //}
-  bool operator()(const int &num) {
-    return (num <= 0);
+  bool operator()(const PathSegment &segment) {
+    return (segment.remainingBounces > 0);
   }
 };
 
@@ -515,13 +578,14 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
     // TODO: perform one iteration of path tracing
 
-	generateRayFromCamera <<<blocksPerGrid2d, blockSize2d >>>(cam, iter, traceDepth, dev_paths, dev_compact_idx);
+	generateRayFromCamera <<<blocksPerGrid2d, blockSize2d>>> (cam, iter, traceDepth, dev_paths, dev_compact_idx);
 	checkCUDAError("generate camera ray");
 
 	int depth = 0;
 	PathSegment* dev_path_end = dev_paths + pixelcount;
-	int num_paths = dev_path_end - dev_paths;
-
+  int num_paths = dev_path_end - dev_paths;
+  int np = dev_path_end - dev_paths;
+  
   //thrust::device_ptr<PathSegment> dev_ptr_paths(dev_paths);
   //int active_segments = num_paths;
 
@@ -536,7 +600,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
     // tracing
     dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
-
+   // dim3 numblocksPathSegmentTracing1 = (dev_path_end - dev_paths + blockSize1d - 1) / blockSize1d;
     // CACHE FIRST BOUNCE OF FIRST ITERATION..
     // IF ITERATION>1, AND FIRST BOUNCE, USE CACHE..
     //  ELSE COMPUTE INTERSECTIONS.. // NEVER A CASE??
@@ -592,13 +656,17 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
 #endif
 
-#if DIRECTLIGHTING
+#if FULLLIGHTING
+    shadeBSDFMaterialFull << <numblocksPathSegmentTracing, blockSize1d >> > (
+      iter, depth, num_paths, dev_intersections, dev_paths, dev_compact_idx, dev_materials,
+      dev_geoms, dev_lights, hst_scene->geoms.size(), hst_scene->lights.size());
+#elif DIRECTLIGHTING
     shadeBSDFMaterialDirect <<<numblocksPathSegmentTracing, blockSize1d>>> (
       iter, num_paths, dev_intersections, dev_paths, dev_compact_idx, dev_materials, 
       dev_geoms, dev_lights, hst_scene->geoms.size(), hst_scene->lights.size());
     iterationComplete = true; // DIRECT LIGHTING - 1 BOUNCE ONLY
 #else
-    shadeBSDFMaterialNaive << <numblocksPathSegmentTracing, blockSize1d >> > (
+    shadeBSDFMaterialNaive <<<numblocksPathSegmentTracing, blockSize1d>>> (
       iter, num_paths, dev_intersections, dev_paths, dev_compact_idx, dev_materials, depth);
 #endif
 
@@ -609,8 +677,12 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
     //auto end = thrust::remove_if(thrust::device, dev_ptr_paths, dev_ptr_paths + num_paths, isTerminated());
     //num_paths = end - dev_ptr_paths;
 
-    num_paths = StreamCompaction::Efficient::compact(num_paths, dev_compact_idx, dev_compact_idx);
-    if (num_paths < 1) {
+    PathSegment *end = thrust::partition(thrust::device, dev_paths, dev_paths + num_paths, isTerminated());
+    num_paths = end - dev_paths;
+
+    //num_paths = StreamCompaction::Efficient::compact(num_paths, dev_compact_idx, dev_compact_idx);
+
+    if (num_paths <= 0) {
       iterationComplete = true;
     }
 #endif
@@ -624,7 +696,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
   // Assemble this iteration and apply it to the image
   dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
-	finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
+	finalGather <<<numBlocksPixels, blockSize1d>>> (num_paths, dev_image, dev_paths);
 
   ///////////////////////////////////////////////////////////////////////////
 

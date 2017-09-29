@@ -134,7 +134,7 @@ namespace StreamCompaction {
           checkCUDAError("cudaMalloc for dev_indices failed!");
 
           // Copy device arrays to device
-          cudaMemcpy(dev_idata, idata, nSize, cudaMemcpyHostToDevice);
+          cudaMemcpy(dev_idata, idata, nSize, /*cudaMemcpyHostToDevice*/cudaMemcpyDeviceToDevice);
           checkCUDAError("cudaMemcpy for dev_data failed!");
 
           dim3 numBlocks((n + blockSize - 1) / blockSize);
@@ -170,7 +170,7 @@ namespace StreamCompaction {
           //printf("%d",newSize);
 
           // Copy device arrays back to host
-          cudaMemcpy(odata, dev_odata, nSize, cudaMemcpyDeviceToHost);
+          cudaMemcpy(odata, dev_odata, nSize, /*cudaMemcpyDeviceToHost*/cudaMemcpyDeviceToDevice);
           checkCUDAError("cudaMemcpy (device to host) for odata failed!");
 
           // Free memory

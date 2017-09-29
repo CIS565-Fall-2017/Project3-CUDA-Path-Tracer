@@ -173,10 +173,27 @@ void applyDof(Ray &ray, thrust::default_random_engine &rng, Camera cam)
  * You may need to change the parameter list for your purposes!
  */
 __host__ __device__
+glm::vec3 refract(glm::vec3 normal, glm::vec3 ray, float n, bool outside, thrust::default_random_engine &rng)
+{
+  thrust::uniform_real_distribution<float> u01(0, 1);
+
+  float n2 = outside ? 1.f / n : n;
+  float R0 = powf((1.0f - n2) / (1.0f + n2), 2.f);
+  float c = powf(1.0f - abs(glm::dot(ray, normal)), 5);
+  float RTheta = R0 + (1.f - R0) * powf(1.f - fabs(glm::dot(ray, normal)), 5.f);
+  if (RTheta < u01(rng)) {
+    return glm::normalize(glm::refract(ray, normal, n2));
+  }
+  else {
+    return glm::normalize(glm::reflect(ray, normal));
+  }
+}
+__host__ __device__
 void scatterRay(
 		PathSegment & pathSegment,
         glm::vec3 intersect,
         glm::vec3 normal,
+        bool outside,
         const Material &m,
         thrust::default_random_engine &rng) {
     // TODO: implement this.
@@ -184,33 +201,33 @@ void scatterRay(
     // calculateRandomDirectionInHemisphere defined above.
 
   glm::vec3 dir;
+  glm::vec3 col;
+  float absDot, pdf, dot;
 
   if (m.hasReflective) {
     dir = glm::reflect(pathSegment.ray.direction, normal); // pure specular reflection
-    pathSegment.color *= m.specular.color;
+    absDot = 1.f;
+    pdf = 1.f;
+    pathSegment.color *= m.color * m.specular.color;
   }
   else if (m.hasRefractive) {
-    // ..
-      // DIFFUSE and specular split..
-    dir = calculateRandomDirectionInHemisphere(normal, rng);
-    pathSegment.color *= fabs(glm::dot(normal, pathSegment.ray.direction));
-      // REFRACTIVE
-          //float ior = glm::dot(normal, pathSegment.ray.direction) > 0 ? m.indexOfRefraction : 1.f / m.indexOfRefraction;
-          //dir = glm::refract(pathSegment.ray.direction, normal, ior);
-          //pathSegment.color *= m.specular.color / glm::abs(glm::dot(dir, normal));
-
-          //glm::vec3 nor = pathSegment.refractEnter ? normal : -normal;
-          //pathSegment.ray.origin = intersect +normal * EPSILON; // double check this..
-          //pathSegment.refractEnter = !pathSegment.refractEnter;
+    dir = refract(normal, pathSegment.ray.direction, m.indexOfRefraction, outside, rng);
+    absDot = 1.f;
+    pdf = 1.f;
+    pathSegment.color = m.color * m.specular.color;
   }
   else {
     dir = calculateRandomDirectionInHemisphere(normal, rng);
-    pathSegment.color *= fabs(glm::dot(normal, pathSegment.ray.direction));
+    float cosTheta = glm::dot(normal, -pathSegment.ray.direction);
+    absDot = max(0.f, cosTheta);
+    pdf = cosTheta / PI;
+    pathSegment.color *= m.color / PI * 
+                          absDot / 
+                          pdf;
   }
 
   pathSegment.ray.direction = glm::normalize(dir);
-  pathSegment.ray.origin = intersect + normal * EPSILON; // double check this..
-  pathSegment.color *= m.color;
+  pathSegment.ray.origin = intersect + 0.01f * pathSegment.ray.direction; //normal * EPSILON; // double check this..
 }
 
 
@@ -233,13 +250,12 @@ void computeDirectLight(
   // 3. add contribution
 
   // RETURN BLACK FOR SPECULAR???
-  if (m.hasReflective) {
+  if (m.hasReflective == 1.0 || m.hasRefractive == 1.0) {
     pathSegment.color *= 0.f;
     return;
   }
 
   thrust::uniform_real_distribution<float> u01(0, 1);
-  // glm::vec2 p(u01(rng), u01(rng));
 
   // choose light...
   int lrand = numLights * u01(rng);
@@ -250,11 +266,9 @@ void computeDirectLight(
   glm::vec3 sample;
   if (light.type == CUBE) {
     sample = sampleCubeUniform(rng);
-    pdf += 1.f / 6.f;
   }
   else if (light.type == SPHERE) {
     sample = sampleSphereUniform(rng);
-    pdf += Inv4Pi;
   }
   else return; // INVALID CASE
 
@@ -262,10 +276,12 @@ void computeDirectLight(
   sample = glm::vec3(light.transform * glm::vec4(sample, 1.0f));
   glm::vec3 rayToSample = sample - intersect;
   float dotProd = glm::dot(glm::normalize(rayToSample), normal);
-  //if (dotProd < 0.0) {
-  //  pathSegment.color *= 0.f;
-  //  return;
-  //}
+
+  float absDot = fabs(dotProd);
+  if (dotProd < 0.0) {
+    pathSegment.color *= 0.f;
+    return;
+  }
   
   float sample_t = glm::length(rayToSample);
 
@@ -284,25 +300,30 @@ void computeDirectLight(
 
     if (geom.type == CUBE) {
       t = boxIntersectionTest(geom, ps.ray, tmp_intersect, tmp_normal, outside);
-      pdf = 1.f/6.f; // 6 * area of unit square??
+      //pdf = 1.f/6.f; // 6 * area of unit square??
     }
     else if (geom.type == SPHERE) {
       t = sphereIntersectionTest(geom, ps.ray, tmp_intersect, tmp_normal, outside);
-      pdf = Inv4Pi;
+      //pdf = Inv4Pi;
     }
 
     // compare with light intersection point's t to detect occlusion
-    if (t + 3*EPSILON < sample_t && t != -1) {
+    if (t + 0.001f < sample_t && t != -1) {
       pathSegment.color *= 0.f;
       return;
     }
   }
 
-  pdf = 1.f / numLights;
+  if (light.type == SPHERE) {
+    pdf = sample_t * sample_t
+          / absDot 
+          / light.scale.x / light.scale.x;
+  }
+
+  pdf /= numLights;
   if (pdf != 0) {
     // diffuse only..
-    pathSegment.color = m.color * Inv4Pi *// 0.1f * 
-      materials[light.materialid].color * materials[light.materialid].emittance *
-      fabs(dotProd) / pdf;
+    pathSegment.color *= m.color * absDot / pdf *
+      materials[light.materialid].color * materials[light.materialid].emittance;
   }
 }
