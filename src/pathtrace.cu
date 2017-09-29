@@ -17,9 +17,10 @@
 #include "../stream_compaction/efficient.h"
 
 #define ERRORCHECK 1
-#define FIRSTBOUNCE 0
+#define FIRSTBOUNCE 1
 #define SORTBYMATERIAL 0
-#define DEPTHOFFIELD 1
+#define DEPTHOFFIELD 0
+#define DIRECTLIGHTING 1
 
 #define CUDART_PI_F 3.141592654f
 
@@ -91,6 +92,10 @@ static int * dev_materialIds1 = NULL;
 static int * dev_materialIds2 = NULL;
 #endif
 
+#if DIRECTLIGHTING
+static Geom * dev_lights = NULL;
+#endif
+
 static float lensRadius = 0.5f;
 static float focalDistance = 3.5f;
 
@@ -127,6 +132,12 @@ void pathtraceInit(Scene *scene) {
 	cudaMalloc(&dev_materialIds2, pixelcount * sizeof(int));
 	cudaMemset(dev_materialIds2, 0, pixelcount * sizeof(int));
 #endif
+
+#if DIRECTLIGHTING
+	cudaMalloc(&dev_lights, scene->lights.size() * sizeof(Geom));
+	cudaMemcpy(dev_lights, scene->lights.data(), scene->lights.size() * sizeof(Geom), cudaMemcpyHostToDevice);
+#endif
+
 }
 
 void pathtraceFree() {
@@ -143,6 +154,10 @@ void pathtraceFree() {
 #if SORTBYMATERIAL
 	cudaFree(dev_materialIds1);
 	cudaFree(dev_materialIds2);
+#endif
+
+#if DIRECTLIGHTING
+	cudaFree(dev_lights);
 #endif
     checkCUDAError("pathtraceFree");
 }
@@ -484,6 +499,12 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
 	// --- PathSegment Tracing Stage ---
 	// Shoot ray into scene, bounce between objects, push shading chunks
+
+#if DIRECTLIGHTING
+	float dirLight = 1.0f;
+#else
+	float dirLight = 0.0f;
+#endif
 
 
 

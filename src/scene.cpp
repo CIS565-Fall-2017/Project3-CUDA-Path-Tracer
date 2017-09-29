@@ -30,6 +30,12 @@ Scene::Scene(string filename) {
             }
         }
     }
+
+	for (int i = 0; i < geoms.size(); i++) {
+		if (materials[geoms[i].materialid].emittance > 0.0f) {
+			lights.push_back(geoms[i]);
+		}
+	}
 }
 
 int Scene::loadGeom(string objectid) {
