@@ -3,6 +3,7 @@
 #include "intersections.h"
 #include "sampling.h"
 #include "materialInteractions.h"
+#include "lightInteractions.h"
 
 __host__ __device__ Ray spawnNewRay(const ShadeableIntersection& intersection, Vector3f& wiW)
 {
@@ -17,7 +18,7 @@ __host__ __device__ Ray spawnNewRay(const ShadeableIntersection& intersection, V
 }
 
 __host__ __device__ void naiveIntegrator(PathSegment & pathSegment,
-										 ShadeableIntersection& intersection,
+										 const ShadeableIntersection& intersection,
 										 const Material &m,
 										 thrust::default_random_engine &rng)
 {
@@ -41,27 +42,27 @@ __host__ __device__ void naiveIntegrator(PathSegment & pathSegment,
 }
 
 __host__ __device__ void directLightingIntegrator(PathSegment & pathSegment,
-												  ShadeableIntersection& intersection,
+												  const ShadeableIntersection& intersection,
 												  const Material &m,
+												  const Geom* geoms, const int num_paths,
+												  const int &numLights, const Light * lights,
 												  thrust::default_random_engine &rng)
 {
 	// Update the ray and color associated with the pathSegment
-	Vector3f wo = pathSegment.ray.direction;
-	Vector3f wi = glm::vec3(0.0f);
-	Vector3f sampledColor = pathSegment.color;
+	Vector3f intersectionPoint = intersection.intersectPoint;
 	Vector3f normal = intersection.surfaceNormal;
+	Vector3f wo = pathSegment.ray.direction;
+	Vector2f xi;
+	Vector3f wi;
+	Vector3f sampledLightColor;
 	float pdf = 0.0f;
 
-	sampleMaterials(m, wo, normal, sampledColor, wi, pdf, rng);
+	//Assuming the scene has atleast one light
+	thrust::uniform_real_distribution<float> u01(0, 1);
 
-	if (pdf != 0.0f)
-	{
-		float absdot = glm::abs(glm::dot(wi, intersection.surfaceNormal));
-		pathSegment.color *= sampledColor*absdot / pdf;
-	}
-
-	pathSegment.ray = spawnNewRay(intersection, wi);
-	pathSegment.remainingBounces--;
+	int randomLightIndex = std::min((int)std::floor(u01(rng)*numLights), numLights - 1);
+	Light selectedLight = lights[randomLightIndex];
+	Geom lightGeom = geoms[selectedLight.lightGeomIndex];
 }
 
 /*

@@ -31,7 +31,7 @@
 //caching more intersections
 //Naive Integration is the default if nothing else is toggled
 #define FULL_LIGHTING_INTEGRATOR 0
-#define DIRECT_LIGHTING_INTEGRATOR 0
+#define DIRECT_LIGHTING_INTEGRATOR 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -211,10 +211,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 	}
 }
 
-// TODO:
 // computeIntersections handles generating ray intersections ONLY.
-// Generating new rays is handled in your shader(s).
-// Feel free to modify the code below.
 __global__ void computeIntersections(int num_paths, PathSegment * pathSegments, Geom * geoms, 
 									int geoms_size, ShadeableIntersection * intersections)
 {
@@ -285,12 +282,88 @@ __global__ void sortIndicesByMaterial(int numActiveRays, ShadeableIntersection *
 	}
 }
 
-// Note that this shader does NOT do a BSDF evaluation!
-// Your shaders should handle that - this can allow techniques such as
-// bump mapping.
-
 __global__ void shadeMaterialsNaive(int iter, int num_paths, ShadeableIntersection * shadeableIntersections,
 									PathSegment * pathSegments, Material * materials)
+{
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (idx < num_paths)
+	{
+		if (pathSegments[idx].remainingBounces <= 0)
+		{
+			return;
+		}
+
+		ShadeableIntersection intersection = shadeableIntersections[idx];
+		Material material = materials[intersection.materialId];
+
+		//If the ray didnt intersect with objects in the scene
+		if (intersection.t < 0.0f)
+		{
+			pathSegments[idx].color = glm::vec3(0.0f);
+			pathSegments[idx].remainingBounces = 0; //to make thread stop executing things
+			return;
+		}
+
+		//If the ray hit a light in the scene
+		if (material.emittance > 0.0f)
+		{
+			pathSegments[idx].color *= material.color*material.emittance;
+			pathSegments[idx].remainingBounces = 0; //equivalent of breaking out of the thread
+			return;
+		}
+
+		// Set up the RNG
+		thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegments[idx].remainingBounces);
+
+		// if the intersection exists and the itersection is not a light then
+		//deal with the material and end up changing the pathSegment color and its ray direction
+		//scatterRay(pathSegments[idx], intersection, material, rng);
+		naiveIntegrator(pathSegments[idx], intersection, material, rng);
+	}
+}
+
+__global__ void shadeMaterialsDirect(int iter, int num_paths, ShadeableIntersection * shadeableIntersections,
+									PathSegment * pathSegments, Material * materials)
+{
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (idx < num_paths)
+	{
+		if (pathSegments[idx].remainingBounces <= 0)
+		{
+			return;
+		}
+
+		ShadeableIntersection intersection = shadeableIntersections[idx];
+		Material material = materials[intersection.materialId];
+
+		//If the ray didnt intersect with objects in the scene
+		if (intersection.t < 0.0f)
+		{
+			pathSegments[idx].color = glm::vec3(0.0f);
+			pathSegments[idx].remainingBounces = 0; //to make thread stop executing things
+			return;
+		}
+
+		//If the ray hit a light in the scene
+		if (material.emittance > 0.0f)
+		{
+			pathSegments[idx].color *= material.color*material.emittance;
+			pathSegments[idx].remainingBounces = 0; //equivalent of breaking out of the thread
+			return;
+		}
+
+		// Set up the RNG
+		thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegments[idx].remainingBounces);
+
+		// if the intersection exists and the itersection is not a light then
+		//deal with the material and end up changing the pathSegment color and its ray direction
+		//scatterRay(pathSegments[idx], intersection, material, rng);
+		naiveIntegrator(pathSegments[idx], intersection, material, rng);
+	}
+}
+
+__global__ void shadeMaterialsFull(int iter, int num_paths, ShadeableIntersection * shadeableIntersections,
+								  PathSegment * pathSegments, Material * materials)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (idx < num_paths)
@@ -369,24 +442,24 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 
     ///////////////////////////////////////////////////////////////////////////
 
-    // Recap:
-    // * Initialize array of path rays (using rays that come out of the camera)
-    //   * You can pass the Camera object to that kernel.
-    //   * Each path ray must carry at minimum a (ray, color) pair,
-    //   * where color starts as the multiplicative identity, white = (1, 1, 1).
-    // * For each depth:
-    //   * Compute an intersection in the scene for each path ray.
-    //     Currently, intersection distance is recorded as a parametric distance,
-    //     t, or a "distance along the ray." t = -1.0 indicates no intersection.
-    //     * Color is attenuated (multiplied) by reflections off of any object
-    //   * Stream compact away all of the terminated paths.
-    //   * Shade the rays that intersected something or didn't bottom out.
-    //     That is, color the ray by performing a color computation according
-    //     to the shader, then generate a new ray to continue the ray path.
-    //     We recommend just updating the ray's PathSegment in place.
-    //     Note that this step may come before or after stream compaction,
-    //     since some shaders you write may also cause a path to terminate.
-    //	 * Finally, add this iteration's results to the image.
+	// Recap:
+	// * Initialize array of path rays (using rays that come out of the camera)
+	//   * You can pass the Camera object to that kernel.
+	//   * Each path ray must carry at minimum a (ray, color) pair,
+	//   * where color starts as the multiplicative identity, white = (1, 1, 1).
+	// * For each depth:
+	//   * Compute an intersection in the scene for each path ray.
+	//     Currently, intersection distance is recorded as a parametric distance,
+	//     t, or a "distance along the ray." t = -1.0 indicates no intersection.
+	//     * Color is attenuated (multiplied) by reflections off of any object
+	//   * Stream compact away all of the terminated paths.
+	//   * Shade the rays that intersected something or didn't bottom out.
+	//     That is, color the ray by performing a color computation according
+	//     to the shader, then generate a new ray to continue the ray path.
+	//     We recommend just updating the ray's PathSegment in place.
+	//     Note that this step may come before or after stream compaction,
+	//     since some shaders you write may also cause a path to terminate.
+	//	 * Finally, add this iteration's results to the image.
 
 	generateRayFromCamera <<<blocksPerGrid2d, blockSize2d >>>(cam, iter, traceDepth, dev_paths);
 	checkCUDAError("generate camera ray");
@@ -413,11 +486,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 		//Checking if intersection cached results should be used
 		if(iter == 1 && depth == 0)
 		{
-			computeIntersections <<<numblocksPathSegmentTracing, blockSize1d>>> (activeRays,
-																				 dev_paths,
-																				 dev_geoms,
-																				 hst_scene->geoms.size(),
-																				 dev_intersections);
+			computeIntersections <<<numblocksPathSegmentTracing, blockSize1d>>> (activeRays, dev_paths, dev_geoms,
+																				 hst_scene->geoms.size(), dev_intersections);
 			checkCUDAError("trace one bounce");
 			cudaDeviceSynchronize();
 
@@ -432,20 +502,14 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 
 		if (depth > 0)
 		{
-			computeIntersections <<<numblocksPathSegmentTracing, blockSize1d>>> (activeRays,
-																				dev_paths,
-																				dev_geoms,
-																				hst_scene->geoms.size(),
-																				dev_intersections);
+			computeIntersections <<<numblocksPathSegmentTracing, blockSize1d>>> (activeRays, dev_paths, dev_geoms,
+																				hst_scene->geoms.size(), dev_intersections);
 			checkCUDAError("trace one bounce");
 			cudaDeviceSynchronize();
 		}
 #else
-		computeIntersections <<<numblocksPathSegmentTracing, blockSize1d>>> (activeRays,
-																			dev_paths,
-																			dev_geoms,
-																			hst_scene->geoms.size(),
-																			dev_intersections);
+		computeIntersections <<<numblocksPathSegmentTracing, blockSize1d>>> (activeRays, dev_paths, dev_geoms,
+																			 hst_scene->geoms.size(), dev_intersections);
 		checkCUDAError("trace one bounce");
 		cudaDeviceSynchronize();
 #endif
@@ -456,7 +520,9 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 		//------------------------------------------------
 		//Sort Rays By Material
 		//------------------------------------------------
-		sortIndicesByMaterial <<<numblocksPathSegmentTracing, blockSize1d>>> (activeRays, dev_intersections, dev_pathMaterialIndices, dev_intersectionMaterialIndices);
+		sortIndicesByMaterial <<<numblocksPathSegmentTracing, blockSize1d>>> (activeRays, dev_intersections, 
+																			  dev_pathMaterialIndices, 
+																			  dev_intersectionMaterialIndices);
 		
 		thrust::sort_by_key(thrust::device, dev_pathMaterialIndices, dev_pathMaterialIndices + activeRays, dev_paths);
 		thrust::sort_by_key(thrust::device, dev_intersectionMaterialIndices, dev_intersectionMaterialIndices + activeRays, dev_intersections);
@@ -466,9 +532,14 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 		//Integration Schemes --> They Color Path Segments and trace Rays
 		//------------------------------------------------
 #if FULL_LIGHTING_INTEGRATOR
+		shadeMaterialsFull <<<numblocksPathSegmentTracing, blockSize1d>>> (iter, activeRays, dev_intersections,
+																			dev_paths, dev_materials);
 #elif DIRECT_LIGHTING_INTEGRATOR
+		shadeMaterialsDirect <<<numblocksPathSegmentTracing, blockSize1d>>> (iter, activeRays, dev_intersections,
+																			dev_paths, dev_materials);
 #else // NAIVE_INTEGRATOR
-		shadeMaterialsNaive <<<numblocksPathSegmentTracing, blockSize1d>>> (iter, activeRays, dev_intersections, dev_paths, dev_materials);
+		shadeMaterialsNaive <<<numblocksPathSegmentTracing, blockSize1d>>> (iter, activeRays, dev_intersections, 
+																			dev_paths, dev_materials);
 #endif
 
 #if INACTIVE_RAY_CULLING		
@@ -490,14 +561,10 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 	dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
 	finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
 
-    ///////////////////////////////////////////////////////////////////////////
-
     // Send results to OpenGL buffer for rendering
     sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image);
 
     // Retrieve image from GPU
-    cudaMemcpy(hst_scene->state.image.data(), dev_image,
-            pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
-
+    cudaMemcpy(hst_scene->state.image.data(), dev_image, pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
     checkCUDAError("pathtrace");
 }

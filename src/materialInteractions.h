@@ -4,7 +4,7 @@
 #include "lambert.h"
 #include "specular.h"
 
-__host__ __device__ bool MatchesFlags(BxDFType sampledbxdf)
+__host__ __device__ bool MatchesFlags(const BxDFType sampledbxdf)
 {
 	if ( (sampledbxdf & BSDF_SPECULAR_BRDF) ||
 		 (sampledbxdf & BSDF_SPECULAR_BTDF) ||
@@ -70,7 +70,7 @@ __host__ __device__ BxDFType chooseBxDF(const Material &m, thrust::default_rando
 	return bxdf;
 }
 
-__host__ __device__ void sampleMaterials(const Material &m, Vector3f& wo, Vector3f& normal,
+__host__ __device__ void sampleMaterials(const Material &m, const Vector3f& wo, const Vector3f& normal,
 										 Color3f& sampledColor, Vector3f& wi, float& pdf,
 										 thrust::default_random_engine &rng)
 {
@@ -80,10 +80,15 @@ __host__ __device__ void sampleMaterials(const Material &m, Vector3f& wo, Vector
 
 	if (sampledBxDF == BSDF_LAMBERT)
 	{
-		sampledColor = sample_Lambert(m, rng, wo, wi, normal, pdf);
+		//sample functions return a color, calculate pdf, and set a new wiW
+		wi = glm::normalize(calculateRandomDirectionInHemisphere(normal, rng));
+		pdf = pdf_Lambert(wo, wi, normal);
+		sampledColor = f_Lambert(m, wo, wi);
 	}
 	else if (sampledBxDF == BSDF_SPECULAR_BRDF)
 	{
-		sampledColor = sample_Specular(m, wo, wi, normal, pdf);
+		sampledColor = f_Specular(m);
+		pdf = pdf_Specular();
+		wi = glm::reflect(wo, normal);
 	}
 }
