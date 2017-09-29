@@ -99,6 +99,37 @@ Here's one test script already in **batch** folder, feel free to test or change 
 
 
 ## Performance Analysis
-#### Bounding volume intersection culling
+#### Timing
+Use argument "**-t**" to output each iteration time
 
-#### 
+```
+cis565_path_tracer.exe [scene_file] [time] -t
+```
+
+#### Bounding Volume Intersection Culling
+Bouding Volume Intersection Culling termiates the intersection test of this object when the ray outside the object bouding volume.
+Basically, a small object or a object far from camera will get benifit from this feature.
+
+Bounding Volume Intersection Culling Test:
+| Object | Materials | Iterations | Effects | Other Optimize |
+| ----- | ----- | ----- | ----- | ----- |
+| lowpolytree.obj | Diffuse | 5000 | N/A | N/A |
+
+Result:
+![culling](img/culling.png)
+
+#### Path Continuation/Termination Using Stream Compaction
+
+Stream Compaction Performance Comparision:
+| Object | Materials | Iterations | Effects | Other Optimize |
+| ----- | ----- | ----- | ----- | ----- |
+| lowpolytree.obj | Diffuse | 5000 | N/A | Stream Compaction vs N/A |
+
+![sc](img/sc.png)
+
+Stream Compaction Performance Comparision of Open/Closed Scene:
+| Object | Materials | Iterations | Effects | Other Optimize |
+| ----- | ----- | ----- | ----- | ----- |
+| lowpolytree.obj | Diffuse | 5000 | N/A | Stream Compaction |
+
+![sc](img/sc1.png)

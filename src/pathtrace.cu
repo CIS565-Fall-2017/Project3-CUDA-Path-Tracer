@@ -20,14 +20,14 @@
 #include "interactions.h"
 
 #define ERRORCHECK 1
-#define ANIMATION 1
+#define ANIMATION 0
 #define MOTIONBLUR 0
-#define BOUNDING_VOLUME_CULLING 1
-#define STREAMCOMPACTION 0
+#define BOUNDING_VOLUME_CULLING 0
+#define STREAMCOMPACTION 1
 #define AA 0
 #define DOF 0
 #define SORTMATERIALS 0
-#define CACHE 1
+#define CACHE 0
 
 #define COMPACT 0
 #define NOT_COMPACT 1000
@@ -611,6 +611,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	if (np != NULL) rest_paths = np - dev_paths;
 	else rest_paths = 0;
 
+	//printf("Rest_Path: %i\n", rest_paths);
+	
 #endif // STEAMCOMPACTION
 
   iterationComplete = (rest_paths <= 0 || depth > traceDepth);

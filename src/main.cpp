@@ -1,6 +1,8 @@
 #include "main.h"
 #include "preview.h"
 #include <cstring>
+#include <algorithm>
+#include <chrono>
 
 static std::string startTimeString;
 
@@ -22,6 +24,8 @@ glm::vec3 ogLookAt; // for recentering the camera
 Scene *scene;
 RenderState *renderState;
 int iteration;
+bool timer = false;
+double tperf = 0;
 
 int width;
 int height;
@@ -44,6 +48,16 @@ int main(int argc, char** argv) {
 
 	if (argc == 3) {
 		aniTime = stof(argv[2]);
+	}
+
+	if (argc == 4) {
+		if (strcmp(argv[3], "-t") == 0) {
+			timer = true;
+		}
+		else {
+			printf("Wrong Arg!");
+			exit(0);
+		}
 	}
 
 
@@ -139,9 +153,21 @@ void runCuda() {
         iteration++;
         cudaGLMapBufferObject((void**)&pbo_dptr, pbo);
 
+			// Start CPU Timer
+		auto time_start_cpu = std::chrono::high_resolution_clock::now();
+
         // execute the kernel
         int frame = 0;
         pathtrace(pbo_dptr, frame, iteration);
+
+		if (timer) {
+			// End CPU Timer
+			auto time_end_cpu = std::chrono::high_resolution_clock::now();
+			std::chrono::duration<double, std::milli> duro = time_end_cpu - time_start_cpu;
+			double prev_elapsed_time_cpu_milliseconds =
+				static_cast<decltype(prev_elapsed_time_cpu_milliseconds)>(duro.count());
+			tperf = prev_elapsed_time_cpu_milliseconds;
+		}
 
         // unmap buffer object
         cudaGLUnmapBufferObject(pbo);
