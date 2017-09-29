@@ -79,22 +79,14 @@ void scatterRay(
 	thrust::uniform_real_distribution<float> u01(0, 1);
 	float probability = (m.hasReflective > 0) ? u01(rng) : 1.0f;
 	Ray& ray = pathSegment.ray;
-	int p = pathSegment.pixelIndex;
 	if (m.hasRefractive > 0) {
-		//if (pathSegment.outside) {
-		//	float eta = 1.0f / m.indexOfRefraction;
-		//	ray.direction = glm::normalize(glm::refract(ray.direction, normal, eta));
-		//	//pathSegment.outside = false;
-		//}
-		//else {
-		//	float eta = m.indexOfRefraction / 1.0f;
-		//	ray.direction = glm::normalize(glm::refract(ray.direction, normal, eta));
-		//	//pathSegment.outside = true;
-		//	//printf("HERE\n");
+		float eta = pathSegment.outside ? 1.0f / m.indexOfRefraction : m.indexOfRefraction;
 
-
-		//}
-		float n1 = 1.0f, n2 = 1.5f;
+		ray.direction = glm::normalize(glm::refract(ray.direction, normal, eta));
+			//pathSegment.outside = false;
+			//pathSegment.outside = true;
+			//printf("HERE\n");
+		/*float n1 = 1.0f, n2 = 1.5f;
 		pathSegment.ray.origin = intersect;
 		float cosTheta = glm::dot(pathSegment.ray.direction, normal); // function "sphereIntersectionTest" has been modified and the normal is always pointing from inside to outside
 		float eta;
@@ -118,7 +110,7 @@ void scatterRay(
 		else
 		{
 			pathSegment.ray.direction = glm::refract(pathSegment.ray.direction, realNormal, eta);
-		}
+		}*/
 		//printf("REFRACTIVE\n");
 	}
 	else {
@@ -127,11 +119,11 @@ void scatterRay(
 		}
 		else {
 			ray.direction = glm::reflect(ray.direction, normal);
-			printf("reflect\n");
+			//printf("reflect\n");
 		}
 	}
-	pathSegment.color *= m.color * glm::clamp(glm::abs(glm::dot(ray.direction, normal)), 0.0f, 1.0f);
-	ray.origin = 5.0f * EPSILON * ray.direction + intersect;	
+	pathSegment.color *= m.color;// *glm::clamp(glm::abs(glm::dot(ray.direction, normal)), 0.0f, 1.0f);
+	ray.origin = 0.2f * ray.direction + intersect;	
 
 
 }
