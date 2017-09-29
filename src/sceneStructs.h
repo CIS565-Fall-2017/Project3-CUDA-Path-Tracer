@@ -11,12 +11,6 @@ enum GeomType {
     SPHERE,
     CUBE,
 };
-enum PathType {
-	LAMBERT,
-	MIRROR,
-	GLASS,
-	TERMINATE,
-};
 
 class Ray {
 public:
@@ -26,6 +20,7 @@ public:
 
 class Geom {
 public:
+	int idx;
     enum GeomType type;
     int materialid;
     glm::vec3 translation;
@@ -75,6 +70,7 @@ public:
 	glm::vec3 color;
 	int pixelIndex;
 	int remainingBounces;
+	glm::vec3 beta_loop;
 };
 
 // Use with a corresponding PathSegment to do:
@@ -84,7 +80,9 @@ class ShadeableIntersection {
 public:
   float t;
   glm::vec3 surfaceNormal;
-  int materialId;
+  glm::vec3 tan;
+  glm::vec3 bit;
   glm::mat3 WorldToTangent;
   glm::mat3 TangentToWorld;
+  int materialId;
 };

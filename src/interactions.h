@@ -18,11 +18,19 @@ namespace Global {
 			return a.get<1>().materialId < b.get<1>().materialId;
 		}
 	};
+	template <typename T>
+	__host__ __device__ void swap(T &a, T &b)
+	{
+		T tmp(a);
+		a = b;
+		b = tmp;
+	}
 	__host__ __device__ float cosWeightedHemispherePdf(
 		const glm::vec3 &normal, const glm::vec3 &dir)
 	{
 		return fmax(0.f, glm::dot(normal, dir)) / PI;
 	}
+
 	__host__ __device__
 		glm::vec3 calculateRandomDirectionInHemisphere(
 			glm::vec3 normal, thrust::default_random_engine &rng) {
@@ -57,6 +65,70 @@ namespace Global {
 			+ cos(around) * over * perpendicularDirection1
 			+ sin(around) * over * perpendicularDirection2);
 		return dir;
+	}
+}
+namespace LightSample {
+	//Here we use cube to simulate a plan. We suppose the height of the cube can be ignore.
+	__host__ __device__ float CubeSamplePdf(const Geom& cube,const glm::vec3&origin,const glm::vec3& Dir) {
+		Ray r{ origin, Dir };
+		glm::vec3 intersect;
+		glm::vec3 normal, tan, bit;
+		bool outside = true;
+		float t = boxIntersectionTest(cube, r, intersect, normal, tan, bit, outside);
+		glm::vec3 localNormal = multiplyMV(cube.inverseTransform, glm::vec4(normal, 0));
+		if (t == -1 || glm::length2(localNormal - glm::vec3(0, -1, 0)) > FLT_EPSILON) return 0;
+		float R_L = glm::length2(intersect - origin);
+		float pdf= 1 / (1 * cube.scale[0] * cube.scale[2]);
+		return R_L / (fabs(glm::dot(Dir, normal)) * 1 * cube.scale[0] * cube.scale[2]);
+	}
+	__host__ __device__ void PlaneSample_Li(const Geom& cube,
+		const glm::vec3 origin,
+		glm::vec3& woW,
+		int numGeo,
+		const Geom* geoms,
+		float& pdf,
+		bool& occlusion,
+		thrust::default_random_engine &rng,
+		thrust::uniform_real_distribution<float> &u01) {
+
+		float t_min;
+		glm::vec3 isect_normal;
+		glm::vec3 tan;
+		glm::vec3 bit;
+		int hit_geom_index = -1;
+		
+		float xi[2] = { u01(rng),u01(rng) };
+		glm::vec3 intersect(xi[0], -0.5f, xi[1]);
+		intersect = multiplyMV(cube.transform, glm::vec4(intersect, 1));
+		woW = intersect - origin;
+		float R_L = glm::length2(woW);
+		woW = glm::normalize(woW);
+		Ray r{ origin,woW };
+		SearchIntersection::BruteForceSearch(t_min, hit_geom_index, isect_normal, tan, bit, r, geoms, numGeo);	
+		pdf = R_L / (fabs(glm::dot(woW, isect_normal) * 1 * cube.scale[0] * cube.scale[2]));
+		occlusion = true;
+		if (t_min > 0.f && hit_geom_index == cube.idx)
+			occlusion = false;
+	}
+	
+}
+namespace Fresnel {
+	__host__ __device__ float Dielectric(float cosThetaI, float etaI, float etaT)
+	{
+		//Computing cosThetaT using Snell's Law
+		float sinThetaI = sqrt(fmax(0.0f, 1 - cosThetaI*cosThetaI));
+		float sinThetaT = etaI / etaT*sinThetaI;
+		float cosThetaT = sqrt(fmax(0.0f, 1 - sinThetaT*sinThetaT));
+
+		//    //Handle internal reflection
+		if (sinThetaT>1.0f)
+			return 1.f;
+		float r_parl = ((etaT * cosThetaI) - (etaI * cosThetaT)) /
+			((etaT * cosThetaI) + (etaI * cosThetaT)+FLT_EPSILON);
+		float r_perp = ((etaI * cosThetaI) - (etaT * cosThetaT)) /
+			((etaI * cosThetaI) + (etaT * cosThetaT)+FLT_EPSILON);
+		float result = (r_parl*r_parl + r_perp*r_perp) / 2;
+		return result;
 	}
 }
 
@@ -102,26 +174,59 @@ namespace BSDF {
 	__host__ __device__ glm::vec3 SpecularSample_f(const glm::vec3& wiW,const glm::vec3& normal, glm::vec3& woW,
 		float& pdf, thrust::default_random_engine &rng, const glm::vec3& mc) {
 		woW = glm::normalize(glm::reflect(wiW, normal));
-		pdf = SpecularPDF();
-		return mc;
+		pdf = 1.0;
+		float absCosTheta = fabs(glm::dot(normal, woW));
+		return mc/ absCosTheta;
 	}
+
 	__host__ __device__ float GlassPDF() {
 		return 0.0f;
 	}
-	__host__ __device__ glm::vec3 GlassBRDF(const glm::vec3) { 
-		return glm::vec3(); 
+
+	__host__ __device__ glm::vec3 GlassBTDF(const glm::vec3& wiW, glm::vec3 normal, glm::vec3& woW,
+		float& pdf, thrust::default_random_engine &rng, const glm::vec3& mc,float etat) {
+		thrust::uniform_real_distribution<float> u01(0, 1);
+		float cosThetaI=glm::dot(wiW, normal);
+		float etai=1.0f;
+		float fresnel;
+		glm::vec3 REFL_Dir, REFR_Dir;
+		if (cosThetaI > 0.f)
+		{
+			normal = -normal;
+			Global::swap(etai,etat);
+		}
+
+		REFL_Dir = glm::normalize(glm::reflect(wiW, normal));
+		REFR_Dir = glm::normalize(glm::refract(wiW, normal, etai / etat));
+		fresnel = Fresnel::Dielectric(fabs(cosThetaI), etai, etat);
+
+		float rn = u01(rng);
+		if (rn < fresnel || glm::length2(REFR_Dir) < FLT_EPSILON){ // deal with total internal reflection
+			woW = REFL_Dir;
+		}
+		else {
+			woW = REFR_Dir;
+		}
+			
+		pdf = 1;
+		return mc / fabs(cosThetaI);
 	}
 }
 
 
 
+
 __host__ __device__
 void scatterRay(
-		PathSegment & pathSegment,
-        glm::vec3 intersect,
-        glm::vec3 normal,
-        const Material &m,
-        thrust::default_random_engine &rng) {
+	PathSegment & pathSegment,
+	const Geom * geoms,
+	const Geom** dev_lights,
+	glm::vec3 intersect,
+	glm::vec3 normal,
+	glm::mat3 WorldToTangent,
+	glm::mat3 TangentToWorld,
+    const Material &m,
+    thrust::default_random_engine &rng) {
     // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
@@ -130,52 +235,25 @@ void scatterRay(
 	glm::vec3 f;
 	glm::vec3 wiW = pathSegment.ray.direction;
 	glm::vec3 woW;
+	glm::vec3 wi = WorldToTangent*wiW;
+
 	if (m.hasReflective) {
 		//pathSegment.ray.direction= glm::normalize(glm::reflect(pathSegment.ray.direction, normal));
 		f = BSDF::SpecularSample_f(wiW, normal, woW, pdf, rng, m.color);
-		pdf = 1;
+
 	}
-	//else if (m.hasRefractive) {
-	//	float fresnel;
-	//	float cosi, cost;
-	//	float etai, etat;
-	//	glm::vec3 reflectDir, refractDir;
-	//	glm::vec3 isecPt;
-
-	//	isecPt = pathSegment.ray.origin + intersection.t * pathSegment.ray.direction;
-	//	cosi = glm::dot(pathSegment.ray.direction, intersection.surfaceNormal);
-	//	etai = 1.f;
-	//	etat = material.indexOfRefraction;
-
-	//	if (cosi > 0.f)
-	//	{
-	//		MyUtilities::swap(etai, etat);
-	//		intersection.surfaceNormal = -intersection.surfaceNormal;
-	//	}
-
-	//	reflectDir = glm::normalize(glm::reflect(pathSegment.ray.direction, intersection.surfaceNormal));
-	//	refractDir = glm::normalize(glm::refract(pathSegment.ray.direction, intersection.surfaceNormal, etai / etat));
-	//	cost = glm::dot(refractDir, intersection.surfaceNormal);
-	//	fresnel = Fresnel::frDiel(fabs(cosi), etai, fabs(cost), etat);
-
-	//	float rn = u01(rng);
-	//	if (rn < fresnel || glm::length2(refractDir) < FLT_EPSILON) // deal with total internal reflection
-	//	{
-	//		pathSegments[idx].ray = { isecPt + 1e-4f * intersection.surfaceNormal, reflectDir };
-	//		pathSegments[idx].misWeight *= materialColor;
-	//	}
-	//	else
-	//	{
-	//		pathSegments[idx].ray = { isecPt - 1e-4f * intersection.surfaceNormal, refractDir };
-	//		pathSegments[idx].misWeight *= materialColor;
-	//	}
-	//}
+	else if (m.hasRefractive) {
+		f = BSDF::GlassBTDF(wiW, normal, woW,pdf, rng, m.color, m.indexOfRefraction);
+	}
 	else {
+		//Lambert Case
 		f = BSDF::LambertSample_f(normal, woW, pdf, rng, m.color);
+
 	}
 	pathSegment.ray.direction = woW;
 	pathSegment.ray.origin = intersect + pathSegment.ray.direction*pushoutTolerance;
-	pathSegment.color *= f * fmax(0.f, glm::dot(normal, pathSegment.ray.direction)) / (pdf + FLT_EPSILON);
+	//pathSegment.color *= m.color;
+	pathSegment.color *= f * fabs(glm::dot(normal, pathSegment.ray.direction)) / (pdf + FLT_EPSILON);
 	
 
 }
