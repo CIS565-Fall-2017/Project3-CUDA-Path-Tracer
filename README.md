@@ -12,10 +12,15 @@ CUDA Path Tracer
 project, and we will not be able to grade you without a good README.
 
 ### 1. Part 1 - Core Features
-Basic BSDF Feature. The Cornell box are Lambert material, and the sphere at the center is a mixture of both Lambert and perfect specular material, therefore it has some reflectivity and also roughness. 
+1. Basic BSDF Feature. 
+The Cornell box are Lambert material, and the sphere at the center is a mixture of both Lambert and perfect specular material, therefore it has some reflectivity and also roughness. 
+
+2. Contiguous in memory by material type
 
 ### 2. Part 2 - Own Features
 #### 1) Direct lighting
+
+
 #### 2) Realistic Camera Effect
 
 Uncomment
@@ -34,6 +39,6 @@ At the last of **generateRayFromCamera** kernel function, and rebuild the projec
 
 #### 3) Fresnel Dielectric
 To test Fresnel effect, please use the **glass.txt** in scene files. 
-This scene is basically the same as the Cornell box scene, however, the sphere at the center is a glass ball, which has reflection and refraction. The Fresnel implementation here is quite naive, it simply 
+This scene is basically the same as the Cornell box scene, however, the sphere at the center is a glass ball, which has reflection and refraction. The Fresnel implementation here is quite naive, it simply add up Fresnel specular 
 
 ### 3. Performance Analysis 
