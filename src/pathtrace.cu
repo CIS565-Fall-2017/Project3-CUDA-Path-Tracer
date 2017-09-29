@@ -20,7 +20,9 @@
 
 #define MATERIALS 0
 
-#define CACHEBOUNCE 1
+#define CACHEBOUNCE 0
+
+#define DOF 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -140,6 +142,7 @@ void pathtraceFree() {
     checkCUDAError("pathtraceFree");
 }
 
+
 /**
 * Generate PathSegments with rays from the camera through the screen into the
 * scene, which is the first bounce of rays.
@@ -163,17 +166,35 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		thrust::default_random_engine rng = makeSeededRandomEngine(iter, x, y);
 		thrust::uniform_real_distribution<float> u01(-0.5, 0.5);
 
-		//float xOffset = u01(rng);
-		//float yOffset = u01(rng);
+		float xOffset = u01(rng);
+		float yOffset = u01(rng);
 
-		float xOffset = 0;
-		float yOffset = 0;
-
-		// TODO: implement antialiasing by jittering the ray
 		segment.ray.direction = glm::normalize(cam.view
 			- cam.right * cam.pixelLength.x * ((float)x + xOffset - (float)cam.resolution.x * 0.5f)
 			- cam.up * cam.pixelLength.y * ((float)y + yOffset - (float)cam.resolution.y * 0.5f)
-			);
+		);
+
+
+#if DOF
+		float lensRadius = 1.0f;
+		float focalLength = 8.0f;
+		if (lensRadius > 0.0f) {
+			// Sample point on lens
+			thrust::uniform_real_distribution<float> u11(-1.0f, 1.0f);
+			thrust::uniform_real_distribution<float> u360(0.0f, TWO_PI);
+			float r = u11(rng);
+			float theta = u360(rng);
+			float lensU = lensRadius * r * cosf(theta);
+			float lensV = lensRadius * r * sinf(theta);
+
+			// Compute point on plane of focus
+			glm::vec3 pfocus = (segment.ray.direction) * focalLength + segment.ray.origin;
+
+			// Update ray for effect of lens
+			segment.ray.origin += cam.right*lensU + cam.up*lensV;
+			segment.ray.direction = glm::normalize(pfocus - segment.ray.origin);
+		}
+#endif
 
 		segment.pixelIndex = index;
 		segment.remainingBounces = traceDepth;
@@ -434,6 +455,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 			generateRayFromCamera << <blocksPerGrid2d, blockSize2d >> >(cam, iter, traceDepth, dev_first_paths);
 			checkCUDAError("generate camera ray");
 
+
 			// tracing
 			dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
 			computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
@@ -447,7 +469,6 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 			checkCUDAError("trace one bounce");
 		}
 		else {
-			//printf("num_paths before cached: %d\n", num_paths);
 			cudaMemcpy(dev_paths, dev_first_paths, sizeof(PathSegment)* num_paths, cudaMemcpyDeviceToDevice);
 			dev_path_end = dev_paths + pixelcount;
 		}
