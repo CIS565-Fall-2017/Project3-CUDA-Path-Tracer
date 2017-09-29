@@ -167,6 +167,8 @@ void scatterRay(
 		pathSegment.ray.origin = intersect;
 		// normal and newDirection should have been normalized 
 		// pathSegment.color *= (m.color * AbsDot(normal, newDirection));
+		//pathSegment.color *= normal;
+
 		pathSegment.color *= m.color;
 	}
 }

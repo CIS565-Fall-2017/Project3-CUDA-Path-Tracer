@@ -2,7 +2,7 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtx/intersect.hpp>
-
+#include <memory>
 #include "sceneStructs.h"
 #include "utilities.h"
 
@@ -46,7 +46,7 @@ __host__ __device__ glm::vec3 multiplyMV(glm::mat4 m, glm::vec4 v) {
  * @return                   Ray parameter `t` value. -1 if no intersection.
  */
 __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
-        glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) {
+        glm::vec3 &intersectionPoint, glm::vec2 &uv, glm::vec3 &normal, bool &outside) {
     Ray q;
     q.origin    =                multiplyMV(box.inverseTransform, glm::vec4(r.origin   , 1.0f));
     q.direction = glm::normalize(multiplyMV(box.inverseTransform, glm::vec4(r.direction, 0.0f)));
@@ -82,7 +82,55 @@ __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
             tmin_n = tmax_n;
             outside = false;
         }
-        intersectionPoint = multiplyMV(box.transform, glm::vec4(getPointOnRay(q, tmin), 1.0f));
+
+		glm::vec3 objspaceIntersection = getPointOnRay(q, tmin);
+
+		// UV
+		glm::vec3 abs = glm::min(glm::abs(objspaceIntersection), 0.5f);
+		glm::vec2 UV(0.0f);//Always offset lower-left corner
+		if (abs.x > abs.y && abs.x > abs.z)
+		{
+			UV = glm::vec2(objspaceIntersection.z + 0.5f, objspaceIntersection.y + 0.5f) / 3.0f;
+			//Left face
+			if (objspaceIntersection.x < 0)
+			{
+				UV += glm::vec2(0, 0.333f);
+			}
+			else
+			{
+				UV += glm::vec2(0, 0.667f);
+			}
+		}
+		else if (abs.y > abs.x && abs.y > abs.z)
+		{
+			UV = glm::vec2(objspaceIntersection.x + 0.5f, objspaceIntersection.z + 0.5f) / 3.0f;
+			//Left face
+			if (objspaceIntersection.y < 0)
+			{
+				UV += glm::vec2(0.333f, 0.333f);
+			}
+			else
+			{
+				UV += glm::vec2(0.333f, 0.667f);
+			}
+		}
+		else
+		{
+			UV = glm::vec2(objspaceIntersection.x + 0.5f, objspaceIntersection.y + 0.5f) / 3.0f;
+			//Left face
+			if (objspaceIntersection.z < 0)
+			{
+				UV += glm::vec2(0.667f, 0.333f);
+			}
+			else
+			{
+				UV += glm::vec2(0.667f, 0.667f);
+			}
+		}
+		uv = UV;
+
+
+        intersectionPoint = multiplyMV(box.transform, glm::vec4(objspaceIntersection, 1.0f));
         normal = glm::normalize(multiplyMV(box.transform, glm::vec4(tmin_n, 0.0f)));
         return glm::length(r.origin - intersectionPoint);
     }
@@ -100,7 +148,7 @@ __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
  * @return                   Ray parameter `t` value. -1 if no intersection.
  */
 __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
-        glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) {
+        glm::vec3 &intersectionPoint, glm::vec2 &uv, glm::vec3 &normal, bool &outside) {
     float radius = .5;
 
     glm::vec3 ro = multiplyMV(sphere.inverseTransform, glm::vec4(r.origin, 1.0f));
@@ -134,14 +182,127 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
 
     glm::vec3 objspaceIntersection = getPointOnRay(rt, t);
 
+	// UV
+	glm::vec3 p = glm::normalize(objspaceIntersection);
+	float phi = atan2f(p.z, p.x);
+	if (phi < 0)
+	{
+		phi += TWO_PI;
+	}
+	float theta = glm::acos(p.y);
+	uv = glm::vec2(1.0f - phi / TWO_PI, 1 - theta / PI);
+
     intersectionPoint = multiplyMV(sphere.transform, glm::vec4(objspaceIntersection, 1.f));
     normal = glm::normalize(multiplyMV(sphere.invTranspose, glm::vec4(objspaceIntersection, 0.f)));
+	//since we want to judge ray goes in or out of sphere,
+	//Don't want our normal reversed and it always points outside
     //if (!outside) {
     //    normal = -normal;
     //}
 
     return glm::length(r.origin - intersectionPoint);
 }
+
+/// Float approximate-equality comparison
+//template<typename T>
+//__host__ __device__ inline bool fequal(T a, T b, T epsilon = 0.0001) {
+//	if (a == b) {
+//		// Shortcut
+//		return true;
+//	}
+//
+//	const T diff = std::abs(a - b);
+//	if (a * b == 0) {
+//		// a or b or both are zero; relative error is not meaningful here
+//		return diff < (epsilon * epsilon);
+//	}
+//
+//	return diff / (std::abs(a) + std::abs(b)) < epsilon;
+//}
+//
+//__host__ __device__ bool TriangleIntersect(const Ray& r, const Triangle& tri, glm::vec3& baryPosition)
+//{
+//	glm::vec3 planeNormal = tri.normals[0];
+//	glm::vec3 points[3];
+//	points[0] = tri.vertices[0];
+//	points[1] = tri.vertices[1];
+//	points[2] = tri.vertices[2];
+//
+//
+//	//1. Ray-plane intersection
+//	float t = glm::dot(planeNormal, (points[0] - r.origin)) / glm::dot(planeNormal, r.direction);
+//	if (t < 0.f) return false;
+//
+//	glm::vec3 P = r.origin + t * r.direction;
+//	//2. Barycentric test
+//	float S = 0.5f * glm::length(glm::cross(points[0] - points[1], points[0] - points[2]));
+//	float s1 = 0.5f * glm::length(glm::cross(P - points[1], P - points[2])) / S;
+//	float s2 = 0.5f * glm::length(glm::cross(P - points[2], P - points[0])) / S;
+//	float s3 = 0.5f * glm::length(glm::cross(P - points[0], P - points[1])) / S;
+//	float sum = s1 + s2 + s3;
+//
+//	if (s1 >= 0.f && s1 <= 1.f && s2 >= 0.f && s2 <= 1.f && s3 >= 0.f && s3 <= 1.f && fequal(sum, 1.0f)) {
+//		baryPosition.x = s1 / S;
+//		baryPosition.y = s2 / S;
+//		baryPosition.z = t;
+//		return true;
+//	}
+//	return false;
+//}
+
+__host__ __device__ float meshIntersectionTest(Geom mesh, Triangle* tris, 
+	Ray r, glm::vec2 &uv, glm::vec3 &normal, bool &outside) {
+
+	float tMin = FLT_MAX;
+	int nearestTriIndex = -1;
+	glm::vec3 baryPosition(0.f);
+	glm::vec3 minBaryPosition(0.f);
+
+	int endIndex = mesh.meshTriangleEndIdx;
+
+
+	for(int i = mesh.meshTriangleStartIdx; i < endIndex; i++)
+	{	
+		// should be counter-clock wise
+		if (glm::intersectRayTriangle(r.origin, r.direction, 
+								      tris[i].vertices[0], tris[i].vertices[1], tris[i].vertices[2],
+									  baryPosition)) {
+			// Only consider triangls in the ray direction
+			// no triangels back!
+			if (baryPosition.z > 0.f && baryPosition.z < tMin) {
+				tMin = baryPosition.z;
+				minBaryPosition = baryPosition;
+				nearestTriIndex = i;
+			}
+		}
+
+		//if (TriangleIntersect(r_temp, thisTriangle, baryPosition)) {
+		//	if (baryPosition.z > 0.f && baryPosition.z < tMin) {
+		//		tMin = baryPosition.z;
+		//		minBaryPosition = baryPosition;
+		//		nearestTriIndex = i;
+		//	}
+		//}
+	}
+	
+	if (nearestTriIndex == -1) {
+		return -1;
+	}
+
+	// set uv and normal
+	Triangle nearestIntersectTri = tris[nearestTriIndex];
+
+	uv = nearestIntersectTri.uvs[0] * minBaryPosition.x +
+		nearestIntersectTri.uvs[1] * minBaryPosition.y +
+		nearestIntersectTri.uvs[2] * (1.0f - minBaryPosition.x - minBaryPosition.y);
+
+	normal = nearestIntersectTri.normals[0] * minBaryPosition.x +
+			nearestIntersectTri.normals[1] * minBaryPosition.y +
+			nearestIntersectTri.normals[2] * (1.0f - minBaryPosition.x - minBaryPosition.y);
+
+	return tMin;
+}
+
 
 
 __host__ __device__ inline float AbsDot(const glm::vec3 &a, const glm::vec3 &b)
@@ -161,7 +322,8 @@ __host__ __device__ inline bool Refract(const glm::vec3 &wi, const glm::vec3 &n,
 	glm::vec3 *wt) {
 	// Compute cos theta using Snell's law
 	float cosThetaI = glm::dot(n, wi);
-	float sin2ThetaI = std::max(float(0), float(1 - cosThetaI * cosThetaI));
+	//float sin2ThetaI = std::max(float(0), float(1 - cosThetaI * cosThetaI));
+	float sin2ThetaI = fmaxf (0.f, (1.0f - cosThetaI * cosThetaI));
 	float sin2ThetaT = eta * eta * sin2ThetaI;
 
 	// Handle total internal reflection for transmission

@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <cuda_runtime.h>
+#include <memory>
 #include "glm/glm.hpp"
 
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
@@ -10,6 +11,7 @@
 enum GeomType {
     SPHERE,
     CUBE,
+	MESH
 };
 
 struct Ray {
@@ -17,11 +19,15 @@ struct Ray {
     glm::vec3 direction;
 };
 
+struct Triangle {
+	glm::vec3 vertices[3];
+	glm::vec3 normals[3];
+	glm::vec2 uvs[3];
+};
+
 struct Geom {
     enum GeomType type;
     int materialid;
-
-	//int materialTypeID;
 
     glm::vec3 translation;
     glm::vec3 rotation;
@@ -29,6 +35,11 @@ struct Geom {
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+
+	//Only used in mesh case
+	//std::vector<std::shared_ptr<Triangle>> faces;
+	int meshTriangleStartIdx;
+	int meshTriangleEndIdx;
 };
 
 struct Material {
@@ -75,8 +86,8 @@ struct PathSegment {
 struct ShadeableIntersection {
   float t;
   glm::vec3 surfaceNormal;
+  glm::vec2 uv;
   int materialId;
-  //int materialTypeID;
 
   // Sort our pathSegments and related ShadeableIntersections by materialTypeID
   // Used in thrust::sort_by_key

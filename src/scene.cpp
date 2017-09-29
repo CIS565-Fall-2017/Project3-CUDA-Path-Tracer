@@ -4,10 +4,16 @@
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtx/string_cast.hpp>
 
+#include "tiny_obj_loader.h"
+#include <memory>
+
+string input_filename;
+
 Scene::Scene(string filename) {
     cout << "Reading scene from " << filename << " ..." << endl;
     cout << " " << endl;
-    char* fname = (char*)filename.c_str();
+	input_filename = filename;
+	char* fname = (char*)filename.c_str();
     fp_in.open(fname);
     if (!fp_in.is_open()) {
         cout << "Error reading from file - aborting!" << endl;
@@ -30,6 +36,7 @@ Scene::Scene(string filename) {
             }
         }
     }
+	fp_in.close();
 }
 
 int Scene::loadGeom(string objectid) {
@@ -41,6 +48,7 @@ int Scene::loadGeom(string objectid) {
         cout << "Loading Geom " << id << "..." << endl;
         Geom newGeom;
         string line;
+		bool isMesh = false;
 
         //load object type
         utilityCore::safeGetline(fp_in, line);
@@ -51,7 +59,11 @@ int Scene::loadGeom(string objectid) {
             } else if (strcmp(line.c_str(), "cube") == 0) {
                 cout << "Creating new cube..." << endl;
                 newGeom.type = CUBE;
-            }
+            } else if (strcmp(line.c_str(), "mesh") == 0) {
+				cout << "Creating new mesh..." << endl;
+				newGeom.type = MESH;
+				isMesh = true;
+			}
         }
 
         //link material
@@ -60,42 +72,54 @@ int Scene::loadGeom(string objectid) {
             vector<string> tokens = utilityCore::tokenizeString(line);
             newGeom.materialid = atoi(tokens[1].c_str());
             cout << "Connecting Geom " << objectid << " to Material " << newGeom.materialid << "..." << endl;
-
-			/*if (strcmp(tokens[2].c_str(), "Emissive") == 0) {
-				newGeom.materialTypeID = 0;
-				cout << "Emissive Material" << endl;
-			}
-			else if (strcmp(tokens[2].c_str(), "Lambert") == 0) {
-				newGeom.materialTypeID = 1;
-				cout << "Lambert Material" << endl;
-			}
-			else if (strcmp(tokens[2].c_str(), "Mirror") == 0) {
-				newGeom.materialTypeID = 2;
-				cout << "Mirror Material" << endl;
-			}*/
         }
 
         //load transformations
-        utilityCore::safeGetline(fp_in, line);
-        while (!line.empty() && fp_in.good()) {
-            vector<string> tokens = utilityCore::tokenizeString(line);
+		for(int i = 0; i < 3; i++)
+		{	
+			utilityCore::safeGetline(fp_in, line);
+			vector<string> tokens = utilityCore::tokenizeString(line);
 
-            //load tranformations
-            if (strcmp(tokens[0].c_str(), "TRANS") == 0) {
-                newGeom.translation = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
-            } else if (strcmp(tokens[0].c_str(), "ROTAT") == 0) {
-                newGeom.rotation = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
-            } else if (strcmp(tokens[0].c_str(), "SCALE") == 0) {
-                newGeom.scale = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
-            }
-
-            utilityCore::safeGetline(fp_in, line);
-        }
+			//load tranformations
+			if (strcmp(tokens[0].c_str(), "TRANS") == 0) {
+				newGeom.translation = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+			}
+			else if (strcmp(tokens[0].c_str(), "ROTAT") == 0) {
+				newGeom.rotation = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+			}
+			else if (strcmp(tokens[0].c_str(), "SCALE") == 0) {
+				newGeom.scale = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+			}
+		}
 
         newGeom.transform = utilityCore::buildTransformationMatrix(
                 newGeom.translation, newGeom.rotation, newGeom.scale);
         newGeom.inverseTransform = glm::inverse(newGeom.transform);
         newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
+
+
+		//load mesh obj
+		if (isMesh) {
+			int len = input_filename.length() - 1;
+			while (input_filename[len] != '/')
+			{
+				len--;
+			}
+			string local_path = input_filename.substr(0, len + 1);
+
+			// get obj file name
+			utilityCore::safeGetline(fp_in, line);
+			string objPath = local_path + line;
+			cout << "Obj file to open : " << objPath << endl;
+
+			loadObj(objPath, newGeom, newGeom.transform, newGeom.invTranspose);
+		}
+
+		// load extra empty lines
+		utilityCore::safeGetline(fp_in, line);
+		while (!line.empty() && fp_in.good()) {
+			utilityCore::safeGetline(fp_in, line);
+		}
 
         geoms.push_back(newGeom);
         return 1;
@@ -198,4 +222,63 @@ int Scene::loadMaterial(string materialid) {
         materials.push_back(newMaterial);
         return 1;
     }
+}
+
+void Scene::loadObj(string objPath, Geom& newGeom, const glm::mat4& transform, const glm::mat4& invTranspose) {
+	std::vector<tinyobj::shape_t> shapes; 
+	std::vector<tinyobj::material_t> materials;
+
+	std::string errors = tinyobj::LoadObj(shapes, materials, objPath.c_str());
+	std::cout << errors << std::endl;
+
+	if (errors.size() == 0)
+	{
+		//Read the information from the vector of shape_ts
+		newGeom.meshTriangleStartIdx = tris.size();
+
+		for (unsigned int i = 0; i < shapes.size(); i++)
+		{
+			std::vector<float> &positions = shapes[i].mesh.positions;
+			std::vector<float> &normals = shapes[i].mesh.normals;
+			std::vector<float> &uvs = shapes[i].mesh.texcoords;
+			std::vector<unsigned int> &indices = shapes[i].mesh.indices;
+			for (unsigned int j = 0; j < indices.size(); j += 3)
+			{
+				glm::vec3 p1 = glm::vec3(transform * glm::vec4(positions[indices[j] * 3], positions[indices[j] * 3 + 1], positions[indices[j] * 3 + 2], 1));
+				glm::vec3 p2 = glm::vec3(transform * glm::vec4(positions[indices[j + 1] * 3], positions[indices[j + 1] * 3 + 1], positions[indices[j + 1] * 3 + 2], 1));
+				glm::vec3 p3 = glm::vec3(transform * glm::vec4(positions[indices[j + 2] * 3], positions[indices[j + 2] * 3 + 1], positions[indices[j + 2] * 3 + 2], 1));
+
+				Triangle t;
+				t.vertices[0] = p1;
+				t.vertices[1] = p2;
+				t.vertices[2] = p3;
+
+				if (normals.size() > 0)
+				{
+					glm::vec4 n1 = invTranspose * glm::vec4(normals[indices[j] * 3], normals[indices[j] * 3 + 1], normals[indices[j] * 3 + 2], 0);
+					glm::vec4 n2 = invTranspose * glm::vec4(normals[indices[j + 1] * 3], normals[indices[j + 1] * 3 + 1], normals[indices[j + 1] * 3 + 2], 0);
+					glm::vec4 n3 = invTranspose * glm::vec4(normals[indices[j + 2] * 3], normals[indices[j + 2] * 3 + 1], normals[indices[j + 2] * 3 + 2], 0);
+					t.normals[0] = glm::vec3(n1);
+					t.normals[1] = glm::vec3(n2);
+					t.normals[2] = glm::vec3(n3);
+				}
+				if (uvs.size() > 0)
+				{
+					glm::vec2 t1(uvs[indices[j] * 2], uvs[indices[j] * 2 + 1]);
+					glm::vec2 t2(uvs[indices[j + 1] * 2], uvs[indices[j + 1] * 2 + 1]);
+					glm::vec2 t3(uvs[indices[j + 2] * 2], uvs[indices[j + 2] * 2 + 1]);
+					t.uvs[0] = t1;
+					t.uvs[1] = t2;
+					t.uvs[2] = t3;
+				}
+				tris.push_back(t);
+			}
+		}
+
+		newGeom.meshTriangleEndIdx = tris.size();
+	}
+	else
+	{
+		std::cout << errors << std::endl;
+	}
 }
