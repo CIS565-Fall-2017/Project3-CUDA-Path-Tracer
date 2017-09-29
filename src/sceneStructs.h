@@ -14,11 +14,6 @@ enum GeomType
 	TRIANGLE
 };
 
-enum LightType
-{
-	AREALIGHT
-};
-
 enum BxDFType {
 	BSDF_LAMBERT = 1 << 0,      // This BxDF represents diffuse energy scattering, which is uniformly random
 	BSDF_SPECULAR_BRDF = 1 << 1,     // This BxDF handles specular energy scattering, which has no element of randomness
@@ -43,22 +38,6 @@ struct Geom
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
-};
-
-struct Light
-{
-	//ONLY SUPPORTING SPHERE SHAPED LIGHTS
-	enum LightType type;
-	int lightGeomIndex; //indexes into geometry array for actual light geometry data --> this means I dont 
-						//have to change compute intersections nor do I have to maintain 2 copies of the same geometry data
-	//enum GeomType shape;
-	//int materialid;
-	//glm::vec3 translation;
-	//glm::vec3 rotation;
-	//glm::vec3 scale;
-	//glm::mat4 transform;
-	//glm::mat4 inverseTransform;
-	//glm::mat4 invTranspose;
 };
 
 struct Material 

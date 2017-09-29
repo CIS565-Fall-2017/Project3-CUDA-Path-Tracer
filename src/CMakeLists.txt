@@ -6,10 +6,7 @@ set(SOURCE_FILES
     "sampling.h"
     "lambert.h"
     "specular.h"
-    "areaLight.h"
-    "sampleShapes.h"
     "materialInteractions.h"
-    "lightInteractions.h"
     "intersections.h"
     "glslUtility.hpp"
     "glslUtility.cpp"
@@ -26,5 +23,5 @@ set(SOURCE_FILES
 
 cuda_add_library(src
     ${SOURCE_FILES}
-    OPTIONS -arch=sm_61
+    OPTIONS -arch=sm_20
     )

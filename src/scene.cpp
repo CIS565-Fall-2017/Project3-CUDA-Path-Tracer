@@ -4,31 +4,23 @@
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtx/string_cast.hpp>
 
-Scene::Scene(string filename) 
-{
+Scene::Scene(string filename) {
     cout << "Reading scene from " << filename << " ..." << endl;
     cout << " " << endl;
     char* fname = (char*)filename.c_str();
     fp_in.open(fname);
-    if (!fp_in.is_open()) 
-	{
+    if (!fp_in.is_open()) {
         cout << "Error reading from file - aborting!" << endl;
         throw;
     }
-    while (fp_in.good()) 
-	{
+    while (fp_in.good()) {
         string line;
         utilityCore::safeGetline(fp_in, line);
-        if (!line.empty()) 
-		{
+        if (!line.empty()) {
             vector<string> tokens = utilityCore::tokenizeString(line);
             if (strcmp(tokens[0].c_str(), "MATERIAL") == 0) {
                 loadMaterial(tokens[1]);
                 cout << " " << endl;
-			} else if (strcmp(tokens[0].c_str(), "LIGHT") == 0) {
-				//loading a light stores both a light and a geometry object
-				loadLight(tokens[1]);
-				cout << " " << endl;
             } else if (strcmp(tokens[0].c_str(), "OBJECT") == 0) {
                 loadGeom(tokens[1]);
                 cout << " " << endl;
@@ -40,103 +32,12 @@ Scene::Scene(string filename)
     }
 }
 
-int Scene::loadLight(string lightid)
-{
-	int id = atoi(lightid.c_str());
-	if (id != geoms.size())
-	{
-		cout << "ERROR: LIGHT ID does not match expected number of lights" << endl;
-		return -1;
-	}
-	else
-	{
-		cout << "Loading Light " << id << "..." << endl;
-		Light newLight;
-		Geom newGeom;
-		string line;
-
-		//load light type
-		utilityCore::safeGetline(fp_in, line);
-		if (!line.empty() && fp_in.good()) {
-			if (strcmp(line.c_str(), "areaLight") == 0) {
-				cout << "Creating new area light..." << endl;
-				newLight.type = AREALIGHT;
-			}
-		}
-
-		//load light shape
-		utilityCore::safeGetline(fp_in, line);
-		if (!line.empty() && fp_in.good()) {
-			if (strcmp(line.c_str(), "sphere") == 0) {
-				cout << "light shape: sphere..." << endl;
-				//newLight.shape = SPHERE;
-				newGeom.type = SPHERE;
-			}
-			else if (strcmp(line.c_str(), "cube") == 0) {
-				cout << "light shape: cube..." << endl;
-				//newLight.shape = CUBE;
-				newGeom.type = CUBE;
-			}
-		}
-
-		//link material
-		utilityCore::safeGetline(fp_in, line);
-		if (!line.empty() && fp_in.good()) {
-			vector<string> tokens = utilityCore::tokenizeString(line);
-			newGeom.materialid = atoi(tokens[1].c_str());
-			//newLight.materialid = newGeom.materialid;
-			cout << "Connecting Light " << lightid << " to Material " << newGeom.materialid << "..." << endl;
-		}
-
-		//load transformations
-		utilityCore::safeGetline(fp_in, line);
-		while (!line.empty() && fp_in.good()) 
-		{
-			vector<string> tokens = utilityCore::tokenizeString(line);
-
-			//load tranformations
-			if (strcmp(tokens[0].c_str(), "TRANS") == 0) {
-				newGeom.translation = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
-				//newLight.translation = newGeom.translation;
-			}
-			else if (strcmp(tokens[0].c_str(), "ROTAT") == 0) {
-				newGeom.rotation = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
-				//newLight.rotation = newGeom.rotation;
-			}
-			else if (strcmp(tokens[0].c_str(), "SCALE") == 0) {
-				newGeom.scale = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
-				//newLight.scale = newGeom.scale;
-			}
-
-			utilityCore::safeGetline(fp_in, line);
-		}
-
-		newGeom.transform = utilityCore::buildTransformationMatrix(newGeom.translation, newGeom.rotation, newGeom.scale);
-		//newLight.transform = newGeom.transform;
-		newGeom.inverseTransform = glm::inverse(newGeom.transform);
-		//newLight.inverseTransform = newGeom.inverseTransform;
-		newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
-		//newLight.invTranspose = newGeom.invTranspose;
-		
-		geoms.push_back(newGeom);
-		newLight.lightGeomIndex = geoms.size() - 1;
-
-		lights.push_back(newLight);
-		
-		return 1;
-	}
-}
-
-int Scene::loadGeom(string objectid) 
-{
+int Scene::loadGeom(string objectid) {
     int id = atoi(objectid.c_str());
-    if (id != geoms.size()) 
-	{
+    if (id != geoms.size()) {
         cout << "ERROR: OBJECT ID does not match expected number of geoms" << endl;
         return -1;
-    } 
-	else 
-	{
+    } else {
         cout << "Loading Geom " << id << "..." << endl;
         Geom newGeom;
         string line;

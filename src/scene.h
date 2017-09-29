@@ -14,7 +14,6 @@ class Scene {
 private:
     ifstream fp_in;
     int loadMaterial(string materialid);
-	int loadLight(string objectid);
     int loadGeom(string objectid);
     int loadCamera();
 public:
@@ -22,7 +21,6 @@ public:
     ~Scene();
 
     std::vector<Geom> geoms;
-	std::vector<Light> lights;
     std::vector<Material> materials;
     RenderState state;
 };
