@@ -134,7 +134,9 @@ void runCuda() {
 
         // execute the kernel
         int frame = 0;
-        pathtrace(pbo_dptr, frame, iteration);
+		//Additional parameter:
+		//4th bool: cache first intersection
+        pathtrace(pbo_dptr, frame, iteration, false, false, -5, 0.1, false);
 
         // unmap buffer object
         cudaGLUnmapBufferObject(pbo);
