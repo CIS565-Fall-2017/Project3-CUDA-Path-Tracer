@@ -4,6 +4,7 @@
 #include <thrust/execution_policy.h>
 #include <thrust/random.h>
 #include <thrust/remove.h>
+#include <thrust/device_vector.h>
 
 #include "sceneStructs.h"
 #include "scene.h"
@@ -77,6 +78,8 @@ static Geom * dev_geoms = NULL;
 static Material * dev_materials = NULL;
 static PathSegment * dev_paths = NULL;
 static ShadeableIntersection * dev_intersections = NULL;
+static PathSegment* dev_finalSeg = NULL;
+//static bool* streamFlag = NULL;
 static int* compactSteamsIn= NULL;
 // TODO: static variables for device memory, any extra info you need, etc
 // ...
@@ -90,6 +93,7 @@ void pathtraceInit(Scene *scene) {
     cudaMemset(dev_image, 0, pixelcount * sizeof(glm::vec3));
 
   	cudaMalloc(&dev_paths, pixelcount * sizeof(PathSegment));
+	cudaMalloc(&dev_finalSeg, pixelcount * sizeof(PathSegment));
 
   	cudaMalloc(&dev_geoms, scene->geoms.size() * sizeof(Geom));
   	cudaMemcpy(dev_geoms, scene->geoms.data(), scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
@@ -103,7 +107,7 @@ void pathtraceInit(Scene *scene) {
     // TODO: initialize any extra device memeory you need
 
 	cudaMalloc(&compactSteamsIn, pixelcount * sizeof(int));
-
+	//cudaMalloc(&streamFlag, sizeof(bool)*pixelcount);
 
     checkCUDAError("pathtraceInit");
 }
@@ -116,8 +120,9 @@ void pathtraceFree() {
   	cudaFree(dev_intersections);
     // TODO: clean up any extra device memory you created
 
+	cudaFree(dev_finalSeg);
 	cudaFree(compactSteamsIn);
-
+	//cudaFree(streamFlag);
     checkCUDAError("pathtraceFree");
 }
 
@@ -243,6 +248,11 @@ __global__ void computeIntersections(
 			}
 		}
 
+		//if ((geoms[hit_geom_index].materialid!=0)&&(pathSegment.remainingBounces == 0))
+		//{
+		//	return;
+		//}
+
 		if (hit_geom_index == -1)
 		{
 			intersections[path_index].t = -1.0f;
@@ -268,43 +278,46 @@ __global__ void shadeMaterial(
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-	//if (glm::length(pathSegments[idx].color - glm::vec3(0.f)) <= FLT_EPSILON)
-	//{
-	//	pathSegments[idx].remainingBounces = 0;
-	//	return;
-	//}
-
 	if (idx < num_paths)
 	{
-		int bounceDepth = depth - pathSegments[idx].remainingBounces;
-		ShadeableIntersection intersection = shadeableIntersections[idx];
-		if (intersection.t > 0.0f) { // if the intersection exists...
-									 // Set up the RNG
-									 // LOOK: this is how you use thrust's RNG! Please look at
-									 // makeSeededRandomEngine as well.
-			thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, bounceDepth);
-			thrust::uniform_real_distribution<float> u01(0, 1);
-
-			Material material = materials[intersection.materialId];
-			glm::vec3 materialColor = material.color;
-
-			// If the material indicates that the object was a light, "light" the ray
-			if (material.emittance > 0.0f) {
-				pathSegments[idx].color *= (materialColor * material.emittance);
-				pathSegments[idx].remainingBounces = 0;
-			}
-			else {
-				glm::vec3 lastIntersectionPoint = pathSegments[idx].ray.origin;
-				glm::vec3 lastIntersectionDir = pathSegments[idx].ray.direction;
-				glm::vec3 intersectionPoint = lastIntersectionPoint + lastIntersectionDir*intersection.t;
-				scatterRay(pathSegments[idx], intersectionPoint, intersection.surfaceNormal, material, rng);
-				pathSegments[idx].remainingBounces--;
-			}
+	    if ((pathSegments[idx].remainingBounces == 0) && (materials[shadeableIntersections[idx].materialId].emittance == 0.f))
+		{
+			pathSegments[idx].color = glm::vec3(0.f);
+			//return;
+		}
+		else if((pathSegments[idx].remainingBounces == 0) &&(materials[shadeableIntersections[idx].materialId].emittance >= 0.f)){
+			return;
 		}
 		else {
-			pathSegments[idx].color = glm::vec3(0.0f);
-			pathSegments[idx].remainingBounces = 0;
-		}
+			int bounceDepth = depth - pathSegments[idx].remainingBounces;
+			ShadeableIntersection intersection = shadeableIntersections[idx];
+			if (intersection.t > 0.0f) { // if the intersection exists...
+
+				thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, bounceDepth);
+				thrust::uniform_real_distribution<float> u01(0, 1);
+
+				Material materialS = materials[intersection.materialId];
+				glm::vec3 materialColor = materialS.color;
+
+				// If the material indicates that the object was a light, "light" the ray
+				if (materialS.emittance > 0.0f) {
+					pathSegments[idx].color *= (materialColor * materialS.emittance);
+					pathSegments[idx].remainingBounces = 0;
+				}
+				else {
+
+					glm::vec3 lastIntersectionPoint = pathSegments[idx].ray.origin;
+					glm::vec3 lastIntersectionDir = pathSegments[idx].ray.direction;
+					glm::vec3 intersectionPoint = lastIntersectionPoint + lastIntersectionDir*intersection.t;
+					scatterRay(pathSegments[idx], intersectionPoint, intersection.surfaceNormal, materialS, rng);
+					//pathSegments[idx].remainingBounces--;
+				}
+			}
+			else {
+				pathSegments[idx].color = glm::vec3(0.0f);
+				pathSegments[idx].remainingBounces = 0;
+			}
+		}		
 	}
 }
 
@@ -384,9 +397,7 @@ __global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterati
 	if (index < nPaths)
 	{
 		PathSegment iterationPath = iterationPaths[index];
-		//glm::vec3 colorToShow = Clamp(iterationPath.color, 0.f, 1.f);
-		glm::vec3 colorToShow = glm::clamp(iterationPath.color, 0.f, 2.f);
-		image[iterationPath.pixelIndex] += colorToShow;
+		image[iterationPath.pixelIndex] += iterationPath.color;
 	}
 }
 
@@ -523,18 +534,46 @@ __global__ void DirectLightingIntegrator(
 					
 				}
 			}
-
 		}
 		else
 		{
 			pathSegment.color = glm::vec3(0.f);
-			
-		}
+					
+		}	
 		pathSegment.remainingBounces = 0;
 	}	
 }
 
+__global__ void StreamLeft(bool* steamFlag, PathSegment* pathsegments, int processLeft)
+{
+	int index = (blockIdx.x * blockDim.x) + threadIdx.x;
 
+	if (index < processLeft)
+	{
+		PathSegment pathSeg = pathsegments[index];
+		if (pathSeg.remainingBounces <= 0)
+		{
+			steamFlag[index] = false;
+		}
+		else
+		{
+			steamFlag[index] = true;
+		}
+	}
+}
+
+__global__ void TerminateColor(PathSegment* pathSegments, PathSegment* finalSegment,int pixelCount)
+{
+	int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+
+	if (index < pixelCount)
+	{
+		if (pathSegments[index].remainingBounces == 0)
+		{
+			finalSegment[index] = pathSegments[index];
+		}
+	}
+}
 /**
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
  * of memory management
@@ -554,9 +593,13 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	const int blockSize1d = 128;
 	const int blocksPerGrid1d = (pixelcount + blockSize1d - 1) / blockSize1d;
 
+
+	//TODO steam compaction new arrays 
 	int* steamCompactionOut;
 	steamCompactionOut = (int*)malloc(sizeof(int)*pixelcount);
 	int *newEnd = NULL;
+	
+	int processLeft = pixelcount;
 
     ///////////////////////////////////////////////////////////////////////////
 
@@ -603,11 +646,10 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
   bool iterationComplete = false;
   dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
   int traceSize = num_paths;
-	while (!iterationComplete) {
 
+	while (!iterationComplete) {
 	// clean shading chunks
 	cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
-
 	// tracing
 	dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
 	computeIntersections <<<numblocksPathSegmentTracing, blockSize1d>>> (
@@ -621,7 +663,6 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	checkCUDAError("trace one bounce");
 	cudaDeviceSynchronize();
 	depth++;
-
 
 	// TODO:
 	// --- Shading Stage ---
@@ -643,52 +684,69 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	//**************************************************Naive Integrator**********************************************
 	//TODO
 	//Naive path tracing integrator
-	//shadeMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
-	//	iter,
-	//	num_paths,
-	//	dev_intersections,
-	//	dev_paths,
-	//	dev_materials,
-	//	traceDepth);
+	shadeMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
+		iter,
+		num_paths,
+		dev_intersections,
+		dev_paths,
+		dev_materials,
+		traceDepth);
 
-  //BouncesLeft << <blocksPerGrid1d, blockSize1d >> > (dev_paths, compactSteamsIn, pixelcount);
-  //cudaMemcpy(steamCompactionOut, compactSteamsIn, sizeof(int)*pixelcount, cudaMemcpyDeviceToHost);
+	TerminateColor << <blocksPerGrid1d, blockSize1d >> > (dev_paths, dev_finalSeg, pixelcount);
 
-  //newEnd = thrust::remove(steamCompactionOut, steamCompactionOut + pixelcount, 0);
-  //
-  //traceSize = newEnd - steamCompactionOut;
+    BouncesLeft << <blocksPerGrid1d, blockSize1d >> > (dev_paths, compactSteamsIn, processLeft);
+    cudaMemcpy(steamCompactionOut, compactSteamsIn, sizeof(int)*pixelcount, cudaMemcpyDeviceToHost);
 
-  //if (newEnd == steamCompactionOut)
-  //{
-	 // iterationComplete = true; // TODO: should be based off stream compaction results.
-  //}
+    newEnd = thrust::remove(steamCompactionOut, steamCompactionOut + num_paths, 0);
+  
+    traceSize = newEnd - steamCompactionOut;
+
+    if (newEnd == steamCompactionOut)
+    {
+    	  iterationComplete = true; // TODO: should be based off stream compaction results.
+    }
+
+ /* if (depth == 4)
+  {
+	  iterationComplete = true;
+  }*/
+
+  
+
+	//StreamLeft << <blocksPerGrid1d, blockSize1d >> > (streamFlag, dev_paths, processLeft);
+	//thrust::device_ptr<bool> boolFlag(streamFlag);
+	//thrust::device_ptr<PathSegment> pathDev(dev_paths);
+	//thrust::remove_if(pathDev, pathDev + processLeft, boolFlag, thrust::logical_not<bool>());
+	//processLeft = thrust::count_if(boolFlag, boolFlag + processLeft, thrust::identity<bool>());
 
 	//**************************************End of naive integrator *****************************************************
-
 
 	//**************************************Direct lighting***************************************************************
   //TODO
   //direct lighting path tracing integrator 
-	DirectLightingIntegrator << <numblocksPathSegmentTracing, blockSize1d >> >
-		(iter,
-			num_paths,
-			dev_intersections,
-			dev_paths,
-			dev_materials,
-			dev_geoms,
-			1,
-			traceDepth,
-			hst_scene->geoms.size());
+	//DirectLightingIntegrator << <numblocksPathSegmentTracing, blockSize1d >> >
+	//	(iter,
+	//		num_paths,
+	//		dev_intersections,
+	//		dev_paths,
+	//		dev_materials,
+	//		dev_geoms,
+	//		1,
+	//		traceDepth,
+	//		hst_scene->geoms.size());
 
-	iterationComplete = true;
+	//iterationComplete = true;
 	//****************************************End of direct lighting 
   
 	}
 
 	free(steamCompactionOut);
+	//free(newEnd);
+
+
   // Assemble this iteration and apply it to the image
-  /*dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;*/
-	finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
+    
+	finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_finalSeg);
 
     ///////////////////////////////////////////////////////////////////////////
 

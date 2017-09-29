@@ -231,77 +231,83 @@ void scatterRay(
     // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
-	if (pathSegment.remainingBounces <= 0)
+	int pixelNumber = pathSegment.pixelIndex;
+
+	pathSegment.remainingBounces--;
+	if (pathSegment.remainingBounces < 0)
 	{
 		pathSegment.color = glm::vec3(0.f);
-		return;
 	}
-	//terminate the black rays	
-
-	thrust::uniform_real_distribution<float> u01(0, 1);
-	
-	glm::vec3 newRayDir;
-	glm::vec3 lastRayDir = pathSegment.ray.direction;
-	glm::vec3 finalColor(0.0f);
-	glm::vec3 lastColor = pathSegment.color;
-
-	//lambert
-	if ((m.hasReflective==0.f)&&(m.hasRefractive==0.f))
-	{
-		newRayDir = calculateRandomDirectionInHemisphere(normal, rng);
-		finalColor = m.color*pathSegment.color;
-	}
-	//FresnelDielectric
-	else if((m.hasReflective>0.f)&&(m.hasRefractive>0.f))
-	{
-		float etaI = (float)m.hasReflective;
-		float etaT = (float)m.hasRefractive;
-		float cosThetaI = abs(glm::dot(normal, lastRayDir)) / glm::length(normal);
-		float randomResult = u01(rng);
-
-		if (randomResult >= 0.5)
-		{
-			newRayDir = glm::reflect(pathSegment.ray.direction, normal);
-			finalColor = m.color + lastColor * m.specular.color*Evaluate(cosThetaI, etaI, etaT)*glm::vec3(0.1f);
-		}
-		else
-		{			
-			if (Refract(lastRayDir, normal, etaI / etaT, &newRayDir))
-			{
-				finalColor = m.color + lastColor*m.specular.color*(glm::vec3(1.f) - Evaluate(cosThetaI, etaI, etaT))*glm::vec3(0.9f);
-			}
-		}
-	}
-	//perfect specular
-	else if (m.specular.exponent==1.0f)
-	{
-		newRayDir = glm::reflect(pathSegment.ray.direction, normal);
-		finalColor = pathSegment.color * m.specular.color;
-
-	}
-	//other situations 
 	else
 	{
-		float randomResult = u01(rng);
+		//terminate the black rays	
+
+		thrust::uniform_real_distribution<float> u01(0, 1);
+
+		glm::vec3 newRayDir;
+		glm::vec3 lastRayDir = pathSegment.ray.direction;
+		glm::vec3 finalColor(0.0f);
+		glm::vec3 lastColor = pathSegment.color;
 
 		//lambert
-		if (randomResult >= 0.5)
+		if ((m.hasReflective == 0.f) && (m.hasRefractive == 0.f))
 		{
 			newRayDir = calculateRandomDirectionInHemisphere(normal, rng);
-
-			finalColor = m.color*pathSegment.color*glm::vec3(0.7f);
+			finalColor = m.color*pathSegment.color;
+			//finalColor = glm::vec3(1.0f, 0.0, 0.0);
 		}
-		//specular
-		else
+		//FresnelDielectric
+		else if((m.hasReflective>0.f)&&(m.hasRefractive>0.f))
+		{
+		    float etaI = (float)m.hasReflective;
+		    float etaT = (float)m.hasRefractive;
+		    float cosThetaI = abs(glm::dot(normal, lastRayDir)) / glm::length(normal);
+		    float randomResult = u01(rng);
+
+		    if (randomResult >= 0.5)
+		    {
+		        newRayDir = glm::reflect(pathSegment.ray.direction, normal);
+		        finalColor = m.color + lastColor * m.specular.color*Evaluate(cosThetaI, etaI, etaT)*glm::vec3(0.1f);
+		    }
+		    else
+		    {
+		        if (Refract(lastRayDir, normal, etaI / etaT, &newRayDir))
+		        {
+		              finalColor = m.color + lastColor*m.specular.color*(glm::vec3(1.f) - Evaluate(cosThetaI, etaI, etaT))*glm::vec3(0.9f);
+		        }
+		    }
+		}
+		//perfect specular
+		else if (m.specular.exponent == 1.0f)
 		{
 			newRayDir = glm::reflect(pathSegment.ray.direction, normal);
-			finalColor = pathSegment.color * m.specular.color*glm::vec3(0.3f);
+			finalColor = pathSegment.color * m.specular.color;
+
 		}
+		//other situations 
+		else
+		{
+			float randomResult = u01(rng);
+
+			//lambert
+			if (randomResult >= 0.5)
+			{
+				newRayDir = calculateRandomDirectionInHemisphere(normal, rng);
+
+				finalColor = m.color*pathSegment.color*glm::vec3(0.7f);
+			}
+			//specular
+			else
+			{
+				newRayDir = glm::reflect(pathSegment.ray.direction, normal);
+				finalColor = pathSegment.color * m.specular.color*glm::vec3(0.3f);
+			}
+		}
+
+		//pathSegment.color = glm::clamp(finalColor, 0.f, 1.f);
+		pathSegment.color = finalColor;
+		pathSegment.ray.origin = intersect + newRayDir*0.001f;
+		pathSegment.ray.direction = newRayDir;
 	}
-
-	//pathSegment.color = glm::clamp(finalColor, 0.f, 1.f);
-	pathSegment.color = finalColor;
-	pathSegment.ray.origin = intersect + newRayDir*0.001f;
-	pathSegment.ray.direction = newRayDir;
-
+	
 }
