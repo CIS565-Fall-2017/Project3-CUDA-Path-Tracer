@@ -19,15 +19,41 @@ Tested on GeForce GTX 1070
 * right mouse button on the vertical axis to zoom in/out
 * middle mouse button to move the LOOKAT point in the scene's X/Z plane
 
-### Features
+### Path Tracing Features
 
 #### Materials
 
 ##### Ideal Diffuse
 
+![](img/diffse.png)
+
 ##### Perfectly Specular-reflective
 
-##### Textures
+![](img/specular.png)
+
+#### Arbitrary Mesh Loading
+
+| Naive | Anti-aliasing |  Anti-aliasing | 
+| ------------- | ----------- | ----------- |
+| ![](img/mesh1.png) | ![](img/mesh2.png) | ![](img/mesh3.png) |
+
+![](img/numtris_perf.png)
+
+#### Depth-of-Field
+
+| f = 30, r = 5 | f = 30, r = 5 | f = 30, r = 5 | 
+| ------------- | ----------- | ----------- |
+| ![](img/depth1.png) | ![](img/depth2.png) | ![](img/depth3.png) |
+
+#### Antialiasing
+
+| Naive | Anti-aliasing | 
+| ------------- | ----------- |
+| ![](img/naive.png) | ![](img/antialias.png) |
+
+### Optimizations
+
+![](img/perf.png)
 
 #### Ray Termination
 
@@ -35,8 +61,4 @@ Tested on GeForce GTX 1070
 
 #### Cache first bounce intersection
 
-#### Arbitrary Mesh Loading
-
-#### Depth-of-Field
-
-#### Antialiasing
+#### Shared Memory Stream Compaction
