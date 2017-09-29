@@ -7,7 +7,8 @@
 
 struct OctreeNodeGPU {
 	int parentIdx;
-	int childStart;
+	int childStartIdx;
+	int childEndIdx; // will prune empty nodes, therefore any number between 0, 8 on GPU
 	int eltStartIdx;
 	int eltEndIdx;
 	int depth;
@@ -24,6 +25,8 @@ typedef struct OctreeNodeCPU {
 	std::vector<OctreeNodeCPU*> children = std::vector<OctreeNodeCPU*>();
 } OctreeNodeCPU;
 
+void treeDeleteCPUNodes(OctreeNodeCPU* node);
+
 class OctreeBuilder {
 private:
 	int numNodes;
@@ -32,6 +35,8 @@ private:
 	glm::vec3 minXYZ;
 	glm::vec3 maxXYZ;
 	bool valid;
+
+	
 public:
 	// check if the geometry does not fit into a partition 
 	bool overDivision(OctreeNodeCPU* node, AxisBoundingBox abb);
@@ -52,8 +57,23 @@ public:
 		valid = false;
 	}
 
-	void buildFromScene(Scene* scene);
+	~OctreeBuilder() {
+		if (root) {
+			treeDeleteCPUNodes(root);
+		}	
+	}
+	
+	void clearCPUData() {
+		if (root) {
+			treeDeleteCPUNodes(root);
+		}
+	}
 
-	// once the tree is built, make parallel arrays for GPU usage
-	OctreeNodeGPU* convertCPUToGPU(int** octreeOrderedGeomIdx, int* numNodes);
+	void buildFromScene(Scene* scene);
+	// the data structure in 1d for GPU traversal
+	std::vector<OctreeNodeGPU> allGPUNodes;
+	// mesh indices in the same order as containing octree nodes
+	std::vector<int> octreeOrderGeomIDX;
+
+	void buildGPUfromCPU();
 };

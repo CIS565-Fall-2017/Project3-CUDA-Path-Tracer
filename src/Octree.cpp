@@ -3,14 +3,14 @@
 AxisBoundingBox geomBoundingBox(Geom g) {
 	AxisBoundingBox abb;
 	std::vector<glm::vec4> cubePts;
-	cubePts.push_back(g.transform * glm::vec4(0.5, 0.5, 0.5, 1.0));
-	cubePts.push_back(g.transform * glm::vec4(0.5, 0.5, -0.5, 1.0));
-	cubePts.push_back(g.transform * glm::vec4(0.5, -0.5, 0.5, 1.0));
-	cubePts.push_back(g.transform * glm::vec4(0.5, -0.5, -0.5, 1.0));
-	cubePts.push_back(g.transform * glm::vec4(-0.5, 0.5, 0.5, 1.0));
-	cubePts.push_back(g.transform * glm::vec4(-0.5, 0.5, -0.5, 1.0));
-	cubePts.push_back(g.transform * glm::vec4(-0.5, -0.5, 0.5, 1.0));
-	cubePts.push_back(g.transform * glm::vec4(-0.5, -0.5, -0.5, 1.0));
+	cubePts.push_back(g.transform * glm::vec4(0.5f, 0.5f, 0.5f, 1.0f));
+	cubePts.push_back(g.transform * glm::vec4(0.5f, 0.5f, -0.5f, 1.0f));
+	cubePts.push_back(g.transform * glm::vec4(0.5f, -0.5f, 0.5f, 1.0f));
+	cubePts.push_back(g.transform * glm::vec4(0.5f, -0.5f, -0.5f, 1.0f));
+	cubePts.push_back(g.transform * glm::vec4(-0.5f, 0.5f, 0.5f, 1.0f));
+	cubePts.push_back(g.transform * glm::vec4(-0.5f, 0.5f, -0.5f, 1.0f));
+	cubePts.push_back(g.transform * glm::vec4(-0.5f, -0.5f, 0.5f, 1.0f));
+	cubePts.push_back(g.transform * glm::vec4(-0.5f, -0.5f, -0.5f, 1.0f));
 	glm::vec3 minimums = glm::vec3(FLT_MAX);
 	glm::vec3 maximums = glm::vec3(FLT_MIN);
 	for (int i = 0; i < 8; i++) {
@@ -25,6 +25,17 @@ AxisBoundingBox geomBoundingBox(Geom g) {
 	abb.minXYZ = minimums;
 	abb.maxXYZ = maximums;
 	return abb;
+}
+
+void treeDeleteCPUNodes(OctreeNodeCPU* node) {
+	if (node == NULL) return;
+
+	for (int i = 0; i < node->children.size(); i++) {
+		treeDeleteCPUNodes(node->children[i]);
+		node->children[i] = NULL;
+	}
+	
+	delete node;
 }
 
 // Given a bounding box, check if it does not fit into an octant.
@@ -57,12 +68,6 @@ void OctreeBuilder::splitNode(OctreeNodeCPU* node, Scene* scene) {
 	if (node->depth + 1 > maxDepth) {
 		// must limit size for traversal on GPU.
 		return;
-	}
-	if (node->children.size()) {
-		return; // should never happen
-	}
-	if (node->eltIndices.size()) {
-		return; // should never happen
 	}
 
 	// check if any contained geometry can actually go inside an octant
@@ -152,7 +157,7 @@ void OctreeBuilder::buildFromScene(Scene* scene) {
 	// iterate through all bounding boxes. determine whether to assign to an existing node or split it
 	for (int i = 0; i < scene->geomBounds.size(); i++) {
 		OctreeNodeCPU* current = root;
-		bool cannotFit = false;
+
 		// traverse existing nodes until cannot fit into octant, or found a leaf
 		while (current->children.size() > 0) {
 			if (overDivision(current, scene->geomBounds[i])) {
@@ -173,4 +178,68 @@ void OctreeBuilder::buildFromScene(Scene* scene) {
 			splitNode(current, scene);
 		}
 	}
+
+	valid = true;
+}
+
+void addNodeTo1D(OctreeNodeCPU* node, std::vector<OctreeNodeGPU> &nodes, std::vector<int> &idx, int nodeIdx) {
+
+
+	if (node->eltIndices.size() > 0) {
+		// if it has elements, add their indices to the list
+		nodes[nodeIdx].eltStartIdx = idx.size();
+		for (int i = 0; i < node->eltIndices.size(); i++) idx.push_back(node->eltIndices[i]);
+		nodes[nodeIdx].eltEndIdx = idx.size();
+	}
+	else {
+		nodes[nodeIdx].eltStartIdx = -1;
+		nodes[nodeIdx].eltEndIdx = -1;
+	}
+
+	if (node->children.size() > 0) {
+		// add all non-empty children to list
+		nodes[nodeIdx].childStartIdx = nodes.size();
+
+		std::vector<OctreeNodeCPU*> active = std::vector<OctreeNodeCPU*>();
+
+		for (int i = 0; i < node->children.size(); i++) {
+			// sparse: prune nodes with nothing in them
+			if (node->children[i]->children.size() > 0 || node->children[i]->eltIndices.size() > 0) {
+				active.push_back(node->children[i]);
+				OctreeNodeGPU child = OctreeNodeGPU();
+				child.center = node->children[i]->center;
+				child.depth = node->children[i]->depth;
+				child.parentIdx = nodeIdx;
+				nodes.push_back(child);
+			}
+		}
+
+		nodes[nodeIdx].childEndIdx = nodes.size();
+
+		// recurse
+		for (int i = nodes[nodeIdx].childStartIdx; i < nodes[nodeIdx].childEndIdx; i++) {
+			addNodeTo1D(active[i - nodes[nodeIdx].childStartIdx], nodes, idx, i);
+		}
+	}
+	else {
+		nodes[nodeIdx].childStartIdx = -1;
+		nodes[nodeIdx].childEndIdx = -1;
+	}
+	
+}
+
+void OctreeBuilder::buildGPUfromCPU() {
+	if (!valid) return;
+	if (root == NULL) return;
+
+	allGPUNodes = std::vector<OctreeNodeGPU>();
+	octreeOrderGeomIDX = std::vector<int>();
+
+	// make the root node and start recursive insertion
+	OctreeNodeGPU rootGPU = OctreeNodeGPU();
+	rootGPU.center = root->center;
+	rootGPU.depth = 0;
+	rootGPU.parentIdx = -1;
+
+	addNodeTo1D(root, allGPUNodes, octreeOrderGeomIDX, 0);
 }
