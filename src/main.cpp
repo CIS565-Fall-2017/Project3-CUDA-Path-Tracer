@@ -22,6 +22,7 @@ glm::vec3 ogLookAt; // for recentering the camera
 Scene *scene;
 RenderState *renderState;
 int iteration;
+float iterTime;
 
 int width;
 int height;
@@ -45,6 +46,7 @@ int main(int argc, char** argv) {
 
     // Set up camera stuff from loaded path tracer settings
     iteration = 0;
+	iterTime = 0.f;
     renderState = &scene->state;
     Camera &cam = renderState->camera;
     width = cam.resolution.x;
@@ -134,7 +136,7 @@ void runCuda() {
 
         // execute the kernel
         int frame = 0;
-        pathtrace(pbo_dptr, frame, iteration);
+        iterTime = pathtrace(pbo_dptr, frame, iteration);
 
         // unmap buffer object
         cudaGLUnmapBufferObject(pbo);

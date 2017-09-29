@@ -27,9 +27,13 @@ Tested on GeForce GTX 1070
 
 ##### Perfectly Specular-reflective
 
-##### Transmissive
+##### Textures
 
-#### Sorted Rays
+#### Ray Termination
+
+#### Sorted Materials
+
+#### Cache first bounce intersection
 
 #### Arbitrary Mesh Loading
 
