@@ -7,6 +7,10 @@ CUDA Path Tracer
 * Tested on: Windows 10, i7-6700HQ @ 2.60GHz 8GB, GTX 960M 4096MB (Personal Laptop)
 
 ### Yuxin Hu
+* Extra Feature Depth of Field
+![Cornell Box With Depth Of Field 5000 samples](/img/cornell.depthOfField.5000samp.png)
+  <p align="center"><b>Cornell Box With Depth Of Field 5000 samples</b></p>
+  
 * Debugging Process
   * Error 1. Insufficient Space Allocation for Stream Compaction boolean and indice arrays
   ![Insufficient Space Allocation for Stream Compaction](/img/cornell.debug.InsufficientStreamCompactionSpace.50samp.png)
