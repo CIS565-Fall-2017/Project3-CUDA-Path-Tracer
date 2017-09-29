@@ -90,35 +90,6 @@ void scatterRay(
 			float eta = pathSegment.outside ? 1.0f / m.indexOfRefraction : m.indexOfRefraction;
 			ray.direction = glm::normalize(glm::refract(ray.direction, normal, eta));
 		}
-			//pathSegment.outside = false;
-			//pathSegment.outside = true;
-			//printf("HERE\n");
-		/*float n1 = 1.0f, n2 = 1.5f;
-		pathSegment.ray.origin = intersect;
-		float cosTheta = glm::dot(pathSegment.ray.direction, normal); // function "sphereIntersectionTest" has been modified and the normal is always pointing from inside to outside
-		float eta;
-		glm::vec3 realNormal;
-		if (cosTheta > 0.0f) // glass to air
-		{
-			realNormal = -normal;
-			eta = n2 / n1;
-		}
-		else // air to glass
-		{
-			realNormal = normal;
-			eta = n1 / n2;
-			cosTheta = -cosTheta; // ensure cos to be positive
-		}
-		thrust::uniform_real_distribution<float> u01(0, 1);
-		if (u01(rng) < (n2 - n1) / (n2 + n1) * (n2 - n1) / (n2 + n1) + (1 - (n2 - n1) / (n2 + n1) * (n2 - n1) / (n2 + n1)) * pow(1 - cosTheta, 5))
-		{
-			pathSegment.ray.direction = -2 * glm::dot(pathSegment.ray.direction, realNormal) * realNormal + pathSegment.ray.direction;
-		}
-		else
-		{
-			pathSegment.ray.direction = glm::refract(pathSegment.ray.direction, realNormal, eta);
-		}*/
-		//printf("REFRACTIVE\n");
 	}
 	else {
 		if (probability > 0.5f) {
@@ -133,3 +104,26 @@ void scatterRay(
 
 
 }
+
+__host__ __device__
+void scatterRayDirectLighting(
+	PathSegment & pathSegment,
+	glm::vec3 intersect,
+	glm::vec3 normal,
+	const Material &m,
+	const Geom &light,
+	thrust::default_random_engine &rng) {
+	thrust::uniform_real_distribution<float> rx(-1, 1);
+	thrust::uniform_real_distribution<float> ry(-1, 1);
+	thrust::uniform_real_distribution<float> rz(-1, 1);
+
+	glm::vec3 sample = glm::vec3(rx(rng), ry(rng), rz(rng));
+	sample = multiplyMV(light.transform, glm::vec4(sample, 1.0f));
+	Ray& ray = pathSegment.ray;
+	ray.direction = glm::normalize(sample - intersect);
+	pathSegment.color *= m.color * glm::clamp(glm::dot(ray.direction, normal), 0.0f, 1.0f);
+	ray.origin = (glm::dot(ray.direction, normal) > 0) ? 0.05f * ray.direction + intersect : 0.05f * -ray.direction + intersect;
+
+
+}
+

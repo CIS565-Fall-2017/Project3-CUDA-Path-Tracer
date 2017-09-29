@@ -94,6 +94,7 @@ static int * dev_materialIds2 = NULL;
 
 #if DIRECTLIGHTING
 static Geom * dev_lights = NULL;
+int num_Lights;
 #endif
 
 static float lensRadius = 0.5f;
@@ -136,6 +137,7 @@ void pathtraceInit(Scene *scene) {
 #if DIRECTLIGHTING
 	cudaMalloc(&dev_lights, scene->lights.size() * sizeof(Geom));
 	cudaMemcpy(dev_lights, scene->lights.data(), scene->lights.size() * sizeof(Geom), cudaMemcpyHostToDevice);
+	num_Lights = scene->lights.size();
 #endif
 
 }
@@ -390,6 +392,69 @@ __global__ void pathTraceBasic(int iter, int num_paths,
 	}
 }
 
+__global__ void pathTraceWithDirectLighting(int iter, int num_paths,
+	ShadeableIntersection *shadeableIntersections,
+	PathSegment *pathSegments,
+	Material *materials,
+	Geom *lights,
+	int numLights,
+	float directLightingCoeff) {
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (idx < num_paths)
+	{
+		PathSegment& pathSegment = pathSegments[idx];
+		ShadeableIntersection intersection = shadeableIntersections[idx];
+		if (intersection.t > 0.0f) { // if the intersection exists...
+									 // Set up the RNG
+									 // LOOK: this is how you use thrust's RNG! Please look at
+									 // makeSeededRandomEngine as well.
+			thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
+			thrust::uniform_real_distribution<float> u01(0, 1);
+
+			Material material = materials[intersection.materialId];
+			glm::vec3 materialColor = material.color;
+
+			// If the material indicates that the object was a light, "light" the ray
+			if (material.emittance > 0.0f) {
+				pathSegment.color *= (materialColor * material.emittance);
+				pathSegment.remainingBounces = 0;
+			}
+			else {
+				//scatter the ray
+				if (pathSegment.remainingBounces == 1) {
+					pathSegment.color = glm::vec3(0.0f);
+					pathSegment.remainingBounces = 0;
+					return;
+				}
+				if (u01(rng) < directLightingCoeff) {
+					int lightIndex = (int) floorf((float) numLights * u01(rng));
+					scatterRayDirectLighting(
+						pathSegment,
+						pathSegment.ray.origin + pathSegment.ray.direction * intersection.t,
+						intersection.surfaceNormal,
+						material,
+						lights[lightIndex],
+						rng
+					);
+					pathSegment.remainingBounces--;
+				}
+				else {
+					scatterRay(pathSegment,
+						pathSegment.ray.origin + pathSegment.ray.direction * intersection.t,
+						intersection.surfaceNormal,
+						material,
+						rng);
+					pathSegment.remainingBounces--;
+				}
+			}
+		}
+		else {
+			pathSegment.color = glm::vec3(0.0f);
+			pathSegment.remainingBounces = 0;
+		}
+	}
+}
+
 // Add the current iteration's output to the overall image
 __global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterationPaths)
 {
@@ -502,8 +567,6 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
 #if DIRECTLIGHTING
 	float dirLight = 1.0f;
-#else
-	float dirLight = 0.0f;
 #endif
 
 
@@ -588,6 +651,18 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	thrust::sort_by_key(dev_thrust_materialIds2, dev_thrust_materialIds2 + numPathsActive, dev_thrust_intersections);
 #endif
 
+#if DIRECTLIGHTING
+	pathTraceWithDirectLighting << <numblocksPathSegmentTracing, blockSize1d >> > (
+		iter,
+		numPathsActive,
+		dev_intersections,
+		dev_paths,
+		dev_materials,
+		dev_lights,
+		num_Lights,
+		dirLight
+		);
+#else
   pathTraceBasic<<<numblocksPathSegmentTracing, blockSize1d>>> (
     iter,
     numPathsActive,
@@ -595,6 +670,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
     dev_paths,
     dev_materials
   );
+#endif
   //Stream Compaction
   //Compact dev_paths
 
