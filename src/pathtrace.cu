@@ -17,8 +17,11 @@
 #include "../stream_compaction/efficient.h"
 
 #define ERRORCHECK 1
-#define FIRSTBOUNCE 1
+#define FIRSTBOUNCE 0
 #define SORTBYMATERIAL 0
+#define DEPTHOFFIELD 1
+
+#define CUDART_PI_F 3.141592654f
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -88,6 +91,9 @@ static int * dev_materialIds1 = NULL;
 static int * dev_materialIds2 = NULL;
 #endif
 
+static float lensRadius = 0.5f;
+static float focalDistance = 3.5f;
+
 void pathtraceInit(Scene *scene) {
     hst_scene = scene;
     const Camera &cam = hst_scene->state.camera;
@@ -149,7 +155,8 @@ void pathtraceFree() {
 * motion blur - jitter rays "in time"
 * lens effect - jitter ray origin positions based on a lens
 */
-__global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, PathSegment* pathSegments)
+__global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, PathSegment* pathSegments,
+	float focalDistance, float lensRadius)
 {
 	int x = (blockIdx.x * blockDim.x) + threadIdx.x;
 	int y = (blockIdx.y * blockDim.y) + threadIdx.y;
@@ -157,6 +164,8 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 	if (x < cam.resolution.x && y < cam.resolution.y) {
 		int index = x + (y * cam.resolution.x);
 		PathSegment & segment = pathSegments[index];
+
+
 
 		segment.ray.origin = cam.position;
     segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
@@ -166,7 +175,28 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 			- cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
 			- cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
 			);
+#if DEPTHOFFIELD
+		//generate two random numbers u and v 
+		thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
+		thrust::uniform_real_distribution<float> u01(0, 1);
+		thrust::uniform_real_distribution<float> v01(0, 1);
+		
+		//use u and v along with the lensradius to determine a new segment origin
+		float radius = lensRadius * u01(rng);
+		float theta = CUDART_PI_F * 2.0f * v01(rng);
 
+		float x = radius * cosf(theta);
+		float y = radius * sinf(theta);
+		
+		//determine where the ray would intersect the focal plane normally
+		glm::vec3 focalPoint = segment.ray.origin + (focalDistance / (glm::dot(segment.ray.direction, cam.view) / glm::length(cam.view))) * segment.ray.direction;
+
+		
+		//make the ray originate from the new origin and pass through the point on the focal plane
+		segment.ray.origin += x * cam.right + y * cam.up;
+		segment.ray.direction = glm::normalize(focalPoint - segment.ray.origin);
+
+#endif
 		segment.pixelIndex = index;
 		segment.remainingBounces = traceDepth;
 		segment.outside = true;
@@ -444,7 +474,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
     // TODO: perform one iteration of path tracing
 
-	generateRayFromCamera <<<blocksPerGrid2d, blockSize2d >>>(cam, iter, traceDepth, dev_paths);
+	generateRayFromCamera <<<blocksPerGrid2d, blockSize2d >>>(cam, iter, traceDepth, dev_paths, focalDistance, lensRadius);
 	checkCUDAError("generate camera ray");
 
 	int depth = 0;

@@ -80,9 +80,16 @@ void scatterRay(
 	float probability = (m.hasReflective > 0) ? u01(rng) : 1.0f;
 	Ray& ray = pathSegment.ray;
 	if (m.hasRefractive > 0) {
-		float eta = pathSegment.outside ? 1.0f / m.indexOfRefraction : m.indexOfRefraction;
-
-		ray.direction = glm::normalize(glm::refract(ray.direction, normal, eta));
+		float cosTheta = glm::dot(glm::normalize(-pathSegment.ray.direction), normal);
+		float fresnelCoeff = ((1.0f - m.indexOfRefraction) / (1.0f + m.indexOfRefraction)) * ((1.0f - m.indexOfRefraction) / (1.0f + m.indexOfRefraction));
+		fresnelCoeff = fresnelCoeff + (1.0f - fresnelCoeff) * powf(1.0f - cosTheta, 5.0f);
+		if (probability < fresnelCoeff) {
+			ray.direction = glm::reflect(ray.direction, normal);
+		}
+		else {
+			float eta = pathSegment.outside ? 1.0f / m.indexOfRefraction : m.indexOfRefraction;
+			ray.direction = glm::normalize(glm::refract(ray.direction, normal, eta));
+		}
 			//pathSegment.outside = false;
 			//pathSegment.outside = true;
 			//printf("HERE\n");
@@ -119,11 +126,10 @@ void scatterRay(
 		}
 		else {
 			ray.direction = glm::reflect(ray.direction, normal);
-			//printf("reflect\n");
 		}
 	}
 	pathSegment.color *= m.color;// *glm::clamp(glm::abs(glm::dot(ray.direction, normal)), 0.0f, 1.0f);
-	ray.origin = 0.2f * ray.direction + intersect;	
+	ray.origin = 0.05f * ray.direction + intersect;	
 
 
 }
