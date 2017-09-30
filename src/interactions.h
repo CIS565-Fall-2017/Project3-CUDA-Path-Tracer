@@ -49,22 +49,63 @@ __host__ __device__ void directLightingIntegrator(PathSegment & pathSegment,
 												thrust::default_random_engine &rng)
 {
 	// Update the ray and color associated with the pathSegment
+	Vector3f intersectionPoint = intersection.intersectPoint;
+	Vector3f normal = intersection.surfaceNormal;
+
 	Vector3f wo = pathSegment.ray.direction;
 	Vector3f wi = glm::vec3(0.0f);
-	Vector3f sampledColor = pathSegment.color;
-	Vector3f normal = intersection.surfaceNormal;
 	float pdf = 0.0f;
+	Vector2f xi;
 
-	sampleMaterials(sceneObjMat, wo, normal, sampledColor, wi, pdf, rng);
+	Vector3f sampledLightColor;
+	Vector3f f = pathSegment.color;
 
-	if (pdf != 0.0f)
+	//Assuming the scene has atleast one light
+	thrust::uniform_real_distribution<float> u01(0, 1);
+	
+	//int randomLightIndex = glm::min((int)std::floor(u01(rng)*numLights), numLights - 1);
+	int randomLightIndex = 1;
+	//printf("light index: %d", randomLightIndex);
+	Light selectedLight = lights[randomLightIndex];
+	Geom lightGeom = geoms[selectedLight.lightGeomIndex];
+	Material lightMaterial = materials[lightGeom.materialid];
+
+	//Sample Light
+	xi = Vector2f(u01(rng), u01(rng));
+	sampledLightColor =  sampleLights(lightMaterial, normal, wi, xi, pdf, intersectionPoint, lightGeom);
+	//if (pdf == 0.0f)
+	//{
+	//	pathSegment.color = Color3f(0.f);
+	//	pathSegment.remainingBounces = 0;
+	//	return;
+	//}
+	//else
+	//{
+	//	pdf /= numLights;
+	//}
+	
+
+	//calculate f, and only sets pdf to zero if the material has no bsdf
+	sampleMaterialsForColor(sceneObjMat, wo, normal, f, wi, pdf, rng);
+
+	if (pdf == 0.0f)
 	{
-		float absdot = glm::abs(glm::dot(wi, intersection.surfaceNormal));
-		pathSegment.color *= sampledColor*absdot / pdf;
+		pathSegment.color = Color3f(0.f);
 	}
 
-	pathSegment.ray = spawnNewRay(intersection, wi);
-	pathSegment.remainingBounces--;
+	//float absdot = glm::abs(glm::dot(wi, intersection.surfaceNormal));
+	pathSegment.color = f *sampledLightColor;// / pdf;// *absdot;
+
+	//visibility test
+	ShadeableIntersection isx;
+	computeIntersectionsWithSelectedObject(pathSegment, geoms, geom_size, isx);
+	
+	if (isx.t < 0.0f && materials[isx.materialId].emittance <= EPSILON) // if the shadow feeler ray doesnt hit the sample light then color the pathSegment black
+	{
+		pathSegment.color = Color3f(0.f);
+	}
+
+	pathSegment.remainingBounces = 0;
 }
 
 /*
