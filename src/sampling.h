@@ -3,7 +3,7 @@
 #include "intersections.h"
 
 //Computes a cosine-weighted random direction in a hemisphere around the provided surface normal
-__host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(glm::vec3 normal, thrust::default_random_engine &rng) 
+__host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(const glm::vec3 normal, thrust::default_random_engine &rng) 
 {
     thrust::uniform_real_distribution<float> u01(0, 1);
 
@@ -41,7 +41,7 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(glm::vec3 nor
         + sin(around) * over * perpendicularDirection2;
 }
 
-__host__ __device__ Point3f sampling_SquareToSphereUniform(Point2f &sample)
+__host__ __device__ Point3f sampling_SquareToSphereUniform(const Point2f &sample)
 {
 	float z = 1 - 2 * sample[0];
 	float r = std::sqrt(std::max(0.0f, 1.0f - z*z));
@@ -49,7 +49,7 @@ __host__ __device__ Point3f sampling_SquareToSphereUniform(Point2f &sample)
 	return Point3f(r*std::cos(phi), r* std::sin(phi), z);
 }
 
-__host__ __device__ Point3f sampling_SquareToDiskConcentric(Point2f &sample)
+__host__ __device__ Point3f sampling_SquareToDiskConcentric(const Point2f &sample)
 {
 	glm::vec2 sampleOffset = 2.0f*sample - glm::vec2(1, 1);
 	if (sampleOffset.x == 0 && sampleOffset.y == 0)
@@ -69,16 +69,4 @@ __host__ __device__ Point3f sampling_SquareToDiskConcentric(Point2f &sample)
 		theta = (PI / 2.0f) - (PI / 4.0f) * (sampleOffset.x / sampleOffset.y);
 	}
 	return r*Point3f(std::cos(theta), std::sin(theta), 0.0f);
-}
-
-//http://corysimon.github.io/articles/uniformdistn-on-sphere/
-__host__ __device__ Color3f SphereSample(const Point2f &sample)
-{
-	float theta = 2.f * PI * sample[0];
-	float phi = glm::acos(1.f - 2.f * sample[1]);
-	float x = glm::sin(phi) * glm::cos(theta);
-	float y = glm::sin(phi) * glm::sin(theta);
-	float z = glm::cos(phi);
-
-	return glm::vec3(x, y, z);
 }
