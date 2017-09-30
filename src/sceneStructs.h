@@ -51,14 +51,6 @@ struct Light
 	enum LightType type;
 	int lightGeomIndex; //indexes into geometry array for actual light geometry data --> this means I dont 
 						//have to change compute intersections nor do I have to maintain 2 copies of the same geometry data
-	//enum GeomType shape;
-	//int materialid;
-	//glm::vec3 translation;
-	//glm::vec3 rotation;
-	//glm::vec3 scale;
-	//glm::mat4 transform;
-	//glm::mat4 inverseTransform;
-	//glm::mat4 invTranspose;
 };
 
 struct Material 

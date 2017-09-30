@@ -97,7 +97,6 @@ int Scene::loadLight(string lightid)
 		{
 			vector<string> tokens = utilityCore::tokenizeString(line);
 			newGeom.materialid = atoi(tokens[1].c_str());
-			//newLight.materialid = newGeom.materialid;
 			cout << "Connecting Light " << lightid << " to Material " << newGeom.materialid << "..." << endl;
 		}
 
@@ -111,28 +110,22 @@ int Scene::loadLight(string lightid)
 			if (strcmp(tokens[0].c_str(), "TRANS") == 0) 
 			{
 				newGeom.translation = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
-				//newLight.translation = newGeom.translation;
 			}
 			else if (strcmp(tokens[0].c_str(), "ROTAT") == 0) 
 			{
 				newGeom.rotation = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
-				//newLight.rotation = newGeom.rotation;
 			}
 			else if (strcmp(tokens[0].c_str(), "SCALE") == 0) 
 			{
 				newGeom.scale = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
-				//newLight.scale = newGeom.scale;
 			}
 
 			utilityCore::safeGetline(fp_in, line);
 		}
 
 		newGeom.transform = utilityCore::buildTransformationMatrix(newGeom.translation, newGeom.rotation, newGeom.scale);
-		//newLight.transform = newGeom.transform;
 		newGeom.inverseTransform = glm::inverse(newGeom.transform);
-		//newLight.inverseTransform = newGeom.inverseTransform;
 		newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
-		//newLight.invTranspose = newGeom.invTranspose;
 
 		geoms.push_back(newGeom);
 		newLight.lightGeomIndex = geoms.size() - 1;

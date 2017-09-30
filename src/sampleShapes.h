@@ -2,7 +2,7 @@
 
 #include "sampling.h"
 
-__host__ __device__ ShadeableIntersection sampleSphere(const Vector2f &xi, float& pdf, const Geom& geom, float& area)
+__host__ __device__ ShadeableIntersection sampleSphere(Vector2f &xi, float& pdf, Geom& geom, float& area)
 {
 	glm::vec4 pObj = glm::vec4(sampling_SquareToSphereUniform(xi), 0.0f); //used to calculate normal
 

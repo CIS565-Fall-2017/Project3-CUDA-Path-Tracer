@@ -2,7 +2,7 @@
 
 #include "sampleShapes.h"
 
-__host__ __device__ Color3f sampleLights(const Material &m, Vector3f& normal, Vector3f& wi,
+__host__ __device__ Color3f sampleLights(Material &m, Vector3f& normal, Vector3f& wi,
 										Vector2f &xi, float& pdf, Vector3f& refPoint, Geom& geom)
 {
 	//ONLY SUPPORTING SPHERE LIGHTS

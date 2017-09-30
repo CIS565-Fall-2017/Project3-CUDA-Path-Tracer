@@ -1,11 +1,14 @@
 #pragma once
 
+#include <thrust/execution_policy.h>
+#include <thrust/random.h>
+#include <thrust/remove.h>
 #include "intersections.h"
 #include "sampling.h"
 #include "materialInteractions.h"
 #include "lightInteractions.h"
 
-__host__ __device__ Ray spawnNewRay(const ShadeableIntersection& intersection, Vector3f& wiW)
+__host__ __device__ Ray spawnNewRay(ShadeableIntersection& intersection, Vector3f& wiW)
 {
 	Vector3f originOffset = intersection.surfaceNormal * EPSILON;
 	// Make sure to flip the direction of the offset so it's in the same general direction as the ray direction
@@ -18,8 +21,8 @@ __host__ __device__ Ray spawnNewRay(const ShadeableIntersection& intersection, V
 }
 
 __host__ __device__ void naiveIntegrator(PathSegment & pathSegment,
-										 const ShadeableIntersection& intersection,
-										 const Material &m,
+										 ShadeableIntersection& intersection,
+										 Material &m,
 										 thrust::default_random_engine &rng)
 {
 	// Update the ray and color associated with the pathSegment
@@ -42,10 +45,10 @@ __host__ __device__ void naiveIntegrator(PathSegment & pathSegment,
 }
 
 __host__ __device__ void directLightingIntegrator(PathSegment & pathSegment,
-												  const ShadeableIntersection& intersection,
-												  const Material &m,
-												  const Geom* geoms, const int num_paths,
-												  const int &numLights, const Light * lights,
+												  ShadeableIntersection& intersection,
+												  Material* materials, Material &m,
+												  Geom* geoms, int num_paths,
+												  Light * lights, int &numLights,
 												  thrust::default_random_engine &rng)
 {
 	// Update the ray and color associated with the pathSegment
@@ -63,62 +66,8 @@ __host__ __device__ void directLightingIntegrator(PathSegment & pathSegment,
 	int randomLightIndex = std::min((int)std::floor(u01(rng)*numLights), numLights - 1);
 	Light selectedLight = lights[randomLightIndex];
 	Geom lightGeom = geoms[selectedLight.lightGeomIndex];
+	Material lightMat = materials[lightGeom.materialid];
+
+	pathSegment.color = lightMat.color*lightMat.emittance;
+	pathSegment.remainingBounces = 0;
 }
-
-/*
-Full Lighting
-
-DirectLighting
-BSDFBasedDirectLighting
-MIS
-IndirectBSDFLighting
-UpdateRayDirection
-
-//----------------------- Indirect Lighting (Global Illumination) -----
-Vector3f wiW_BSDF_Indirect;
-float pdf_BSDF_Indirect;
-Point2f xi_BSDF_Indirect = sampler->Get2D();
-
-if( depth == recursionLimit  || flag_CameFromSpecular )
-{
-	directLightingColor += intersection.Le(woW);
-}
-
-flag_CameFromSpecular = false;
-if(flag_Hit_Specular) //if( (sampledType & BSDF_SPECULAR) == BSDF_SPECULAR )
-{
-	flag_CameFromSpecular = true;
-}
-
-directLightingColor *= accumulatedThroughputColor;  //for only BSDFIndirectLighting, assume directLighting is 1,1,1
-
-if(!flag_NoBSDF)
-{
-	//f term
-	Color3f f_BSDF_Indirect = intersection.bsdf->Sample_f(woW, &wiW_BSDF_Indirect, xi_BSDF_Indirect,
-	&pdf_BSDF_Indirect, BSDF_ALL, &sampledType);
-
-	if(pdf_BSDF_Indirect != 0.0f)
-	{
-		//No Li term per se, this is accounted for via accumulatedThroughputColor
-
-		//absDot Term
-		float absDot_BSDF_Indirect = AbsDot(wiW_BSDF_Indirect, intersection.normalGeometric);
-
-		//LTE term
-		accumulatedThroughputColor *= f_BSDF_Indirect * absDot_BSDF_Indirect / pdf_BSDF_Indirect;
-	}
-}
-
-flag_Terminate = RussianRoulette(accumulatedThroughputColor, probability, depth); //can change accumulatedThroughput
-accumulatedRayColor += directLightingColor;
-
-Ray n_ray_BSDF_Indirect = intersection.SpawnRay(wiW_BSDF_Indirect);
-woW = -n_ray_BSDF_Indirect.direction;
-r = n_ray_BSDF_Indirect;
-depth--;
-}
-
-return accumulatedRayColor;
-
-*/
