@@ -15,9 +15,11 @@ project, and we will not be able to grade you without a good README.
 1. Basic BSDF Feature. 
 The Cornell box are Lambert material, and the sphere at the center is a mixture of both Lambert and perfect specular material, therefore it has some reflectivity and also roughness. 
 
-![enter image description here](https://lh3.googleusercontent.com/-tYVKqM7jvi4/Wc7LZJnGBBI/AAAAAAAAA5E/Skbteim31eQbtPE3FSw5uFR9KEzztZ5xgCLcBGAs/s0/cornell.2017-09-29_22-34-04z.617samp.png "cornell.2017-09-29_22-34-04z.617samp.png")
+After 5000 iterations:
+![enter image description here](https://lh3.googleusercontent.com/-i2Wx3KM3VGc/Wc8ElRgYFCI/AAAAAAAAA6s/RT3osXf1LLc67gfhvPe51cIgmMRUZL38gCLcBGAs/s0/cornell.2017-09-30_02-37-01z.5000samp.png "cornell.2017-09-30_02-37-01z.5000samp.png")
 
-![enter image description here](https://lh3.googleusercontent.com/-YVjj1UlUcaA/Wc7Lpx1oxaI/AAAAAAAAA5M/8MFP7rN4P6AhjNNM2LNS44PKJwWUrbBhgCLcBGAs/s0/cornell.2017-09-29_22-33-18z.219samp.png "cornell.2017-09-29_22-33-18z.219samp.png")
+A specular and Lambert mixture sphere at the center, after 500 iterations:
+![enter image description here](https://lh3.googleusercontent.com/-zhM-jUWEfnE/Wc8GCnjUv-I/AAAAAAAAA68/FGqjPM4225c88tWV9qbfbIynRMweThMWgCLcBGAs/s0/cornell.2017-09-30_02-42-46z.5000samp.png "cornell.2017-09-30_02-42-46z.5000samp.png")
 
 2. Contiguous in memory by material type
 
