@@ -14,19 +14,22 @@ For a detailed overiew of the path tracing techniques see the book Physcially-Ba
 http://www.pbrt.org/
 
 **Highlights**<br />
-    Below are some are some renders using multiple importance sampling and and naive path tracing(no direct light sampling). Notice the noise rection due to direct light importance sampling in the 100 samples per pixel image. 
+    Below are some are some renders using multiple importance sampling and and naive path tracing. Notice the noise rection due to direct light multiple importance sampling in the 100 samples per pixel image. 
 <br />
+* Compaction
 <br />
     The compaction optimization was not much of an optimization given that it did not reduce the render time per pixel sample. Reasons for this could be the sorting overhead. I tried to increase the pixel count to 1000x1000 image and did not see the compaction fuctions catching up to no compaction version. The warp retiring benefits we get from removing the dead paths does not outway the overhead from removing them in the first place.
 <br />
+* First Bounce Caching
 <br />
     Of three optimizations that were performed, first bounce caching was the only one that provided any performance improvement. Across several depth termination settings it provided a constant savings of roughly 2ms. This is the amount of time it takes to determine the first itersection from the camera. 
 <br />
+* Material Sorting
 <br />
-    Material sorting was much worse than not sorting at all. This is likely due to the overhead of sorting path segments by material type. Also, the purported benefits of sorting paths by material type was that if one type of material had many instructions to complete compared to other materials then you would get some performance benefit by only taking that code path for the warp. However, these performance benefits are only realized if the intersections per material are mutiples of 32, allowing the warps to execute one material code path. This is highly unlikely. It is far more likely they are not multiples of 32 and some warps must stride 2 or more materials. This negates the benefits of sorting becuase in order for the next kernel call to start executing, it must wait around for these kinds of mixed material warps to finish. The only way I could see this working with existing code is separating the uber shader up by material and kicking off each kernel in its own stream.
+    Material sorting was much worse than not sorting at all. This is likely due to the overhead of sorting not being greater than the savings. The purported benefits of sorting paths by material type was that if one type of material had many instructions to complete compared to other materials then you would get some performance benefit by only taking that code path for the warp. However, these performance benefits are only realized if the intersections per material are mutiples of 32, allowing the warps to execute only one material code path. This is highly unlikely. It is far more likely that they are not multiples of 32 and some warps must stride 2 or more materials. This negates the benefits of sorting becuase in order for the next kernel call to start executing, it must wait around for these kinds of mixed material warps to finish. The only way I could see this working with existing code is calling the uber shader for each material (and only on the array bounds of the material) and kicking off each kernel in its own stream to allow async kernel execution (so that the next material specific uber shader kernel call doesn't have to wait for the previous to finish before it starts running). 
 <br />
 <br />
-    The reasons are as follows: the uber kernel should take C + sum(Mi) instructions to complete where C is some constant instruction overhead for all the material types and Mi is the number of instructions it takes to execute a specific material shading code path for material i. The separated kernel approach with different kernel streams per material should only take C + max(Mi) where max Mi is the longest material code path. A savings of sum(Mi) - max(Mi). If this is not more than the cost to sort then there no reason to sort.
+    The reasons are as follows: for unsorted paths, the uber kernel should take C + sum(Mi) instructions to complete where C is some constant instruction overhead for all the material types and Mi is the number of instructions it takes to execute a specific material shading code path for material i. The material separated kernel call approach with different kernel streams per material should only take C + max(Mi) where max Mi is the longest material code path. A savings of sum(Mi) - max(Mi). If they are not separated into streams it would be a penalty of C(n-1) where n is the number of material types that have been hit this bounce. If the savings is not more than the cost to sort then there no reason to sort.
 <br />
 <br />
 
@@ -41,6 +44,11 @@ http://www.pbrt.org/
 **MIS VS Naive**<br />
 **800x800 100spp**<br/>
 ![](img/cornellMISvsNAIVE100.png)
+
+**MIS with just diffuse**<br />
+**800x800 5000spp**<br />
+![](img/cornellMIS5000.png)
+
 
 **Data**<br />
 ![](img/data.png)

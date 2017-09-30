@@ -21,12 +21,12 @@
 #include "stream_compaction\sharedandbank.h" 
 #include "stream_compaction\radix.h" 
 
-#define ERRORCHECK 1
-#define COMPACT 0 //0 NONE, 1 THRUST, 2 CUSTOM //0 1 2 for NAIVE and MIS: //NAIVE: 57.1, 140.7, 88.7 //MIS: 113.7, 153.6, 98.2
-#define PT_TECHNIQUE 1 //0 NAIVE, 1 MIS //WITH OPTIMAL SETTINGS NAIVE 55.2 vs MIS: 112.3
-#define FIRSTBOUNCECACHING 0//without vs with: NAIVE 57.1vs55.2 //MIS 113.6 vs 112.3 
-#define TIMER 0
-#define MATERIALSORTING 0 //without vs with: NAIVE 59.1 vs 530.2 // MIS 112.6 vs 584.3
+#define ERRORCHECK			1
+#define COMPACT				0 //0 NONE, 1 THRUST, 2 CUSTOM(breaks render, just use for timing compare)
+#define PT_TECHNIQUE		1 //0 NAIVE, 1 MIS 
+#define FIRSTBOUNCECACHING	0
+#define TIMER				0
+#define MATERIALSORTING		0 
 //https://thrust.1ithub.io/doc/group__stream__compaction.html#ga5fa8f86717696de88ab484410b43829b
 //https://stackoverflow.com/questions/34103410/glmvec3-and-epsilon-comparison
 struct isDead { //needed for thrust's predicate, the last arg in remove_if
@@ -327,7 +327,7 @@ __global__ void shadeMaterialNaive (
 	float bxdfPDF; glm::vec3 bxdfColor;
 	thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, path.remainingBounces);
 	scatterRayNaive(path, isect, material, bxdfPDF, bxdfColor, rng);
-	if (isBlack(bxdfColor) || 0 >= bxdfPDF) {//for total internal reflection
+	if (0 >= bxdfPDF || isBlack(bxdfColor)) {//for total internal reflection
 		path.color = glm::vec3(0.0f);
 		path.remainingBounces = 0;
 		return;
@@ -384,7 +384,7 @@ __global__ void shadeMaterialMIS(const int iter, const int depth,
 	//First Bounce or Last bounce was specular
 	//NOTE: may want to remove spec bounce check as the matchesflags from 561 didnt work
 	const glm::vec3 wo = -path.ray.direction;
-	if (0 == depth || path.specularbounce) {
+	if (0 == depth || path.specularbounce) { //what if path color started at 1 and you multiplied as you went along???
 		path.color += path.throughput * Le(m, isect.surfaceNormal, wo); 
 	}
 
@@ -418,13 +418,19 @@ __global__ void shadeMaterialMIS(const int iter, const int depth,
 	////////////////////////
 	/////// LIGTH SAMPLE////
 	////////////////////////
-	//NOTE: I BELIVE COLORDIRECT WILL BE 0 FOR SPECULAR STUFF
+	//NOTE: COLORDIRECT WILL BE 0 FOR PURE SPECULAR STUFF
 	//BECUASE CHANCES OF THE REFLECTED VIEW RAY LINING UP WITH OUR
 	//SAMPLED LIGHT DIRECTION IS ZERO
 	//BUT COLOR DIRECT SAMPLE SHOULD RETURN SOMETHING IF THE REFLECTED
 	//RAY (OUR BXDF SAMPLE WI) HITS A LIGHT
-	//SO MAYBE IF SPECULAR BOUNCE, SKIP THE LIGHT SAMPLING PART?
+	//SO MAYBE IF SPECULAR BOUNCE, SKIP THE LIGHT SAMPLING PART AND BUT NOT THE BXDF SAMPLEING 
+	//FOR HITTING THE LIGHT PART
 
+	//int pixelx = path.MSPaintPixel.x;
+	//int pixely = path.MSPaintPixel.y;
+	//if (143 == pixelx && 557 == pixely && 0 == depth) {
+	//	printf("\npixelx: %i, pixely: %i, depth: %i, iter: %i", pixelx, pixely, depth, iter);
+	//}
 	//sample the light to get widirect, pdfdirect, and colordirect
 	//you'll want to switch the cube light to a planar light to make things easier?
 	colordirect = sampleLight(randlight, mlight, pisect, 
@@ -451,39 +457,51 @@ __global__ void shadeMaterialMIS(const int iter, const int depth,
 		const float powerheuristic_direct = powerHeuristic(1,pdfdirect,1,bxdfpdfdirect);
 		colordirect = (bxdfcolordirect * colordirect * absdotdirect * powerheuristic_direct) / pdfdirect;
 	}
+	////^^^^^^^^^^^^TODO: Turn into function^^^^^^^^^^^^^^^^^^^^^
 
-	//////////////////////////////////////////////////////
-	////////// SAMPLE BXDF, CHECK IF HIT A LIGHT /////////
-	//////////////////////////////////////////////////////
+	///////////////////////////////////////////////////////////////
+	////////// SAMPLE BXDF, CHECK IF HIT A LIGHT //////////////////
+	////////// PROBABLY NEED TO MAKE SURE YOU'RE HITTING A DIFFERNET LIGHT THAN THE ONE WE RANDOMLY SAMPLED////////
+	////////// SO THAT WE DON'T OVER SAMPLE THE LIGHT////////
+	////////// USE GETCLOSESTINTERSECTION TO MAKE SURE ITS A DIFFERENT LIGHT////////
+	///////////////////////////////////////////////////////////////
+	glm::vec3 colordirectsample(0);
 	glm::vec3 widirectsample;
 	float pdfdirectsample;
-	glm::vec3 colordirectsample(0);
 	PathSegment pathcopy = path;//scatterRayNaive updates the path with isect origin and wi direction
 	scatterRayNaive(pathcopy, isect, m, pdfdirectsample, colordirectsample, rng);
-	if (glm::length2(colordirectsample) > 0 && pdfdirectsample > 0) {
+	widirectsample = pathcopy.ray.direction;
+	if (glm::length2(colordirectsample) > 0 && pdfdirectsample > 0 && isBlack(colordirect)) {//only take if we got nothing for surface sampling part
 		float DLPdf_for_directsample = lightPdfLi(randlight, pisect, widirectsample);
 
-		if (DLPdf_for_directsample > 0) {//visible
-			DLPdf_for_directsample /= numlights;
-			const float powerheuristic_directsample = powerHeuristic(1, pdfdirectsample, 1, DLPdf_for_directsample);
-			colordirectsample *= absDot(widirectsample, isect.surfaceNormal);
-			Ray directSampleRay; directSampleRay.direction = widirectsample; directSampleRay.origin = pisect;
-			int posslightindex;//we know a light is in the widirectsample direction, lets try to hit it
-			const glm::vec3 nposslight = findClosestIntersection(directSampleRay, dev_geoms, numgeoms, posslightindex);
+		if (DLPdf_for_directsample > 0) {//widirectsample can hit it (might not be closest though)
+			Ray widirectsampleRay; widirectsampleRay.direction = widirectsample; widirectsampleRay.origin = pisect;
+			int posslightindex;//we know a our light is in the widirectsample direction, lets try to hit it, and hopefully its the closest light
+			const glm::vec3 nposslight = findClosestIntersection(widirectsampleRay, dev_geoms, numgeoms, posslightindex);
 
-			const Geom& posslight = dev_geoms[posslightindex];
-			const Material& mposslight = materials[posslight.materialid];
-			const glm::vec3 Li = Le(mposslight, nposslight, -widirectsample);//returns 0 if we don't hit a light
-			colordirectsample = (colordirectsample * Li * powerheuristic_directsample) / pdfdirectsample;
+			if (posslightindex == randlightindex) {//only want one light per direct lighting sample pair(need two to cover edge cases of combos of light size/intensity and bxdf)
+				DLPdf_for_directsample /= numlights;
+				const float powerheuristic_directsample = powerHeuristic(1, pdfdirectsample, 1, DLPdf_for_directsample);
+				const float absdotdirectsample = absDot(widirectsample, isect.surfaceNormal);
+				const Geom& posslight = dev_geoms[posslightindex];
+				const Material& mposslight = materials[posslight.materialid];
+				const glm::vec3 Li = Le(mposslight, nposslight, -widirectsample);//returns 0 if we don't hit a light(no emmisive)
+				colordirectsample = (colordirectsample * Li * absdotdirectsample * powerheuristic_directsample) / pdfdirectsample;
+			} else {
+				colordirectsample = glm::vec3(0);
+			}
 		} else {
 			colordirectsample = glm::vec3(0);
 		}
 	} else {//prob dont need 
 		colordirectsample = glm::vec3(0);
 	}
+	///////^^^^^^^^^^^TODO: Turn into function^^^^^^^^^^^^^^^^^^
 
-	colordirect = colordirect + colordirectsample;
-	//colordirect = glm::vec3(0);//does not change the result! meaning DIRECT part is returning 0 for both components
+	//IF SPECULARBOUNCE, PROB SHOULDNT DO ANY OF THE DIRECT LIGHTING SINCE WE WILL DOUBLE COUNT IT IF IT WAS HEADING TOWARDS A LIGHT ANYWAY
+	colordirect = path.specularbounce ? glm::vec3(0) : colordirect + colordirectsample;
+	//colordirect = colordirect + colordirectsample;
+	
 	path.color += path.throughput*colordirect;
 
 	////////////////////////
@@ -503,7 +521,7 @@ __global__ void shadeMaterialMIS(const int iter, const int depth,
 	path.throughput *= current_throughput;
 	
 	//russian roulette terminate low-energy rays
-	if(depth>3) {
+	if(depth>MAXBOUNCES) {
 		const float max = glm::compMax(path.throughput);
 		if (max < u01(rng)) {
 			path.remainingBounces = terminatenumber;

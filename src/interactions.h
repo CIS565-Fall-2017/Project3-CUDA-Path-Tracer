@@ -106,13 +106,16 @@ void chooseTransmission( PathSegment & path, const ShadeableIntersection& isect,
 
 	//Get wi.
 	glm::vec3 wi;
-	wi = glm::refract(-wo, Faceforward(normal, wo), etaI / etaT);//same as below
-	//if (!Refract(wo, Faceforward(normal, wo), etaI / etaT, wi)) {//561
-	//	bxdfColor = glm::vec3(0);
-	//	bxdfPDF = 0;
-	//	path.remainingBounces = -100;
-	//	return;
-	//}
+	//wi = glm::refract(-wo, Faceforward(normal, wo), etaI / etaT);//same as below
+	if (!Refract(wo, Faceforward(normal, wo), etaI / etaT, wi)) {//561
+		//when total internal reflection occurs all light is reflected
+		//so we can just reflect the ray and ignore doing fresnel if it's dielectric
+		//sure, it's likely to get russian rouletted inside a perfect sphere 
+		//but for other shapes we should reflect and keep going
+		//otherwise it will look dimmer than it should
+		chooseReflection(path,isect,m,bxdfPDF,bxdfColor,rng,false,1);
+		return;
+	}
 
 	//Set Color and PDF and path ray
 	const bool exiting = glm::dot(normal, wi) > 0.f;
@@ -289,6 +292,7 @@ __host__ __device__
 glm::vec3 Le(const Material& misect, const glm::vec3 nisect, 
 	const glm::vec3 source_dir)
 {
+	//Assumes lights are not two sided
 	if(0.f < misect.emittance && 0.f < glm::dot(source_dir, nisect)) {
 		return misect.color*misect.emittance;
 	} 
