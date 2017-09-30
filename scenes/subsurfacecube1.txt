@@ -117,6 +117,18 @@ EMITTANCE   5
 SUBSURF     0
 DENSITY     0
 
+// Emissive material (light)
+MATERIAL 10
+RGB         .66 .02 .29
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   10
+SUBSURF     0
+DENSITY     0
+
 // Camera
 CAMERA
 RES         800 800
@@ -187,11 +199,26 @@ TRANS       -2 2 0
 ROTAT       0 35 0
 SCALE       3 3 3
 
-// Ceiling light
+// Cube
 OBJECT 7
+cube
+material 7
+TRANS       2 2 2
+ROTAT       0 155 0
+SCALE       3 3 3
+
+// Ceiling light
+OBJECT 8
 cube
 material 9
 TRANS       0 9.5 0
 ROTAT       0 0 0
 SCALE       3 .3 3
 
+// Ceiling light
+OBJECT 9
+sphere
+material 10
+TRANS       2 0 2
+ROTAT       0 0 0
+SCALE       1 1 1

@@ -1,6 +1,6 @@
 // Emissive material (light)
 MATERIAL 0
-RGB         .45 .91 .95
+RGB         1 1 1
 SPECEX      0
 SPECRGB     0 0 0
 REFL        0
@@ -84,7 +84,7 @@ DENSITY     0
 
 // Subsurface
 MATERIAL 7
-RGB         1 1 1
+RGB         .45 .91 .95
 SPECEX      0
 SPECRGB     0 0 0
 REFL        0
@@ -92,10 +92,10 @@ REFR        0
 REFRIOR     1.55
 EMITTANCE   0
 SUBSURF     1
-DENSITY     .75
+DENSITY     .9
 
 MATERIAL 8
-RGB         0 1 0
+RGB         .98 .98 .98
 SPECEX      0
 SPECRGB     0 0 0
 REFL        0
@@ -103,7 +103,7 @@ REFR        0
 REFRIOR     1.55
 EMITTANCE   0
 SUBSURF     0
-DENSITY     .75
+DENSITY     .9
 
 // Emissive material (light)
 MATERIAL 9
@@ -113,7 +113,19 @@ SPECRGB     0 0 0
 REFL        0
 REFR        0
 REFRIOR     0
-EMITTANCE   5
+EMITTANCE   1
+SUBSURF     0
+DENSITY     0
+
+// Emissive material (light)
+MATERIAL 10
+RGB         .66 .02 .29
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   10
 SUBSURF     0
 DENSITY     0
 
@@ -121,8 +133,8 @@ DENSITY     0
 CAMERA
 RES         800 800
 FOVY        45
-ITERATIONS  5000
-DEPTH       8
+ITERATIONS  10000
+DEPTH       15
 FILE        cornell
 EYE         0.0 5 10.5
 LOOKAT      0 5 0
@@ -135,9 +147,9 @@ FOCALDIST   10
 OBJECT 0
 sphere
 material 0
-TRANS       -2 0 0
+TRANS       -4 0 -4
 ROTAT       0 0 0
-SCALE       1 1 1
+SCALE       5 5 5
 
 // Floor
 OBJECT 1
@@ -183,15 +195,7 @@ SCALE       .01 10 10
 OBJECT 6
 cube
 material 7
-TRANS       -2 2 0
+TRANS       -2 1.6 2
 ROTAT       0 35 0
 SCALE       3 3 3
-
-// Ceiling light
-OBJECT 7
-cube
-material 9
-TRANS       0 9.5 0
-ROTAT       0 0 0
-SCALE       3 .3 3
 

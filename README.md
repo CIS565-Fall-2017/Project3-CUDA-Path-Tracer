@@ -26,7 +26,7 @@ Features:
 - Material Sorting*
 - First Bounce Caching*
 
-(*) denotes required features
+(*) denotes required features.
 
 # Results and Renders
 

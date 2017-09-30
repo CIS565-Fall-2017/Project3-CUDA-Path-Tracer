@@ -215,6 +215,54 @@ glm::vec3 randomVector(thrust::default_random_engine &rng)
 	}
 }
 
+__host__ __device__
+glm::vec3 sampleDisk(float sampleX, float sampleY)
+{
+	float phi;
+	float r;
+
+	float a = 2.f * sampleX - 1.f;
+	float b = 2.f * sampleY - 1.f;
+
+	if (a * a > b * b) {
+		r = a;
+		phi = (PI / 4) * (b / a);
+	}
+	else {
+		r = b;
+		//phi = (PI / 4) * (a / b) + (PI / 2);
+		phi = (PI / 2) - (PI / 4) * (a / b);
+	}
+
+	return glm::vec3(r * glm::cos(phi), r * glm::sin(phi), 0.f);
+}
+
+__host__ __device__
+float phaseFunction(float g, float cosTheta)
+{
+	float numerator = (1 - powf(g, 2.f));
+	float denominator = (1 + powf(g, 2.f) - powf((2 * g * cosTheta), (3/2)));
+
+	float InvFourPi = 1.f / (4.f * PI);
+
+	return InvFourPi * (numerator / denominator);
+}
+
+// http://corysimon.github.io/articles/uniformdistn-on-sphere/
+__host__ __device__
+glm::vec3 SphereSample(thrust::default_random_engine &rng)
+{
+	thrust::uniform_real_distribution<float> u01(0, 1);
+
+	float theta = 2.f * PI * u01(rng);
+	float phi = acos(1.f - 2.f * u01(rng));
+	float x = sin(phi) * cos(theta);
+	float y = sin(phi) * sin(theta);
+	float z = cos(phi);
+
+	return glm::vec3(x, y, z);
+}
+
 /**
 * Scatter a ray with some probabilities according to the material properties.
 * For example, a diffuse surface scatters in a cosine-weighted hemisphere.
@@ -313,8 +361,15 @@ void scatterRay(
 		pathSegment.color *= m.specular.color;
 	}
 	// Subsurface
-	// http://www.davepagurek.com/blog/volumes-subsurface-scattering/
 	else if (m.hasSubsurface) {
+		// Sample distance in medium 
+		// Evaluate transmission and accumulate throughput
+		// If the scatterDistance < dist(ray.origin, next intersection)
+		//		scatter
+		// Sample for next direction
+	
+	// http://www.davepagurek.com/blog/volumes-subsurface-scattering/
+	//else if (m.hasSubsurface) {
 		// Make a ray at the intersection going in the same direction.
 		// This will get updated in the loop.
 		Ray nextRay;
@@ -324,11 +379,16 @@ void scatterRay(
 		PathSegment offsetPath = pathSegment;
 		offsetPath.ray = nextRay;
 		//offsetPath.color *= pathSegment.color * m.color;
-		offsetPath.color = pathSegment.color * m.color;
+		//offsetPath.color = pathSegment.color * m.color * AbsDot(intersection.surfaceNormal, pathSegment.ray.direction);
+		//offsetPath.color *= pathSegment.color * m.color * AbsDot(calculateRandomDirectionInHemisphere(intersection.surfaceNormal, rng), intersection.surfaceNormal);
+
+		offsetPath.color = glm::vec3(0.f);
 
 		ShadeableIntersection prevIsect = intersection;
 		ShadeableIntersection final;
-		while (true) {
+
+		float maxBounce = 10;
+		while (maxBounce > 0) {
 			// Get the end point of the path 
 			// This should still be the same object
 			ShadeableIntersection end;
@@ -340,15 +400,32 @@ void scatterRay(
 
 				thrust::uniform_real_distribution<float> u01(0, 1);
 				thrust::uniform_real_distribution<float> u(-1, 1);
-				float ln = log(u01(rng));
+
+				// Sample the medium for distance
+				float ln = logf(u01(rng));
 				float distanceTraveled = -ln / m.density;
-				if (distanceTraveled <= path.length()) {
+
+				// Make a scatter event if the distance is less than the path
+				if (distanceTraveled < path.length()) {
 					nextRay.origin = nextRay.origin + glm::normalize(path) * distanceTraveled;
-					nextRay.direction = glm::normalize(glm::vec3(u(rng), u(rng), u(rng)));
+					//nextRay.direction = glm::normalize(glm::vec3(u(rng), u(rng), u(rng)));
+					//nextRay.direction = calculateRandomDirectionInHemisphere(end.surfaceNormal, rng);
+					//nextRay.direction = sampleDisk(u(rng), u(rng));
+
+					// Sample the medium for a direction
+					nextRay.direction = SphereSample(rng);
 
 					offsetPath.ray = nextRay;
-					offsetPath.color *= m.color /*offsetPath.color*/;
+					//offsetPath.color *= m.color * transmission /*offsetPath.color*/;
 					//offsetPath.color *= m.color * AbsDot(end.surfaceNormal, nextRay.direction);
+
+					//offsetPath.color += m.color;
+
+					float transmission = expf(-m.density * distanceTraveled);
+					float phase = phaseFunction(m.density, CosTheta(nextRay.direction, end.surfaceNormal));
+
+					offsetPath.color += m.color * transmission;
+					//offsetPath.color += m.color * phase * transmission;
 
 					prevIsect = end;
 				}
@@ -361,11 +438,15 @@ void scatterRay(
 				final = prevIsect;
 				break;
 			}
+
+			maxBounce--;
 		}
 
 		pathSegment.ray = nextRay;
 		pathSegment.color = offsetPath.color;/* * AbsDot(pathSegment.ray.direction, final.intersectPoint);*/
 		//pathSegment.color = offsetPath.color * AbsDot(pathSegment.ray.direction, final.surfaceNormal);
+		//pathSegment.color /= (.25 * PI);
+
 		return;
 	}
 	// Diffuse Surface
@@ -390,20 +471,7 @@ void scatterRay(
 	pathSegment.color *= m.color * AbsDot(intersection.surfaceNormal, wi);
 }
 
-// http://corysimon.github.io/articles/uniformdistn-on-sphere/
-__host__ __device__
-glm::vec3 SphereSample(thrust::default_random_engine &rng)
-{
-	thrust::uniform_real_distribution<float> u01(0, 1);
 
-	float theta = 2.f * PI * u01(rng);
-	float phi = acos(1.f - 2.f * u01(rng));
-	float x = sin(phi) * cos(theta);
-	float y = sin(phi) * sin(theta);
-	float z = cos(phi);
-
-	return glm::vec3(x, y, z);
-}
 
 __host__ __device__
 glm::vec3 sampleCube(const glm::vec2 &xi, ShadeableIntersection &isect, const Geom &cube)

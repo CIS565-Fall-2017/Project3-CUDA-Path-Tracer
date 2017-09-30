@@ -235,18 +235,20 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
 		// TODO: implement antialiasing by jittering the ray
-#ifndef AA	
-#define AA
+
+
 		thrust::uniform_real_distribution<float> u01(0, 1);
 		thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
 		glm::vec2 jitter(u01(rng), u01(rng));
 
-		float _x = (float)x + jitter.x;
-		float _y = (float)y + jitter.y;
-#else 
+#define AA true
 		float _x = x;
 		float _y = y;
-#endif
+		if (AA) {
+			_x = (float)x + jitter.x;
+			_y = (float)y + jitter.y;
+		}
+		
 
 		segment.ray.direction = glm::normalize(cam.view
 			- cam.right * cam.pixelLength.x * ((float)_x - (float)cam.resolution.x * 0.5f)
@@ -571,7 +573,14 @@ __global__ void shadeMaterialDirect(
 			Geom light = geoms[0];
 
 			// Sample a point on the light
-			glm::vec3 samplePoint = SphereSample(rng);
+			glm::vec3 samplePoint;
+			//if (light.type == SPHERE) {
+				samplePoint = SphereSample(rng);
+			//}
+			//else if (light.type == CUBE) {
+				//samplePoint = sampleCube(glm::vec2(u01(rng), u01(rng)), intersection, light);
+			//}
+
 			// Get the light's position based on the sample
 			glm::vec3 lightPos(light.transform * glm::vec4(samplePoint, 1.f));
 
@@ -586,17 +595,16 @@ __global__ void shadeMaterialDirect(
 			ShadeableIntersection isx;
 			Intersect(shadowFeeler, geoms, num_geoms, isx);
 
-			float emit = 0.f;
+			glm::vec3 Li(0.f);
 			// Occluded by object
 			if (isx.t > 0.f && materials[isx.materialId].emittance <= 0.f) {
 				pathSegments[idx].color = glm::vec3(0.f);
 			}
 			else {
-				if (glm::dot(lightPos, shadowFeeler.ray.direction) >= 0.f) {
-					emit = materials[light.materialid].emittance;
-				} 
+				//if (glm::dot(lightPos, shadowFeeler.ray.direction) >= 0.f) 
+					Li = materials[light.materialid].emittance * materials[light.materialid].color;
 				
-				pathSegments[idx].color *= f * emit * AbsDot(intersection.surfaceNormal, glm::normalize(shadowFeeler.ray.direction));
+				pathSegments[idx].color *= f * Li * AbsDot(intersection.surfaceNormal, glm::normalize(shadowFeeler.ray.direction));
 				pathSegments[idx].color *= numLights;
 			}
 
@@ -731,8 +739,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		// tracing
 		dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
 
-#define CACHE true
-#define SORTBYMATERIAL true
+#define CACHE false
+#define SORTBYMATERIAL false
 #define DIRECTLIGHTING false
 
 		// Store the very first bounce into dev_intersections_cached.
