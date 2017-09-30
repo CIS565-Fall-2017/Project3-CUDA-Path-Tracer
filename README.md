@@ -48,7 +48,7 @@ At the last of **generateRayFromCamera** kernel function, and rebuild the projec
 ![enter image description here](https://lh3.googleusercontent.com/-JbpKdBJO3so/Wc-9ZIgJDtI/AAAAAAAAA7w/EBlwHkN8TrYKAkc-Q_-oL5GAz6Pxx-s9QCLcBGAs/s0/cornell.2017-09-30_15-44-36z.5000samp.png "cornell.2017-09-30_15-44-36z.5000samp.png")
 
 **Realistic1.txt** after 500 iterations:
-
+![enter image description here](https://lh3.googleusercontent.com/-Rzb9wMWyYMs/Wc-_Pv7f-4I/AAAAAAAAA8A/dIh6GjxvWIY8XFKpYBBkyej259_pTCyOQCLcBGAs/s0/cornell.2017-09-30_15-53-57z.5000samp.png "cornell.2017-09-30_15-53-57z.5000samp.png")
 
 ### 3) Fresnel Dielectric
 To test Fresnel effect, please use the **glass.txt** in scene files. 
