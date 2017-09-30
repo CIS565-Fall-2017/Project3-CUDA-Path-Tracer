@@ -57,3 +57,5 @@ This scene is basically the same as the Cornell box scene, however, the sphere a
 
 
 ## 3. Performance Analysis 
+
+CUDA Timer
