@@ -356,7 +356,7 @@ __global__ void shadeMaterialsDirect(int iter, int numActiveRays, ShadeableInter
 		// if the intersection exists and the itersection is not a light then
 		//deal with the material and end up changing the pathSegment color and its ray direction
 		directLightingIntegrator(pathSegments[idx], intersection, materials, material,
-								 geoms, numActiveRays, lights, numLights, rng);
+								 geoms, numGeoms, lights, numLights, rng);
 	}
 }
 

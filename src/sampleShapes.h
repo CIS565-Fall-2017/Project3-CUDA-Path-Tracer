@@ -24,10 +24,8 @@ __host__ __device__ ShadeableIntersection sampleShapes(Vector2f &xi, float& pdf,
 	float area;
 	ShadeableIntersection isect;
 
-	if (lightShape == SPHERE)
-	{
-		isect = sampleSphere(xi, pdf, geom, area);
-	}
+	//if any other shape of light is introduced then you need an if else case here sampling the appropriate case
+	isect = sampleSphere(xi, pdf, geom, area);
 
 	Vector3f wi = glm::normalize(isect.intersectPoint - refPoint);
 	float absDot = glm::abs(glm::dot(isect.surfaceNormal, -wi));

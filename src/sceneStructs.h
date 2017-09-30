@@ -112,4 +112,5 @@ struct ShadeableIntersection
 	glm::vec3 intersectPoint;
 	glm::vec3 surfaceNormal;
 	int materialId;
+	int hitGeomIndex;
 };

@@ -47,18 +47,21 @@ __host__ __device__ void naiveIntegrator(PathSegment & pathSegment,
 __host__ __device__ void directLightingIntegrator(PathSegment & pathSegment,
 												  ShadeableIntersection& intersection,
 												  Material* materials, Material &m,
-												  Geom* geoms, int num_paths,
+												  Geom* geoms, int numGeoms,
 												  Light * lights, int &numLights,
 												  thrust::default_random_engine &rng)
 {
 	// Update the ray and color associated with the pathSegment
 	Vector3f intersectionPoint = intersection.intersectPoint;
 	Vector3f normal = intersection.surfaceNormal;
+
 	Vector3f wo = pathSegment.ray.direction;
-	Vector2f xi;
-	Vector3f wi;
-	Vector3f sampledLightColor;
+	Vector3f wi = glm::vec3(0.0f);
 	float pdf = 0.0f;
+	Vector2f xi;
+
+	Vector3f sampledLightColor;
+	Vector3f f = Color3f(0.0f);
 
 	//Assuming the scene has atleast one light
 	thrust::uniform_real_distribution<float> u01(0, 1);
@@ -68,6 +71,34 @@ __host__ __device__ void directLightingIntegrator(PathSegment & pathSegment,
 	Geom lightGeom = geoms[selectedLight.lightGeomIndex];
 	Material lightMat = materials[lightGeom.materialid];
 
-	pathSegment.color = lightMat.color*lightMat.emittance;
+	//sample material of object you hit in the scene
+	sampleMaterials(m, wo, normal, f, wi, pdf, rng);
+
+	//Sample Light
+	xi = Vector2f(u01(rng), u01(rng));
+	Vector3f wi_towardsLight;
+	sampledLightColor = sampleLights(lightMat, normal, wi_towardsLight, xi, pdf, intersectionPoint, lightGeom);
+
+	pdf /= numLights;
+	if (pdf == 0.0f)
+	{
+		pathSegment.color = Color3f(0.f);
+	}
+	else
+	{
+		float absdot = glm::abs(glm::dot(wi, intersection.surfaceNormal));
+		pathSegment.color *= f * sampledLightColor * absdot / pdf;
+	}
+
+	//visibility test
+	ShadeableIntersection isx;
+	computeIntersectionsWithSelectedObject(pathSegment, geoms, numGeoms, isx);
+
+	// if the shadow feeler ray doesnt hit the sample light then color the pathSegment black
+	if (isx.t < 0.0f && isx.hitGeomIndex != selectedLight.lightGeomIndex)
+	{
+		pathSegment.color = Color3f(0.f);
+	}
+
 	pathSegment.remainingBounces = 0;
 }
