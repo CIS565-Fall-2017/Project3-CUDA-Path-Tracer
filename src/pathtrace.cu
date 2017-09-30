@@ -326,8 +326,8 @@ __global__ void shadeMaterialsNaive(int iter, int numActiveRays, ShadeableInters
 }
 
 __global__ void shadeMaterialsDirect(int iter, int numActiveRays, ShadeableIntersection * shadeableIntersections,
-									PathSegment * pathSegments, Material * materials, const Geom* geoms,
-									const int &numLights, const Light * lights)
+									PathSegment * pathSegments, Material * materials, Geom* geoms,
+									const int geom_size, const int &numLights, const Light * lights)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (idx < numActiveRays)
@@ -361,7 +361,9 @@ __global__ void shadeMaterialsDirect(int iter, int numActiveRays, ShadeableInter
 
 		// if the intersection exists and the itersection is not a light then
 		//deal with the material and end up changing the pathSegment color and its ray direction
-		
+		//scatterRay(pathSegments[idx], intersection, material, rng);
+		naiveIntegrator(pathSegments[idx], intersection, material, rng);
+		//directLightingIntegrator(pathSegments[idx], intersection, material, materials, geoms, geom_size, numActiveRays, numLights, lights, rng);
 	}
 }
 
@@ -540,6 +542,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 #elif DIRECT_LIGHTING_INTEGRATOR
 		shadeMaterialsDirect <<<numblocksPathSegmentTracing, blockSize1d>>> (iter, activeRays, dev_intersections,
 																			dev_paths, dev_materials, dev_geoms, 
+																			hst_scene->geoms.size(),
 																			hst_scene->lights.size(), dev_lights);
 #else // NAIVE_INTEGRATOR
 		shadeMaterialsNaive <<<numblocksPathSegmentTracing, blockSize1d>>> (iter, activeRays, dev_intersections, 
