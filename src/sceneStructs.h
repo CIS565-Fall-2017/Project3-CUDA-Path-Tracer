@@ -21,6 +21,7 @@ struct Ray {
 
 struct Geom {
     enum GeomType type;
+	int id;
     int materialid;
     glm::vec3 translation;
     glm::vec3 rotation;
@@ -30,8 +31,24 @@ struct Geom {
     glm::mat4 invTranspose;
 	glm::vec3 points[3];
 	glm::vec3 norms[3];
-	glm::vec3 maxb[3];
-	glm::vec3 minb[3];
+	glm::vec3 maxb;
+	glm::vec3 minb;
+	glm::vec3 midpoint;
+	float surface_area;
+};
+
+struct BVHNode {
+	int id;
+	int child1id = -1;
+	int child2id = -1;
+	bool is_leaf = true;
+	glm::vec3 maxb;
+	glm::vec3 minb;
+	glm::mat4 transform;
+	glm::mat4 inverseTransform;
+	glm::mat4 invTranspose;
+	int start;
+	int end;
 };
 
 struct Material {

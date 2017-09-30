@@ -14,12 +14,25 @@
 #include "intersections.h"
 #include "interactions.h"
 
-#include "../stream_compaction/cpu.h"
+#include "../stream_compaction/common.h"
+#include "bvh.h"
+
+
 
 #define ERRORCHECK 1
 
 #define CACHE_CAMERA_RAYS false
 #define AA_JITTER false
+#define BVH_DEPTH 6 /*
+		0
+	  /   \
+	1		1
+
+*/
+#define NUMBUCKETS 4
+#define BVH 1
+#define BVHDEBUG 0
+#define checkCUDAErrorWithLine(msg) checkCUDAError(msg, __LINE__)
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -42,6 +55,7 @@ void checkCUDAErrorFn(const char *msg, const char *file, int line) {
 	exit(EXIT_FAILURE);
 #endif
 }
+
 
 __host__ __device__
 thrust::default_random_engine makeSeededRandomEngine(int iter, int index, int depth) {
@@ -79,8 +93,137 @@ static Material * dev_materials = NULL;
 static PathSegment * dev_paths = NULL;
 static PathSegment * dev_cached_camera_paths = NULL;
 static ShadeableIntersection * dev_intersections = NULL;
+static BVHNode * dev_BVHnodes = NULL;
+static int * dev_geomBVHIndices = NULL;
+static int * dev_BVHstart = NULL;
+static int * dev_BVHend = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
 // ...
+
+
+void createGeomBounds() {
+	int num_geoms = hst_scene->geoms.size();
+	const int blockSize1d = 128;
+	dim3 numblocksGeoms = (num_geoms + blockSize1d - 1) / blockSize1d;
+	kernCalculateBounds << < numblocksGeoms, blockSize1d >> > (num_geoms, dev_geoms);
+	//Geom * testarr = new Geom[num_geoms];
+	//cudaMemcpy(testarr, dev_geoms, num_geoms, cudaMemcpyDeviceToHost);
+	//for (int i = 0; i < num_geoms; i++) {
+	//	Geom test = testarr[i];
+	//	glm::vec3 maxb = test.maxb;
+	//}
+}
+
+void constructBVHTree() {
+	int num_BVHnodes = (1 << (BVH_DEPTH + 1)) - 1;
+	int num_geoms = hst_scene->geoms.size();
+	/*int * BVHstart = new int[num_BVHnodes];
+	int * BVHend = new int[num_BVHnodes];*/
+	std::vector<int> BVHstart;
+	std::vector<int> BVHend;
+	BVHstart.resize(num_BVHnodes);
+	BVHend.resize(num_BVHnodes);
+	BVHstart[0] = 0;
+	BVHend[0] = num_geoms - 1;
+	//BVHNode * BVHnodes = new BVHNode[num_BVHnodes];
+	std::vector<BVHNode> BVHnodes;
+	BVHnodes.resize(num_BVHnodes);
+	printf("test: %i %i", BVHstart[0], BVHend[0]);
+	glm::vec3 maxb = thrust::transform_reduce(thrust::device, dev_geoms, dev_geoms + num_geoms, get_maxb(), glm::vec3(-1.0f*INFINITY), get_max_vec());
+	glm::vec3 minb = thrust::transform_reduce(thrust::device, dev_geoms, dev_geoms + num_geoms, get_minb(), glm::vec3(1.0f*INFINITY), get_min_vec());
+	BVHnodes[0] = BVHNode();
+	BVHnodes[0].maxb = maxb;
+	BVHnodes[0].minb = minb;
+	int curr_axis = 0;
+	for (int depth = 0; depth <= BVH_DEPTH - 1; depth++) { //depth <= BVH_DEPTH
+		int num_nodes_at_depth = 1 << depth;
+		int offset = (1 << depth) - 1;
+		for (int n = 0; n < num_nodes_at_depth; n++) { // n < num_nodes_at_depth
+			int curr_bvh = offset + n;
+			int axis = curr_axis;
+			float val;
+			float repeat = true;
+			int start_idx = BVHstart[curr_bvh];
+			int end_idx = BVHend[curr_bvh];
+			if (start_idx == end_idx) {
+				continue;
+			}
+			if (repeat) {
+				int buck_off = 0;
+				float buck_width = (BVHnodes[curr_bvh].maxb[axis] - BVHnodes[curr_bvh].minb[axis])/ (float)NUMBUCKETS;
+				val = BVHnodes[curr_bvh].minb[axis];
+				float buckCost[NUMBUCKETS];
+				float buckIdx[NUMBUCKETS];
+				float total_sa = thrust::transform_reduce(thrust::device, dev_geoms + start_idx, dev_geoms + end_idx + 1, get_sa(), 0.0f, sum_sa());
+				for (int buck = 0; buck < NUMBUCKETS; buck++) {
+					val += buck_width;
+					Geom* end = thrust::partition(thrust::device, dev_geoms + start_idx + buck_off, dev_geoms + end_idx + 1, less_than_axis(axis, val));
+					int num_left = end - (dev_geoms + start_idx + buck_off);
+					float left_sa = thrust::transform_reduce(thrust::device, dev_geoms + start_idx + buck_off, dev_geoms + start_idx + buck_off + num_left, get_sa(), 0.0f, sum_sa());
+					buck_off += num_left;
+					printf("left_sa %f\n", left_sa);
+					buckIdx[buck] = buck_off;
+					buckCost[buck] = left_sa;
+				}
+				float total_cost = 0;
+				float min_cost = INFINITY;
+				int min_idx = -1;
+				for (int buck = 0; buck < NUMBUCKETS; buck++) {
+					total_cost += buckCost[buck];
+					float cost = fabsf((total_sa / 2.0f) - total_cost);
+					if (cost < min_cost) {
+						min_cost = cost;
+						min_idx = buckIdx[buck];
+					}
+				}
+				int next_offset = (1 << (depth + 1)) - 1;
+				int l_idx = next_offset + (2 * n);
+				BVHstart[l_idx] = start_idx;
+				BVHend[l_idx] = start_idx + min_idx - 1;
+				int r_idx = next_offset + (2 * n) + 1;
+				BVHstart[r_idx] = start_idx + min_idx;
+				BVHend[r_idx] = end_idx;
+				glm::vec3 lmaxb = thrust::transform_reduce(thrust::device, dev_geoms + start_idx, dev_geoms + BVHend[l_idx] + 1, get_maxb(), glm::vec3(-1.0f*INFINITY), get_max_vec());
+				glm::vec3 lminb = thrust::transform_reduce(thrust::device, dev_geoms + start_idx, dev_geoms + BVHend[l_idx] + 1, get_minb(), glm::vec3(1.0f*INFINITY), get_min_vec());
+
+				glm::vec3 rmaxb = thrust::transform_reduce(thrust::device, dev_geoms + BVHstart[r_idx], dev_geoms + end_idx + 1, get_maxb(), glm::vec3(-1.0f*INFINITY), get_max_vec());
+				glm::vec3 rminb = thrust::transform_reduce(thrust::device, dev_geoms + BVHstart[r_idx], dev_geoms + end_idx + 1, get_minb(), glm::vec3(1.0f*INFINITY), get_min_vec());
+				BVHnodes[l_idx] = BVHNode();
+				BVHnodes[r_idx] = BVHNode();
+				BVHnodes[l_idx].id = l_idx;
+				BVHnodes[r_idx].id = r_idx;
+				BVHnodes[l_idx].start = BVHstart[l_idx];
+				BVHnodes[l_idx].end = BVHend[l_idx];
+				BVHnodes[r_idx].start = BVHstart[r_idx];
+				BVHnodes[r_idx].end = BVHend[r_idx];
+				BVHnodes[l_idx].maxb = lmaxb;
+				BVHnodes[l_idx].minb = lminb;
+				BVHnodes[r_idx].maxb = rmaxb;
+				BVHnodes[r_idx].minb = rminb;
+				BVHnodes[curr_bvh].is_leaf = false;
+				BVHnodes[curr_bvh].child1id = l_idx;
+				BVHnodes[curr_bvh].child2id = r_idx;
+
+				repeat = false;
+			}
+
+		}
+		curr_axis = (curr_axis + 1) % 3;
+	}
+
+	const int blockSize1d1 = 128;//num_geoms
+	dim3 numblocksGeoms = (num_geoms + blockSize1d1 - 1) / blockSize1d1;
+	printf("after BVH construct \n");
+	kernCheckBounds << < numblocksGeoms, blockSize1d1 >> > (num_geoms, dev_geoms);
+
+	const int blockSize1d = 128; //num_BVHnodes
+	cudaMemcpy(dev_BVHnodes, BVHnodes.data(), num_BVHnodes * sizeof(BVHNode), cudaMemcpyHostToDevice);
+	cudaMemcpy(dev_BVHstart, BVHstart.data(), num_BVHnodes * sizeof(int), cudaMemcpyHostToDevice);
+	cudaMemcpy(dev_BVHend, BVHend.data(), num_BVHnodes * sizeof(int), cudaMemcpyHostToDevice);
+	dim3 numblocksBVH = (num_BVHnodes + blockSize1d - 1) / blockSize1d;
+	kernSetBVHTransform <<< numblocksBVH, blockSize1d >>> (num_BVHnodes, dev_BVHnodes);
+
+}
 
 void pathtraceInit(Scene *scene) {
 	hst_scene = scene;
@@ -102,7 +245,17 @@ void pathtraceInit(Scene *scene) {
 	cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
 	cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
+	int num_BVHnodes = (1 << (BVH_DEPTH + 1)) - 1;
+	int num_BVHleafnodes = 1 << (BVH_DEPTH-1);
+
+	cudaMalloc(&dev_BVHnodes, num_BVHnodes * sizeof(BVHNode));
+	cudaMalloc(&dev_BVHstart, num_BVHnodes * sizeof(int));
+	cudaMalloc(&dev_BVHend, num_BVHnodes * sizeof(int));
+	cudaMalloc(&dev_geomBVHIndices, scene->geoms.size() * sizeof(int));
 	// TODO: initialize any extra device memeory you need
+
+	createGeomBounds();
+	constructBVHTree();
 
 	checkCUDAError("pathtraceInit");
 }
@@ -190,6 +343,11 @@ __global__ void computeIntersections(
 	if (path_index < num_paths)
 	{
 		PathSegment pathSegment = pathSegments[path_index];
+
+		if (pathSegment.pixelIndex == 400) {
+			int pixelIndex = pathSegment.pixelIndex;
+			pixelIndex++;
+		}
 
 		float t;
 		glm::vec3 intersect_point;
@@ -304,7 +462,6 @@ __global__ void shadeDebugMaterial(
 	, int num_paths
 	, ShadeableIntersection * shadeableIntersections
 	, PathSegment * pathSegments
-	, Material * materials
 )
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -317,29 +474,10 @@ __global__ void shadeDebugMaterial(
 									 // makeSeededRandomEngine as well.
 			thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
 			thrust::uniform_real_distribution<float> u01(0, 1);
-
-			Material material = materials[intersection.materialId];
-			glm::vec3 materialColor = material.color;
-
-			// If the material indicates that the object was a light, "light" the ray
-			if (material.emittance > 0.0f) {
-				pathSegments[idx].color *= (materialColor * material.emittance);
-				pathSegments[idx].remainingBounces = 0;
-			}
-			// Otherwise, do some pseudo-lighting computation. This is actually more
-			// like what you would expect from shading in a rasterizer like OpenGL.
-			// TODO: replace this! you should be able to start with basically a one-liner
-			else {
-				pathSegments[idx].color *= 0.9f;
-				pathSegments[idx].remainingBounces--;
-			}
-			// If there was no intersection, color the ray black.
-			// Lots of renderers use 4 channel color, RGBA, where A = alpha, often
-			// used for opacity, in which case they can indicate "no opacity".
-			// This can be useful for post-processing and image compositing.
+			pathSegments[idx].color = intersection.surfaceNormal;
 		}
 		else {
-			pathSegments[idx].color = glm::vec3(0.0f);
+			pathSegments[idx].color = intersection.surfaceNormal;
 			pathSegments[idx].remainingBounces = 0;
 		}
 	}
@@ -507,14 +645,29 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
 		// tracing
 		dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
-		computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
-			depth
-			, num_paths
-			, dev_paths
-			, dev_geoms
-			, hst_scene->geoms.size()
-			, dev_intersections
-			);
+
+		if (BVH) {
+			int num_BVHnodes = (1 << (BVH_DEPTH + 1)) - 1;
+			computeBVHIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
+				depth
+				, num_paths
+				, dev_paths
+				, dev_intersections
+				, dev_BVHnodes,
+				num_BVHnodes
+				, dev_geoms
+				);
+		}
+		else {
+			computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
+				depth
+				, num_paths
+				, dev_paths
+				, dev_geoms
+				, hst_scene->geoms.size()
+				, dev_intersections
+				);
+		}
 		checkCUDAError("trace one bounce");
 		cudaDeviceSynchronize();
 		depth++;
@@ -528,18 +681,27 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		// materials you have in the scenefile.
 		// TODO: compare between directly shading the path segments and shading
 		// path segments that have been reshuffled to be contiguous in memory.
-
-		shadeAnyMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
-			iter,
-			num_paths,
-			dev_intersections,
-			dev_paths,
-			dev_materials
-			);
+		if (!BVHDEBUG) {
+			shadeAnyMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
+				iter,
+				num_paths,
+				dev_intersections,
+				dev_paths,
+				dev_materials
+				);
+		}
+		else {
+			shadeDebugMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
+				iter,
+				num_paths,
+				dev_intersections,
+				dev_paths
+				);
+		}
 		PathSegment* compacted = thrust::partition(thrust::device, dev_paths, dev_paths + num_paths, has_bounces());
 		num_paths = compacted - dev_paths;
-		printf("num paths: %i , depth: %i \n", num_paths, depth);
-		if (num_paths == 0){
+		//printf("num paths: %i , depth: %i \n", num_paths, depth);
+		if (num_paths == 0 || BVHDEBUG){
 			iterationComplete = true; // TODO: should be based off stream compaction results.
 		}
 	}

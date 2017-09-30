@@ -1,4 +1,5 @@
 set(SOURCE_FILES
+    "bvh.h"
     "stb.cpp"
     "image.cpp"
     "image.h"

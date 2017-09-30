@@ -52,12 +52,14 @@ int Scene::loadGeom(string objectid) {
                 cout << "Creating new sphere..." << endl;
 				Geom newGeom;
                 newGeom.type = SPHERE;
+				newGeom.id = id;
 				newGeoms.push_back(newGeom);
             } else if (strcmp(line.c_str(), "cube") == 0) {
                 cout << "Creating new cube..." << endl;
 
 				Geom newGeom;
                 newGeom.type = CUBE;
+				newGeom.id = id;
 				newGeoms.push_back(newGeom);
             } else if (strcmp(line.c_str(), "obj") == 0) {
 				cout << "Creating new obj..." << endl;
@@ -79,10 +81,11 @@ int Scene::loadGeom(string objectid) {
 				std::cout << "# of materials : " << materials.size() << std::endl;
 				for (const auto& shape : shapes) {
 					int index_cnt = 0;
-					cout << shape.mesh.indices.size() << endl;
+					//cout << shape.mesh.indices.size() << endl;
 					for (int i = 0; i < shape.mesh.indices.size() / 3; i++) {
 						Geom newGeom;
-						newGeom.type = GeomType::TRIANGLE;
+						newGeom.type = TRIANGLE;
+						newGeom.id = id;
 						tinyobj::index_t index0 = shape.mesh.indices[0];
 						for (int j = 0; j < 3; j++) {
 							tinyobj::index_t index = shape.mesh.indices[3*i + j];
