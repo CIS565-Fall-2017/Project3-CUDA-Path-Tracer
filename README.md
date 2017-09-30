@@ -41,15 +41,16 @@ At the last of **generateRayFromCamera** kernel function, and rebuild the projec
 
  Also, **lensRadius**  and **focalDistance** defined at the beginning of pathtrace.cu can be changed according to the translation of objects inside the scene. We can focus on the sphere in the Cornell box:
 
-Cornell.txt after 5000 iterations:
+**Cornell.txt** after 5000 iterations:
 ![enter image description here](https://lh3.googleusercontent.com/-HJFEbFjS1x8/Wc-8C9pIZDI/AAAAAAAAA7g/XXqN69WTs80SHLmExtIDW3BH23WevDg5wCLcBGAs/s0/cornell.2017-09-30_15-37-14z.5000samp.png "cornell.2017-09-30_15-37-14z.5000samp.png")
 
-Realistic.txt after 5000 iterations:
+**Realistic.txt** after 5000 iterations:
 ![enter image description here](https://lh3.googleusercontent.com/-JbpKdBJO3so/Wc-9ZIgJDtI/AAAAAAAAA7w/EBlwHkN8TrYKAkc-Q_-oL5GAz6Pxx-s9QCLcBGAs/s0/cornell.2017-09-30_15-44-36z.5000samp.png "cornell.2017-09-30_15-44-36z.5000samp.png")
 
 #### 3) Fresnel Dielectric
 To test Fresnel effect, please use the **glass.txt** in scene files. 
 This scene is basically the same as the Cornell box scene, however, the sphere at the center is a glass ball, which has reflection and refraction. The Fresnel implementation here is quite naive, it simply add up Fresnel specular 
+
 
 
 ### 3. Performance Analysis 
