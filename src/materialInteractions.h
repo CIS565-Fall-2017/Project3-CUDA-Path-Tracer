@@ -92,22 +92,3 @@ __host__ __device__ void sampleMaterials(const Material &m, const Vector3f& wo, 
 		wi = glm::reflect(wo, normal);
 	}
 }
-
-__host__ __device__ void sampleMaterialsForColor(const Material &m, const Vector3f& wo, const Vector3f& normal,
-												Color3f& sampledColor, Vector3f& wi, float& pdf,
-												thrust::default_random_engine &rng)
-{
-	//simple pick and choose, if you implement a more complex material which requires you to 
-	//sample multiple bxDFs then include the samplef thing from the other branch
-	BxDFType sampledBxDF = chooseBxDF(m, rng, sampledColor, wi, pdf);
-
-	if (sampledBxDF == BSDF_LAMBERT)
-	{
-		Vector3f wi_temp = glm::normalize(calculateRandomDirectionInHemisphere(normal, rng));
-		sampledColor = f_Lambert(m, wo, wi_temp);
-	}
-	else if (sampledBxDF == BSDF_SPECULAR_BRDF)
-	{
-		sampledColor = f_Specular(m);
-	}
-}

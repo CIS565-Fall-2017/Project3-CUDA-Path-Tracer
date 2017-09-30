@@ -137,8 +137,6 @@ int Scene::loadLight(string lightid)
 		geoms.push_back(newGeom);
 		newLight.lightGeomIndex = geoms.size() - 1;
 
-		//printf("\n%d\n", newLight.lightGeomIndex);
-
 		lights.push_back(newLight);
 
 		return 1;

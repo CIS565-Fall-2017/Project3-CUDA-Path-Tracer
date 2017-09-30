@@ -72,8 +72,8 @@ LENS_RADIUS     0.0f
 FOCAL_DISTANCE  13.0f
 
 // Ceiling light
-LIGHT 0
-sphere
+OBJECT 0
+cube
 material 0
 TRANS       0 10 0
 ROTAT       0 0 0

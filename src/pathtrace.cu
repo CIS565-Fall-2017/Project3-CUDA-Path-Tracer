@@ -17,9 +17,6 @@
 #include "interactions.h"
 #include "sampling.h"
 
-#include "materialInteractions.h"
-#include "lightInteractions.h"
-
 #define ERRORCHECK 1
 
 //--------------------
@@ -34,7 +31,7 @@
 //caching more intersections
 //Naive Integration is the default if nothing else is toggled
 #define FULL_LIGHTING_INTEGRATOR 0
-#define DIRECT_LIGHTING_INTEGRATOR 0
+#define DIRECT_LIGHTING_INTEGRATOR 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -285,11 +282,11 @@ __global__ void sortIndicesByMaterial(int numActiveRays, ShadeableIntersection *
 	}
 }
 
-__global__ void shadeMaterialsNaive(int iter, int numActiveRays, ShadeableIntersection * shadeableIntersections,
+__global__ void shadeMaterialsNaive(int iter, int num_paths, ShadeableIntersection * shadeableIntersections,
 									PathSegment * pathSegments, Material * materials)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
-	if (idx < numActiveRays)
+	if (idx < num_paths)
 	{
 		if (pathSegments[idx].remainingBounces <= 0)
 		{
@@ -325,12 +322,11 @@ __global__ void shadeMaterialsNaive(int iter, int numActiveRays, ShadeableInters
 	}
 }
 
-__global__ void shadeMaterialsDirect(int iter, int numActiveRays, ShadeableIntersection * shadeableIntersections,
-									PathSegment * pathSegments, Material * materials, Geom* geoms,
-									const int geom_size, const int &numLights, const Light * lights)
+__global__ void shadeMaterialsDirect(int iter, int num_paths, ShadeableIntersection * shadeableIntersections,
+									PathSegment * pathSegments, Material * materials)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
-	if (idx < numActiveRays)
+	if (idx < num_paths)
 	{
 		if (pathSegments[idx].remainingBounces <= 0)
 		{
@@ -363,7 +359,6 @@ __global__ void shadeMaterialsDirect(int iter, int numActiveRays, ShadeableInter
 		//deal with the material and end up changing the pathSegment color and its ray direction
 		//scatterRay(pathSegments[idx], intersection, material, rng);
 		naiveIntegrator(pathSegments[idx], intersection, material, rng);
-		//directLightingIntegrator(pathSegments[idx], intersection, material, materials, geoms, geom_size, numActiveRays, numLights, lights, rng);
 	}
 }
 
@@ -541,9 +536,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 																			dev_paths, dev_materials);
 #elif DIRECT_LIGHTING_INTEGRATOR
 		shadeMaterialsDirect <<<numblocksPathSegmentTracing, blockSize1d>>> (iter, activeRays, dev_intersections,
-																			dev_paths, dev_materials, dev_geoms, 
-																			hst_scene->geoms.size(),
-																			hst_scene->lights.size(), dev_lights);
+																			dev_paths, dev_materials);
 #else // NAIVE_INTEGRATOR
 		shadeMaterialsNaive <<<numblocksPathSegmentTracing, blockSize1d>>> (iter, activeRays, dev_intersections, 
 																			dev_paths, dev_materials);
@@ -558,7 +551,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 		activeRays = partition_point - dev_paths;
 #endif
 
-		if (depth >= traceDepth || activeRays<=0)// based off stream compaction results.
+		if (depth >= traceDepth || activeRays<0)// based off stream compaction results.
 		{
 			iterationComplete = true;
 		}

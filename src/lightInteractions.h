@@ -1,18 +1,6 @@
 #pragma once
 
 #include "sampleShapes.h"
-#define COMPEPSILON 0.000000001f
-
-__host__ __device__ bool fequals_Vec(const Vector3f& v1, const Vector3f& v2)
-{
-	if ( (glm::abs(v1.x - v2.x) < COMPEPSILON)  &&
-		 (glm::abs(v1.y - v2.y) < COMPEPSILON)  &&
-		 (glm::abs(v1.z - v2.z) < COMPEPSILON) )
-	{
-		return true;
-	}
-	return false;
-}
 
 __host__ __device__ Color3f sampleLights(const Material &m, Vector3f& normal, Vector3f& wi,
 										Vector2f &xi, float& pdf, Vector3f& refPoint, Geom& geom)
@@ -21,7 +9,7 @@ __host__ __device__ Color3f sampleLights(const Material &m, Vector3f& normal, Ve
 	GeomType lightShape = geom.type;
 	ShadeableIntersection intersection = sampleShapes(xi, pdf, refPoint, geom, lightShape);
 
-	if (pdf == 0.0f || fequals_Vec(refPoint, intersection.intersectPoint))
+	if (pdf == 0.0f || refPoint == intersection.intersectPoint)
 	{
 		return Color3f(0.0f);
 	}

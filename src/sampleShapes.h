@@ -7,7 +7,7 @@ __host__ __device__ ShadeableIntersection sampleSphere(const Vector2f &xi, float
 	glm::vec4 pObj = glm::vec4(sampling_SquareToSphereUniform(xi), 0.0f); //used to calculate normal
 
 	ShadeableIntersection it;
-	it.surfaceNormal = glm::normalize(glm::vec3(pObj));
+	it.surfaceNormal = glm::vec3(glm::normalize(geom.invTranspose * pObj));
 	pObj.w = 1.0f;
 	it.intersectPoint = Point3f(geom.transform * pObj);
 
@@ -24,8 +24,10 @@ __host__ __device__ ShadeableIntersection sampleShapes(Vector2f &xi, float& pdf,
 	float area;
 	ShadeableIntersection isect;
 
-	//Only for spheres
-	isect = sampleSphere(xi, pdf, geom, area);
+	if (lightShape == SPHERE)
+	{
+		isect = sampleSphere(xi, pdf, geom, area);
+	}
 
 	Vector3f wi = glm::normalize(isect.intersectPoint - refPoint);
 	float absDot = glm::abs(glm::dot(isect.surfaceNormal, -wi));
