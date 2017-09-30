@@ -48,18 +48,20 @@ You can definitely see the jagged edges are more profound on the left since AA i
 
 ![](img/materials.png)
 
-### Material Comparisons
-I placed a small spherical light inside each of the green cubes to mainly to demonstrate the subsurface scattering effect. 
+### Subsurface Scattering
 
+![](img/subsurface/backleft.png)  |  ![](img/subsurface/backright.png) | ![](img/subsurface/frontright.png)
+:-------------------------:|:-------------------------:|:-------------------------:
+
+### Material Comparisons
 Diffuse             |  Specular
 :-------------------------:|:-------------------------:
-![](img/diffuse_cornell.2017-09-29_00-20-22z.5000samp.png)  |  ![](img/reflective_cornell.2017-09-29_00-34-30z.5000samp.png) |
+![](img/diffuse1000.png)  |  ![](img/specular1000.png) |
 
-It may not look like it but the cube on the right is a perfectly specular green cube.
 
 Transmissive          |  Subsurface
 :-------------------------:|:-------------------------:
-![](img/transmissive_cornell.2017-09-29_00-25-51z.5000samp.png)  |  ![](img/subsurface_cornell.2017-09-29_00-14-23z.5000samp.png) 
+![](img/transmissive1000.png)  |  ![](img/subsurface1000.png) 
 
 
 ## Integration/Shading Techniques

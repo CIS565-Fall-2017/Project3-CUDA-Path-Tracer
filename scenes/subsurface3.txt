@@ -143,7 +143,7 @@ DENSITY     .9
 
 // Subsurface
 MATERIAL 12
-RGB         .45 .91 .95
+RGB         .8 .95 .6
 SPECEX      0
 SPECRGB     0 0 0
 REFL        0
@@ -183,7 +183,7 @@ FOCALDIST   10
 OBJECT 0
 sphere
 material 0
-TRANS       -4 0 -4
+TRANS       4 0 3
 ROTAT       0 0 0
 SCALE       5 5 5
 
@@ -230,7 +230,7 @@ SCALE       .01 10 10
 // Cube
 OBJECT 6
 cube
-material 4
+material 7
 TRANS       -2 1.6 2
 ROTAT       0 35 0
 SCALE       3 3 3

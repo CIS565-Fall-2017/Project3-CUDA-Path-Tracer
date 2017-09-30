@@ -321,21 +321,6 @@ void scatterRay(
 	}
 	// Refractive Surface
 	else if (m.hasRefractive) {
-		// Needa fix PBRT implementation
-		//bool entering = CosTheta(wo, normal) > 0;
-		//float etaA = 1.f;
-		//float etaB = m.indexOfRefraction;
-		//float etaI = entering ? etaA : etaB;
-		//float etaT = entering ? etaB : etaA;
-		//if (!Refract(wo, Faceforward(glm::vec3(0, 0, 1), wo), etaI / etaT, wi)) {
-		//	pdf = 0.f;
-		//	color = glm::vec3(0.f);
-		//}
-		//else {
-		//	pdf = 1.f;
-		//	color = m.specular.color * (glm::vec3(1.f) - fresnelDielectric(wo, wi, normal, etaI, etaT)) / AbsCosTheta(wi, normal);
-		//}
-
 		float n1 = 1.f;					// air
 		float n2 = m.indexOfRefraction;	// material
 
@@ -361,15 +346,9 @@ void scatterRay(
 		pathSegment.color *= m.specular.color;
 	}
 	// Subsurface
-	else if (m.hasSubsurface) {
-		// Sample distance in medium 
-		// Evaluate transmission and accumulate throughput
-		// If the scatterDistance < dist(ray.origin, next intersection)
-		//		scatter
-		// Sample for next direction
-	
 	// http://www.davepagurek.com/blog/volumes-subsurface-scattering/
-	//else if (m.hasSubsurface) {
+	// https://computergraphics.stackexchange.com/questions/5214/a-recent-approach-for-subsurface-scattering
+	else if (m.hasSubsurface) {
 		// Make a ray at the intersection going in the same direction.
 		// This will get updated in the loop.
 		Ray nextRay;
@@ -378,10 +357,6 @@ void scatterRay(
 
 		PathSegment offsetPath = pathSegment;
 		offsetPath.ray = nextRay;
-		//offsetPath.color *= pathSegment.color * m.color;
-		//offsetPath.color = pathSegment.color * m.color * AbsDot(intersection.surfaceNormal, pathSegment.ray.direction);
-		//offsetPath.color *= pathSegment.color * m.color * AbsDot(calculateRandomDirectionInHemisphere(intersection.surfaceNormal, rng), intersection.surfaceNormal);
-
 		offsetPath.color = glm::vec3(0.f);
 
 		ShadeableIntersection prevIsect = intersection;
@@ -405,27 +380,20 @@ void scatterRay(
 				float ln = logf(u01(rng));
 				float distanceTraveled = -ln / m.density;
 
-				// Make a scatter event if the distance is less than the path
+				// If the sampled distance is less than the ray then we want to 
+				// get a new direction for the next ray and add to the color.
 				if (distanceTraveled < path.length()) {
-					nextRay.origin = nextRay.origin + glm::normalize(path) * distanceTraveled;
-					//nextRay.direction = glm::normalize(glm::vec3(u(rng), u(rng), u(rng)));
-					//nextRay.direction = calculateRandomDirectionInHemisphere(end.surfaceNormal, rng);
-					//nextRay.direction = sampleDisk(u(rng), u(rng));
 
+					nextRay.origin = nextRay.origin + glm::normalize(path) * distanceTraveled;
 					// Sample the medium for a direction
 					nextRay.direction = SphereSample(rng);
-
 					offsetPath.ray = nextRay;
-					//offsetPath.color *= m.color * transmission /*offsetPath.color*/;
-					//offsetPath.color *= m.color * AbsDot(end.surfaceNormal, nextRay.direction);
-
-					//offsetPath.color += m.color;
 
 					float transmission = expf(-m.density * distanceTraveled);
 					float phase = phaseFunction(m.density, CosTheta(nextRay.direction, end.surfaceNormal));
 
+					// Color gets more muted as we go further along the ray.
 					offsetPath.color += m.color * transmission;
-					//offsetPath.color += m.color * phase * transmission;
 
 					prevIsect = end;
 				}
