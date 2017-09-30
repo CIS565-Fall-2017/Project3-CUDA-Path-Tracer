@@ -45,51 +45,6 @@ glm::vec3 calculateRandomDirectionInHemisphere(
 		+ sin(around) * over * perpendicularDirection2;
 }
 
-__host__ __device__ glm::vec3 squareToDiskConcentric(glm::vec2 sample)
-{
-	float phi, r, u, v;
-	float a = 2 * sample[0] - 1;
-	float b = 2 * sample[1] - 1;
-
-	if (a>-b)
-	{
-		if (a>b)
-		{
-			r = a;
-			phi = (PI / 4)*(b / a);
-		}
-		else
-		{
-			r = b;
-			phi = (PI / 4)*(2 - (a / b));
-		}
-	}
-	else
-	{
-		if (a<b)
-		{
-			r = -a;
-			phi = (PI / 4)*(4 + (b / a));
-		}
-		else
-		{
-			r = -b;
-			if (b != 0)
-			{
-				phi = (PI / 4)*(6 - (a / b));
-			}
-			else
-			{
-				phi = 0;
-			}
-		}
-	}
-
-	u = r*cos(phi);
-	v = r*sin(phi);
-	return glm::vec3(u, v, 0);
-}
-
 __host__ __device__ glm::vec3 Clamp(glm::vec3 vec, float small, float large)
 {
 	glm::vec3 temp;
@@ -131,19 +86,19 @@ __host__ __device__ glm::vec3 TangentSpaceToWorldSpace(glm::vec3 normal, glm::ve
 	return glm::vec3(normal.x*worldVec.z, normal.y*worldVec.z, normal.z*worldVec.z);
 }
 
-__host__ __device__ glm::vec3 CosineWeightedRandomSample(
-	glm::vec3 normal, thrust::default_random_engine &rng)
-{
-	thrust::uniform_real_distribution<float> u01(0, 1);
-	thrust::uniform_real_distribution<float> u02(0, 1);
-
-	glm::vec2 sample = glm::vec2(u01(rng), u02(rng));
-
-	glm::vec3 flatHemisphere = squareToDiskConcentric(sample);
-	float z_coordinate = std::sqrt(1 - flatHemisphere[0] * flatHemisphere[0] - flatHemisphere[1] * flatHemisphere[1]);
-
-	return TangentSpaceToWorldSpace(normal, glm::vec3(flatHemisphere[0], flatHemisphere[1], z_coordinate));
-}
+//__host__ __device__ glm::vec3 CosineWeightedRandomSample(
+//	glm::vec3 normal, thrust::default_random_engine &rng)
+//{
+//	thrust::uniform_real_distribution<float> u01(0, 1);
+//	thrust::uniform_real_distribution<float> u02(0, 1);
+//
+//	glm::vec2 sample = glm::vec2(u01(rng), u02(rng));
+//
+//	glm::vec3 flatHemisphere = squareToDiskConcentric(sample);
+//	float z_coordinate = std::sqrt(1 - flatHemisphere[0] * flatHemisphere[0] - flatHemisphere[1] * flatHemisphere[1]);
+//
+//	return TangentSpaceToWorldSpace(normal, glm::vec3(flatHemisphere[0], flatHemisphere[1], z_coordinate));
+//}
 
 
 __host__ __device__ bool Refract(const glm::vec3 &wi, const glm::vec3 &n, float eta,
@@ -156,22 +111,22 @@ __host__ __device__ bool Refract(const glm::vec3 &wi, const glm::vec3 &n, float 
 	// Handle total internal reflection for transmission
 	if (sin2ThetaT >= 1) return false;
 	float cosThetaT = sqrt(1 - sin2ThetaT);
-	*wt = eta * -wi + (eta * cosThetaI - cosThetaT) * glm::vec3(n);
+	*wt = eta * wi + (eta * cosThetaI - cosThetaT) * glm::vec3(n);
 	return true;
 }
 
 __host__ __device__ float FrDielectric(float cosThetaI, float etaI, float etaT)
 {
 	cosThetaI = glm::clamp(cosThetaI, -1.0f, 1.0f);
-
+	cosThetaI = abs(cosThetaI);
 	//potentially swap indicieds of refraction
-	bool entering = cosThetaI >0.f;
+	/*bool entering = cosThetaI <0.f;
 
 	if (!entering)
 	{
 		swap(etaI, etaT);
 		cosThetaI = abs(cosThetaI);
-	}
+	}*/
 
 	//copmute cosThetaT using Snell's law
 	float sinThetaI = sqrt(max((float)0, 1 - cosThetaI*cosThetaI));
@@ -261,19 +216,30 @@ void scatterRay(
 		{
 		    float etaI = (float)m.hasReflective;
 		    float etaT = (float)m.hasRefractive;
-		    float cosThetaI = abs(glm::dot(normal, lastRayDir)) / glm::length(normal);
+			float cosThetaI = glm::dot(glm::normalize(normal), glm::normalize(lastRayDir));
 		    float randomResult = u01(rng);
+
+			if (cosThetaI > 0.f)
+			{
+				normal = -normal;
+				float temp = etaI;
+				etaI = etaT;
+				etaT = temp;
+			}
 
 		    if (randomResult >= 0.5)
 		    {
 		        newRayDir = glm::reflect(pathSegment.ray.direction, normal);
-		        finalColor = m.color + lastColor * m.specular.color*Evaluate(cosThetaI, etaI, etaT)*glm::vec3(0.1f);
+				glm::vec3 result = Evaluate(cosThetaI, etaI, etaT);
+		        finalColor = (m.color + lastColor * m.specular.color)*Evaluate(cosThetaI, etaI, etaT);
+				//finalColor = lastColor * m.specular.color*Evaluate(cosThetaI, etaI, etaT);
 		    }
 		    else
 		    {
 		        if (Refract(lastRayDir, normal, etaI / etaT, &newRayDir))
 		        {
-		              finalColor = m.color + lastColor*m.specular.color*(glm::vec3(1.f) - Evaluate(cosThetaI, etaI, etaT))*glm::vec3(0.9f);
+		            finalColor = (m.color + lastColor*m.specular.color)*(glm::vec3(1.f) - Evaluate(cosThetaI, etaI, etaT));
+					//finalColor = lastColor*m.specular.color*(glm::vec3(1.f) - Evaluate(cosThetaI, etaI, etaT));
 		        }
 		    }
 		}
@@ -306,7 +272,7 @@ void scatterRay(
 
 		//pathSegment.color = glm::clamp(finalColor, 0.f, 1.f);
 		pathSegment.color = finalColor;
-		pathSegment.ray.origin = intersect + newRayDir*0.001f;
+		pathSegment.ray.origin = intersect + newRayDir*0.013f;
 		pathSegment.ray.direction = newRayDir;
 	}
 	

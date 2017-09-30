@@ -18,7 +18,7 @@
 
 
 #define lensRadius 1.f
-#define focalDistance 1.f
+#define focalDistance 2.f
 #define ERRORCHECK 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
@@ -78,7 +78,7 @@ static Geom * dev_geoms = NULL;
 static Material * dev_materials = NULL;
 static PathSegment * dev_paths = NULL;
 static ShadeableIntersection * dev_intersections = NULL;
-static PathSegment* dev_finalSeg = NULL;
+//static PathSegment* dev_finalSeg = NULL;
 //static bool* streamFlag = NULL;
 static int* compactSteamsIn= NULL;
 // TODO: static variables for device memory, any extra info you need, etc
@@ -93,7 +93,7 @@ void pathtraceInit(Scene *scene) {
     cudaMemset(dev_image, 0, pixelcount * sizeof(glm::vec3));
 
   	cudaMalloc(&dev_paths, pixelcount * sizeof(PathSegment));
-	cudaMalloc(&dev_finalSeg, pixelcount * sizeof(PathSegment));
+	//cudaMalloc(&dev_finalSeg, pixelcount * sizeof(PathSegment));
 
   	cudaMalloc(&dev_geoms, scene->geoms.size() * sizeof(Geom));
   	cudaMemcpy(dev_geoms, scene->geoms.data(), scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
@@ -120,10 +120,55 @@ void pathtraceFree() {
   	cudaFree(dev_intersections);
     // TODO: clean up any extra device memory you created
 
-	cudaFree(dev_finalSeg);
+	//cudaFree(dev_finalSeg);
 	cudaFree(compactSteamsIn);
 	//cudaFree(streamFlag);
     checkCUDAError("pathtraceFree");
+}
+
+__device__ glm::vec3 squareToDiskConcentric(glm::vec2 sample)
+{
+	float phi, r, u, v;
+	float a = 2 * sample[0] - 1;
+	float b = 2 * sample[1] - 1;
+
+	if (a>-b)
+	{
+		if (a>b)
+		{
+			r = a;
+			phi = (PI / 4)*(b / a);
+		}
+		else
+		{
+			r = b;
+			phi = (PI / 4)*(2 - (a / b));
+		}
+	}
+	else
+	{
+		if (a<b)
+		{
+			r = -a;
+			phi = (PI / 4)*(4 + (b / a));
+		}
+		else
+		{
+			r = -b;
+			if (b != 0)
+			{
+				phi = (PI / 4)*(6 - (a / b));
+			}
+			else
+			{
+				phi = 0;
+			}
+		}
+	}
+
+	u = r*cos(phi);
+	v = r*sin(phi);
+	return glm::vec3(u, v, 0);
 }
 
 __device__ void RealisticCamera(PathSegment& pathsegment, thrust::default_random_engine &rng)
@@ -183,10 +228,9 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		segment.pixelIndex = index;
 		segment.remainingBounces = traceDepth;
 		
-
 		//TODO:special code for realistic camera
-		//thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
-		//RealisticCamera(pathSegments[index], rng);
+		thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, traceDepth);
+		RealisticCamera(pathSegments[index], rng);
 	}
 
 	
@@ -247,11 +291,6 @@ __global__ void computeIntersections(
 				normal = tmp_normal;
 			}
 		}
-
-		//if ((geoms[hit_geom_index].materialid!=0)&&(pathSegment.remainingBounces == 0))
-		//{
-		//	return;
-		//}
 
 		if (hit_geom_index == -1)
 		{
@@ -544,36 +583,36 @@ __global__ void DirectLightingIntegrator(
 	}	
 }
 
-__global__ void StreamLeft(bool* steamFlag, PathSegment* pathsegments, int processLeft)
-{
-	int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+//__global__ void StreamLeft(bool* steamFlag, PathSegment* pathsegments, int processLeft)
+//{
+//	int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+//
+//	if (index < processLeft)
+//	{
+//		PathSegment pathSeg = pathsegments[index];
+//		if (pathSeg.remainingBounces <= 0)
+//		{
+//			steamFlag[index] = false;
+//		}
+//		else
+//		{
+//			steamFlag[index] = true;
+//		}
+//	}
+//}
 
-	if (index < processLeft)
-	{
-		PathSegment pathSeg = pathsegments[index];
-		if (pathSeg.remainingBounces <= 0)
-		{
-			steamFlag[index] = false;
-		}
-		else
-		{
-			steamFlag[index] = true;
-		}
-	}
-}
-
-__global__ void TerminateColor(PathSegment* pathSegments, PathSegment* finalSegment,int pixelCount)
-{
-	int index = (blockIdx.x * blockDim.x) + threadIdx.x;
-
-	if (index < pixelCount)
-	{
-		if (pathSegments[index].remainingBounces == 0)
-		{
-			finalSegment[index] = pathSegments[index];
-		}
-	}
-}
+//__global__ void TerminateColor(PathSegment* pathSegments, PathSegment* finalSegment,int pixelCount)
+//{
+//	int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+//
+//	if (index < pixelCount)
+//	{
+//		if (pathSegments[index].remainingBounces == 0)
+//		{
+//			finalSegment[index] = pathSegments[index];
+//		}
+//	}
+//}
 /**
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
  * of memory management
@@ -692,8 +731,6 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		dev_materials,
 		traceDepth);
 
-	TerminateColor << <blocksPerGrid1d, blockSize1d >> > (dev_paths, dev_finalSeg, pixelcount);
-
     BouncesLeft << <blocksPerGrid1d, blockSize1d >> > (dev_paths, compactSteamsIn, processLeft);
     cudaMemcpy(steamCompactionOut, compactSteamsIn, sizeof(int)*pixelcount, cudaMemcpyDeviceToHost);
 
@@ -705,19 +742,6 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
     {
     	  iterationComplete = true; // TODO: should be based off stream compaction results.
     }
-
- /* if (depth == 4)
-  {
-	  iterationComplete = true;
-  }*/
-
-  
-
-	//StreamLeft << <blocksPerGrid1d, blockSize1d >> > (streamFlag, dev_paths, processLeft);
-	//thrust::device_ptr<bool> boolFlag(streamFlag);
-	//thrust::device_ptr<PathSegment> pathDev(dev_paths);
-	//thrust::remove_if(pathDev, pathDev + processLeft, boolFlag, thrust::logical_not<bool>());
-	//processLeft = thrust::count_if(boolFlag, boolFlag + processLeft, thrust::identity<bool>());
 
 	//**************************************End of naive integrator *****************************************************
 
@@ -741,12 +765,10 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	}
 
 	free(steamCompactionOut);
-	//free(newEnd);
-
 
   // Assemble this iteration and apply it to the image
     
-	finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_finalSeg);
+	finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
 
     ///////////////////////////////////////////////////////////////////////////
 
