@@ -81,6 +81,7 @@ static ShadeableIntersection * dev_intersections = NULL;
 //static PathSegment* dev_finalSeg = NULL;
 //static bool* streamFlag = NULL;
 static int* compactSteamsIn= NULL;
+static int* materialKey = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
 // ...
 
@@ -108,6 +109,7 @@ void pathtraceInit(Scene *scene) {
 
 	cudaMalloc(&compactSteamsIn, pixelcount * sizeof(int));
 	//cudaMalloc(&streamFlag, sizeof(bool)*pixelcount);
+	cudaMalloc(&materialKey, pixelcount * sizeof(int));
 
     checkCUDAError("pathtraceInit");
 }
@@ -123,6 +125,7 @@ void pathtraceFree() {
 	//cudaFree(dev_finalSeg);
 	cudaFree(compactSteamsIn);
 	//cudaFree(streamFlag);
+	cudaFree(materialKey);
     checkCUDAError("pathtraceFree");
 }
 
@@ -527,10 +530,9 @@ __global__ void DirectLightingIntegrator(
 
 	if (idx < num_paths)
 	{
-		PathSegment pathSegment = pathSegments[idx];
 		ShadeableIntersection intersection = shadeableIntersections[idx];
 		Material materialIsc = materials[intersection.materialId];
-		int remainBounce = depth - pathSegment.remainingBounces;
+		int remainBounce = depth - pathSegments[idx].remainingBounces;
 
 		thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, remainBounce);
 		thrust::uniform_real_distribution<float> u01(0, 1);
@@ -538,52 +540,69 @@ __global__ void DirectLightingIntegrator(
 		//hit something
 		if (intersection.t > 0.f)
 		{
-
 			//hit light source
 			if (materialIsc.emittance > 0.f)
 			{
-				pathSegment.color = materialIsc.color;
-				pathSegment.remainingBounces = 0;
+				pathSegments[idx].color = materialIsc.color;
 			}
 			//other situations 
 			else
 			{
 				ShadeableIntersection shadowIntersection = ShadeableIntersection();
-				DirectShadowIntersection(pathSegment, geoms, geoSize, shadowIntersection);
+				glm::vec3 lastIntersectionPoint = pathSegments[idx].ray.origin;
+				glm::vec3 lastIntersectionDir = pathSegments[idx].ray.direction;
+				glm::vec3 intersectionPoint = lastIntersectionPoint + lastIntersectionDir*intersection.t;
+				PathSegment shadowSegment;
+				PathSegment lastSegment = pathSegments[idx];
+
+				scatterRay(lastSegment, intersectionPoint, intersection.surfaceNormal, materialIsc, rng);
+				shadowSegment.ray.origin = lastSegment.ray.origin;
+				shadowSegment.ray.direction = lastSegment.ray.direction;
+				shadowSegment.pixelIndex = lastSegment.pixelIndex;
+				shadowSegment.color = lastSegment.color;
+
+				DirectShadowIntersection(shadowSegment, geoms, geoSize, shadowIntersection);
 				Material shadowMaterial = materials[shadowIntersection.materialId];
+				float emit = shadowMaterial.emittance;
 
 				if (shadowIntersection.t > 0.f)
 				{
-					if (shadowMaterial.emittance > 0.f)
+					if (shadowMaterial.emittance>0.f)
 					{
-						pathSegment.color += shadowMaterial.color;
+						pathSegments[idx].color = materialIsc.color * lastSegment.color;
 						
 					}
 					else
 					{
-						pathSegment.color = glm::vec3(0.f);
+						pathSegments[idx].color = glm::vec3(0.f);
 						
 					}
 				}
 				else
 				{
-					glm::vec3 lastIntersectionPoint = pathSegments[idx].ray.origin;
-					glm::vec3 lastIntersectionDir = pathSegments[idx].ray.direction;
-					glm::vec3 intersectionPoint = lastIntersectionPoint + lastIntersectionDir*intersection.t;
-					scatterRay(pathSegment, intersectionPoint, intersection.surfaceNormal, materialIsc, rng);
 					
+					pathSegments[idx].color = glm::vec3(0.f);
 				}
 			}
 		}
 		else
 		{
-			pathSegment.color = glm::vec3(0.f);
+			pathSegments[idx].color = glm::vec3(0.f);
 					
 		}	
-		pathSegment.remainingBounces = 0;
 	}	
 }
 
+__global__ void MaterialKey(ShadeableIntersection* intersections, int* materialIdKey, int pixelCount)
+{
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if (idx < pixelCount)
+	{
+		materialIdKey[idx] = intersections[idx].materialId;
+	}
+
+}
 //__global__ void StreamLeft(bool* steamFlag, PathSegment* pathsegments, int processLeft)
 //{
 //	int index = (blockIdx.x * blockDim.x) + threadIdx.x;
@@ -704,6 +723,17 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	cudaDeviceSynchronize();
 	depth++;
 
+	
+
+	//TODO material compaction
+	//MaterialKey << <blocksPerGrid1d, blockSize1d >> >(dev_intersections, materialKey, pixelCount);
+	//thrust::device_ptr<int> dev_thrust_keys(materialKey);
+	//thrust::device_ptr<PathSegment> dev_thrust_valuesSeg(dev_paths);
+	//thrust::device_ptr<ShadeableIntersection> dev_thrust_valuesInt(dev_intersections);
+
+	//thrust::sort_by_key(dev_thrust_keys, dev_thrust_keys + pixelcount, dev_thrust_valuesSeg);
+	//thrust::sort_by_key(dev_thrust_keys, dev_thrust_keys + pixelcount, dev_intersections);
+
 	// TODO:
 	// --- Shading Stage ---
 	// Shade path segments based on intersections and generate new rays by
@@ -724,43 +754,43 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	//**************************************************Naive Integrator**********************************************
 	//TODO
 	//Naive path tracing integrator
-	shadeMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
-		iter,
-		num_paths,
-		dev_intersections,
-		dev_paths,
-		dev_materials,
-		traceDepth);
+	//shadeMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
+	//	iter,
+	//	num_paths,
+	//	dev_intersections,
+	//	dev_paths,
+	//	dev_materials,
+	//	traceDepth);
 
-    BouncesLeft << <blocksPerGrid1d, blockSize1d >> > (dev_paths, compactSteamsIn, processLeft);
-    cudaMemcpy(steamCompactionOut, compactSteamsIn, sizeof(int)*pixelcount, cudaMemcpyDeviceToHost);
+ //   BouncesLeft << <blocksPerGrid1d, blockSize1d >> > (dev_paths, compactSteamsIn, processLeft);
+ //   cudaMemcpy(steamCompactionOut, compactSteamsIn, sizeof(int)*pixelcount, cudaMemcpyDeviceToHost);
 
-    newEnd = thrust::remove(steamCompactionOut, steamCompactionOut + num_paths, 0);
-  
-    traceSize = newEnd - steamCompactionOut;
+ //   newEnd = thrust::remove(steamCompactionOut, steamCompactionOut + num_paths, 0);
+ // 
+ //   traceSize = newEnd - steamCompactionOut;
 
-    if (newEnd == steamCompactionOut)
-    {
-    	  iterationComplete = true; // TODO: should be based off stream compaction results.
-    }
+ //   if (newEnd == steamCompactionOut)
+ //   {
+ //   	  iterationComplete = true; // TODO: should be based off stream compaction results.
+ //   }
 
 	//**************************************End of naive integrator *****************************************************
 
 	//**************************************Direct lighting***************************************************************
   //TODO
   //direct lighting path tracing integrator 
-	//DirectLightingIntegrator << <numblocksPathSegmentTracing, blockSize1d >> >
-	//	(iter,
-	//		num_paths,
-	//		dev_intersections,
-	//		dev_paths,
-	//		dev_materials,
-	//		dev_geoms,
-	//		1,
-	//		traceDepth,
-	//		hst_scene->geoms.size());
+	DirectLightingIntegrator << <numblocksPathSegmentTracing, blockSize1d >> >
+		(iter,
+			num_paths,
+			dev_intersections,
+			dev_paths,
+			dev_materials,
+			dev_geoms,
+			1,
+			traceDepth,
+			hst_scene->geoms.size());
 
-	//iterationComplete = true;
+	iterationComplete = true;
 	//****************************************End of direct lighting 
   
 	}
