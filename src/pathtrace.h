@@ -1,7 +1,9 @@
 #pragma once
 
 #include <vector>
-#include "scene.h"
+//#include "scene.h"
+
+class Scene;
 
 void pathtraceInit(Scene *scene);
 void pathtraceFree();

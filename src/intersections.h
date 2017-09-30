@@ -46,7 +46,7 @@ __host__ __device__ glm::vec3 multiplyMV(glm::mat4 m, glm::vec4 v) {
  * @return                   Ray parameter `t` value. -1 if no intersection.
  */
 __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
-        glm::vec3 &intersectionPoint, glm::vec2 &uv, glm::vec3 &normal, bool &outside) {
+         glm::vec2 &uv, glm::vec3 &normal, bool &outside) {
     Ray q;
     q.origin    =                multiplyMV(box.inverseTransform, glm::vec4(r.origin   , 1.0f));
     q.direction = glm::normalize(multiplyMV(box.inverseTransform, glm::vec4(r.direction, 0.0f)));
@@ -130,7 +130,7 @@ __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
 		uv = UV;
 
 
-        intersectionPoint = multiplyMV(box.transform, glm::vec4(objspaceIntersection, 1.0f));
+		glm::vec3 intersectionPoint = multiplyMV(box.transform, glm::vec4(objspaceIntersection, 1.0f));
         normal = glm::normalize(multiplyMV(box.transform, glm::vec4(tmin_n, 0.0f)));
         return glm::length(r.origin - intersectionPoint);
     }
@@ -148,7 +148,7 @@ __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
  * @return                   Ray parameter `t` value. -1 if no intersection.
  */
 __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
-        glm::vec3 &intersectionPoint, glm::vec2 &uv, glm::vec3 &normal, bool &outside) {
+         glm::vec2 &uv, glm::vec3 &normal, bool &outside) {
     float radius = .5;
 
     glm::vec3 ro = multiplyMV(sphere.inverseTransform, glm::vec4(r.origin, 1.0f));
@@ -192,7 +192,7 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
 	float theta = glm::acos(p.y);
 	uv = glm::vec2(1.0f - phi / TWO_PI, 1 - theta / PI);
 
-    intersectionPoint = multiplyMV(sphere.transform, glm::vec4(objspaceIntersection, 1.f));
+	glm::vec3 intersectionPoint = multiplyMV(sphere.transform, glm::vec4(objspaceIntersection, 1.f));
     normal = glm::normalize(multiplyMV(sphere.invTranspose, glm::vec4(objspaceIntersection, 0.f)));
 	//since we want to judge ray goes in or out of sphere,
 	//Don't want our normal reversed and it always points outside
@@ -331,4 +331,119 @@ __host__ __device__ inline bool Refract(const glm::vec3 &wi, const glm::vec3 &n,
 	float cosThetaT = std::sqrt(1 - sin2ThetaT);
 	*wt = eta * -wi + (eta * cosThetaI - cosThetaT) * n;
 	return true;
+}
+
+#ifdef ENABLE_BVH
+#define MAX_BVH_INTERIOR_LEVEL 64 // assume the maximum bvh interior node level is 64
+#endif 
+
+
+// Mainly target to Call in GPU
+__host__ __device__ bool IntersectBVH(const Ray &ray, ShadeableIntersection * isect,
+	const LinearBVHNode *bvh_nodes,
+	const Triangle* primitives)
+{
+	if (!bvh_nodes) return false;
+
+	bool hit = false;
+
+	//   bool SameLevelBoundingBoxIntersect = false;
+
+	glm::vec3 invDir(1.0f / ray.direction.x, 1.0f / ray.direction.y, 1.0f / ray.direction.z);
+	int dirIsNeg[3] = { invDir.x < 0.f, invDir.y < 0.f, invDir.z < 0.f };
+
+
+	// Follow ray through BVH nodes to find primitive intersections
+	int toVisitOffset = 0, currentNodeIndex = 0;
+	int nodesToVisit[MAX_BVH_INTERIOR_LEVEL]; 
+
+	while (true) {
+
+		const LinearBVHNode *node = &bvh_nodes[currentNodeIndex];
+		// Check ray against BVH node
+		float temp_t = 0.f;
+		// For the very first bounding box, we don't know whether the ray
+		// interects (root node) or not, so wo do initial test here
+		// but for the following bounding box added, we
+		// make sure they are SURE to intersect!
+		bool node_isect = (currentNodeIndex == 0) ? node->bounds.Intersect(ray, &temp_t) : true;
+
+		if (node->bounds.IntersectP(ray, invDir, dirIsNeg)) {
+
+			// If this is a leaf node
+			if (node->nPrimitives > 0) {
+
+				// Intersect ray with EVERY primitive in leaf BVH node
+				for (int i = 0; i < node->nPrimitives; i++) {
+					ShadeableIntersection temp_isect;
+					if (primitives[node->primitivesOffset + i].Intersect(ray, &temp_isect)) {
+
+						hit = true;
+
+						// if iscet is still null,
+						// we need initialize it
+						if (isect->t == -1.0f) {
+							(*isect) = temp_isect;
+						}
+						else {
+							if (temp_isect.t < isect->t) {
+								(*isect) = temp_isect;
+							}
+						}
+					}
+				}
+
+				// If it hits one primitive, loop break;
+				// since bounding box is put in ToVisit list
+				// according to t value(from small to large)
+
+				//    if(toVisitOffset == 0 || hit) break;
+
+				// no.. actually, it's incorrect!
+				// can't stop loop, there may be intersection with smaller t value!
+				if (toVisitOffset == 0) break;
+
+
+				//                if(SameLevelBoundingBoxIntersect){
+				//                    if(toVisitOffset == 0) break;
+				//                }
+				//                else{
+				//                    if(toVisitOffset == 0 || hit) break;
+				//                }
+				currentNodeIndex = nodesToVisit[--toVisitOffset];
+			}
+
+			// If this is a interior node
+			else {
+				// ----------- Depth control ---------------
+				// if toVisitOffset reaches maximum
+				// we don't want add more index to nodesToVisit Array
+				// we just give up this interior node and handle previous nodes instead 
+				if (toVisitOffset == MAX_BVH_INTERIOR_LEVEL) {
+					currentNodeIndex = nodesToVisit[--toVisitOffset];
+					continue;
+				}
+				// -----------------------------------------
+				
+				// add index to nodes to visit
+				if (dirIsNeg[node->axis]) {
+					nodesToVisit[toVisitOffset++] = currentNodeIndex + 1;
+					currentNodeIndex = node->secondChildOffset;
+				}
+				else {
+					nodesToVisit[toVisitOffset++] = node->secondChildOffset;
+					currentNodeIndex = currentNodeIndex + 1;
+				}
+			}
+		}
+
+		// If the root node hits nothing
+		else {
+			if (toVisitOffset == 0) break;
+			currentNodeIndex = nodesToVisit[--toVisitOffset];
+		}
+
+	}
+
+	return hit;
 }

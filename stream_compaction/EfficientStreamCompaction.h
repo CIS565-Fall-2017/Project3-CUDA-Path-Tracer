@@ -1,6 +1,6 @@
 #pragma once
 
-#include "src/pathtrace.h"
+#include "src/sceneStructs.h"
 #include <device_launch_parameters.h>
 
 // To use efficient compaction algorithm

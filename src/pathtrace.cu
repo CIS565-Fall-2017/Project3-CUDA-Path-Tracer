@@ -20,6 +20,7 @@
 
 #include "stream_compaction/EfficientStreamCompaction.h"
 
+#include "bounds.h"
 
 #define ERRORCHECK 1
 
@@ -118,6 +119,12 @@ static ShadeableIntersection * dev_intersections_after_sort = NULL;
 static Triangle * dev_tris = NULL;
 
 
+#ifdef ENABLE_MESHWORLDBOUND
+static Bounds3f * dev_worldBounds = NULL;
+#endif 
+#ifdef ENABLE_BVH
+static LinearBVHNode* dev_bvh_nodes = NULL;
+#endif
 
 void pathtraceInit(Scene *scene) {
     hst_scene = scene;
@@ -136,9 +143,21 @@ void pathtraceInit(Scene *scene) {
 
   	cudaMalloc(&dev_materials, scene->materials.size() * sizeof(Material));
   	cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
+	
 	// Triangles of mesh
 	cudaMalloc(&dev_tris, scene->tris.size() * sizeof(Triangle));
 	cudaMemcpy(dev_tris, scene->tris.data(), scene->tris.size() * sizeof(Triangle), cudaMemcpyHostToDevice);
+#ifdef ENABLE_MESHWORLDBOUND
+	// World bounds of mesh
+	cudaMalloc(&dev_worldBounds, scene->worldBounds.size() * sizeof(Bounds3f));
+	cudaMemcpy(dev_worldBounds, scene->worldBounds.data(), scene->worldBounds.size() * sizeof(Bounds3f), cudaMemcpyHostToDevice);
+#endif
+#ifdef ENABLE_BVH
+	//BVH Nodes
+	cudaMalloc(&dev_bvh_nodes, scene->bvh_totalNodes * sizeof(LinearBVHNode));
+	cudaMemcpy(dev_bvh_nodes, scene->bvh_nodes, scene->bvh_totalNodes * sizeof(LinearBVHNode), cudaMemcpyHostToDevice);
+#endif
+
 
 
   	cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
@@ -200,6 +219,13 @@ void pathtraceFree() {
 	cudaFree(dev_RadixSort_after_sort);
 
 	cudaFree(dev_tris);
+
+#ifdef ENABLE_MESHWORLDBOUND
+	cudaFree(dev_worldBounds);
+#endif
+#ifdef ENABLE_BVH
+	cudaFree(dev_bvh_nodes);
+#endif
 
     checkCUDAError("pathtraceFree");
 }
@@ -294,6 +320,12 @@ __global__ void computeIntersections(
 	, int geoms_size
 	, ShadeableIntersection * intersections
 	, int noInteresctMaterialID
+#ifdef ENABLE_MESHWORLDBOUND
+	, Bounds3f * worldBounds
+#endif
+#ifdef ENABLE_BVH
+	, LinearBVHNode * nodes
+#endif
 	)
 {
 	int path_index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -303,14 +335,14 @@ __global__ void computeIntersections(
 		PathSegment pathSegment = pathSegments[path_index];
 
 		float t;
-		glm::vec3 intersect_point;
+		//glm::vec3 intersect_point;
 		glm::vec3 normal;
 		glm::vec2 uv;
 		float t_min = FLT_MAX;
 		int hit_geom_index = -1;
 		bool outside = true;
 
-		glm::vec3 tmp_intersect;
+		//glm::vec3 tmp_intersect;
 		glm::vec3 tmp_normal;
 		glm::vec2 tmp_uv;
 
@@ -322,16 +354,42 @@ __global__ void computeIntersections(
 
 			if (geom.type == CUBE)
 			{
-				t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_uv, tmp_normal, outside);
+				t = boxIntersectionTest(geom, pathSegment.ray, tmp_uv, tmp_normal, outside);
 			}
 			else if (geom.type == SPHERE)
 			{
-				t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_uv, tmp_normal, outside);
+				t = sphereIntersectionTest(geom, pathSegment.ray, tmp_uv, tmp_normal, outside);
 			}
 			// TODO: add more intersection tests here... triangle? metaball? CSG?
 			else if (geom.type == MESH)
-			{
+			{	
+#ifdef ENABLE_MESHWORLDBOUND
+#ifdef ENABLE_BVH
+				ShadeableIntersection temp_isect;
+				temp_isect.t = FLT_MAX;
+				if (IntersectBVH(pathSegment.ray, &temp_isect, nodes, tris)) {
+					t = temp_isect.t;
+					tmp_uv = temp_isect.uv;
+					tmp_normal = temp_isect.surfaceNormal;
+				}
+				else {
+					t = -1.0f;
+				}
+
+#else
+				// Check geom related world bound first
+				float tmp_t;
+				if (worldBounds[geom.worldBoundIdx].Intersect(pathSegment.ray, &tmp_t)) {
+					t = meshIntersectionTest(geom, tris, pathSegment.ray, tmp_uv, tmp_normal, outside);
+				}
+				else {
+					t = -1.0f;
+				}
+#endif
+#else
+				// loop through all triangles in related mesh
 				t = meshIntersectionTest(geom, tris, pathSegment.ray, tmp_uv, tmp_normal, outside);
+#endif		
 			}
 
 
@@ -341,7 +399,7 @@ __global__ void computeIntersections(
 			{
 				t_min = t;
 				hit_geom_index = i;
-				intersect_point = tmp_intersect;
+				//intersect_point = tmp_intersect;
 				uv = tmp_uv;
 				normal = tmp_normal;
 			}
@@ -643,6 +701,12 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		, hst_scene->geoms.size()
 		, dev_intersections
 		, NoInteresctMaterialID
+#ifdef ENABLE_MESHWORLDBOUND
+		, dev_worldBounds
+#endif
+#ifdef ENABLE_BVH
+		, dev_bvh_nodes
+#endif
 		);
 	checkCUDAError("trace one bounce");
 	cudaDeviceSynchronize();
@@ -667,6 +731,12 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 			, hst_scene->geoms.size()
 			, dev_first_bounce_intersections
 			, NoInteresctMaterialID
+#ifdef ENABLE_MESHWORLDBOUND
+			, dev_worldBounds
+#endif
+#ifdef ENABLE_BVH
+			, dev_bvh_nodes
+#endif
 			);
 		checkCUDAError("trace one bounce");
 		cudaDeviceSynchronize();
@@ -704,6 +774,12 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 				, hst_scene->geoms.size()
 				, dev_intersections
 				, NoInteresctMaterialID
+#ifdef ENABLE_MESHWORLDBOUND
+				, dev_worldBounds
+#endif
+#ifdef ENABLE_BVH
+				, dev_bvh_nodes
+#endif
 				);
 			checkCUDAError("trace one bounce");
 

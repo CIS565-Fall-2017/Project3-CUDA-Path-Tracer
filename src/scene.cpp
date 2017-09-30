@@ -4,6 +4,8 @@
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtx/string_cast.hpp>
 
+#include <GLFW/glfw3.h>
+
 #include "tiny_obj_loader.h"
 #include <memory>
 
@@ -37,6 +39,28 @@ Scene::Scene(string filename) {
         }
     }
 	fp_in.close();
+
+#ifdef ENABLE_BVH
+	double startTime = glfwGetTime();
+	// Max number of primitives in BVH node
+	int maxPrimsInNode = 5; // TODO : Tweak this magic number for the best performance
+	bvh_nodes = ConstructBVHAccel(bvh_totalNodes, tris, maxPrimsInNode);
+
+	cout << "Total time to Consturst a BVH : " << (glfwGetTime() - startTime) << " seconds" << endl;
+	cout << "BVH has " << bvh_totalNodes << " nodes totally" << endl;
+	cout << endl;
+
+#endif  
+
+}
+
+Scene::~Scene() {
+
+#ifdef ENABLE_BVH
+	DeconstructBVHAccel(bvh_nodes);
+
+#endif 
+
 }
 
 int Scene::loadGeom(string objectid) {
@@ -236,6 +260,19 @@ void Scene::loadObj(string objPath, Geom& newGeom, const glm::mat4& transform, c
 		//Read the information from the vector of shape_ts
 		newGeom.meshTriangleStartIdx = tris.size();
 
+#ifdef ENABLE_MESHWORLDBOUND
+		newGeom.worldBoundIdx = worldBounds.size();
+		float min_x = FLT_MAX;
+		float min_y = FLT_MAX;
+		float min_z = FLT_MAX;
+
+		float max_x = FLT_MIN;
+		float max_y = FLT_MIN;
+		float max_z = FLT_MIN;
+#endif 
+
+
+
 		for (unsigned int i = 0; i < shapes.size(); i++)
 		{
 			std::vector<float> &positions = shapes[i].mesh.positions;
@@ -253,6 +290,23 @@ void Scene::loadObj(string objPath, Geom& newGeom, const glm::mat4& transform, c
 				t.vertices[1] = p2;
 				t.vertices[2] = p3;
 
+#ifdef ENABLE_MESHWORLDBOUND
+				float min_x_temp = glm::min(p1.x, glm::min(p2.x, p3.x));
+				float min_y_temp = glm::min(p1.y, glm::min(p2.y, p3.y));
+				float min_z_temp = glm::min(p1.z, glm::min(p2.z, p3.z));
+
+				float max_x_temp = glm::max(p1.x, glm::max(p2.x, p3.x));
+				float max_y_temp = glm::max(p1.y, glm::max(p2.y, p3.y));
+				float max_z_temp = glm::max(p1.z, glm::max(p2.z, p3.z));
+
+				min_x = min_x < min_x_temp ? min_x : min_x_temp;
+				min_y = min_y < min_y_temp ? min_y : min_y_temp;
+				min_z = min_z < min_z_temp ? min_z : min_z_temp;
+				max_x = max_x > max_x_temp ? max_x : max_x_temp;
+				max_y = max_y > max_y_temp ? max_y : max_y_temp;
+				max_z = max_z > max_z_temp ? max_z : max_z_temp;
+
+#endif
 				if (normals.size() > 0)
 				{
 					glm::vec4 n1 = invTranspose * glm::vec4(normals[indices[j] * 3], normals[indices[j] * 3 + 1], normals[indices[j] * 3 + 2], 0);
@@ -276,6 +330,11 @@ void Scene::loadObj(string objPath, Geom& newGeom, const glm::mat4& transform, c
 		}
 
 		newGeom.meshTriangleEndIdx = tris.size();
+
+#ifdef ENABLE_MESHWORLDBOUND
+		worldBounds.push_back(Bounds3f(glm::vec3(min_x, min_y, min_z), 
+									   glm::vec3(max_x, max_y, max_z)));
+#endif
 	}
 	else
 	{
