@@ -87,6 +87,7 @@ void scatterRay(
 	}
 	if (m.emittance > 0.0f) {
 		// emittance
+		pathSegment.is_terminated = true;
 		pathSegment.remainingBounces = 0;
 		pathSegment.color *= (m.color * m.emittance);
 		return;

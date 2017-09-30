@@ -22,8 +22,8 @@ EMITTANCE   0
 MATERIAL 2
 RGB         .85 .35 .35
 SPECEX      0
-SPECRGB     .85 .35 .35
-REFL        1
+SPECRGB     0 0 0
+REFL        0
 REFR        0
 REFRIOR     0
 EMITTANCE   0
@@ -40,12 +40,12 @@ EMITTANCE   0
 
 // Specular white
 MATERIAL 4
-RGB         .98 .98 .20
+RGB         .98 .98 .98
 SPECEX      0
 SPECRGB     .98 .98 .98
 REFL        0
-REFR        1
-REFRIOR     1.4
+REFR        0
+REFRIOR     0
 EMITTANCE   0
 
 // Camera
@@ -54,12 +54,12 @@ RES         800 800
 FOVY        45
 ITERATIONS  5000
 DEPTH       8
-FILE        test1
+FILE        test_bunny_load
 EYE         0.0 5 10.5
 LOOKAT      0 5 0
 UP          0 1 0
-FOCALLEN    20
-LENSRAD     0.5
+FOCALLEN    9.0
+LENSRAD     1.0
 
 // Ceiling light
 OBJECT 0
@@ -92,10 +92,10 @@ TRANS_END   0 10 0
 OBJECT 3
 cube
 material 1
-TRANS       0 5 -15
+TRANS       0 5 -5
 ROTAT       0 90 0
 SCALE       .01 10 10
-TRANS_END   0 5 -15
+TRANS_END   0 5 -5
 
 // Left wall
 OBJECT 4
@@ -115,74 +115,12 @@ ROTAT       0 0 0
 SCALE       .01 10 10
 TRANS_END   5 5 0
 
-// Sphere
+// Mesh
 OBJECT 6
-sphere
-material 4
-TRANS       -1 4 -1
-ROTAT       0 0 0
-SCALE       3 3 3
-TRANS_END   -1.5 2 -1
-
-// Ceiling light
-OBJECT 7
-cube
-material 0
-TRANS       0 10 -5
-ROTAT       0 0 0
-SCALE       3 .3 3
-TRANS_END   0 10 -5
-
-// Floor
-OBJECT 8
-cube
+mesh
 material 1
-TRANS       0 0 -10
+TRANS       0 2 3
 ROTAT       0 0 0
-SCALE       10 .01 10
-TRANS_END   0 0 -10
-
-// Ceiling
-OBJECT 9
-cube
-material 1
-TRANS       0 10 -10
-ROTAT       0 0 90
-SCALE       .01 10 10
-TRANS_END   0 10 -10
-
-// Left wall
-OBJECT 10
-cube
-material 2
-TRANS       -5 5 -10
-ROTAT       0 0 0
-SCALE       .01 10 10
-TRANS_END   -5 5 -10
-
-// Right wall
-OBJECT 11
-cube
-material 3
-TRANS       5 5 -10
-ROTAT       0 0 0
-SCALE       .01 10 10
-TRANS_END   5 5 -10
-
-// Cube
-OBJECT 12
-cube
-material 1
-TRANS       2 4 -10
-ROTAT       0 45 45
-SCALE       3 3 3
-TRANS_END   2 4 -10
-
-// Ceiling light
-OBJECT 13
-cube
-material 0
-TRANS       0 10 -10
-ROTAT       0 0 0
-SCALE       3 .3 3
-TRANS_END   0 10 -10
+SCALE       20 20 20
+TRANS_END   0 3 -1
+OBJ_PATH    bunny.obj

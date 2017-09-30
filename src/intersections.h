@@ -142,3 +142,102 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
 
     return glm::length(r.origin - intersectionPoint);
 }
+
+__host__ __device__ bool aabbBoxIntersect(const Ray& r, glm::vec3 min, glm::vec3 max)
+{
+	float tnear = FLT_MIN;
+	float tfar = FLT_MAX;
+
+	for (int i = 0; i<3; i++) 
+	{
+		float t0, t1;
+
+		if (fabs(r.direction[i]) < EPSILON)
+		{
+			if (r.origin[i] < min[i] || r.origin[i] > max[i])
+				return false;
+			else
+			{
+				t0 = FLT_MIN;
+				t1 = FLT_MAX;
+			}
+		}
+		else
+		{
+			t0 = (min[i] - r.origin[i]) / r.direction[i];
+			t1 = (max[i] - r.origin[i]) / r.direction[i];
+		}
+
+		tnear = glm::max(tnear, glm::min(t0, t1));
+		tfar = glm::min(tfar, glm::max(t0, t1));
+	}
+
+	if (tfar < tnear) return false; // no intersection
+
+	if (tfar < 0) return false; // behind origin of ray
+
+	return true;
+
+}
+
+__host__ __device__ float meshIntersectionTest(Geom mesh, Ray r,
+	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside, Vertex *vertices) {
+
+	//world to local
+	Ray rt;
+	rt.origin = multiplyMV(mesh.inverseTransform, glm::vec4(r.origin, 1.0f));
+	rt.direction = glm::normalize(multiplyMV(mesh.inverseTransform, glm::vec4(r.direction, 0.0f)));
+
+	if (!aabbBoxIntersect(rt, mesh.bbox_min, mesh.bbox_max))
+		return -1;
+
+	int start_index = mesh.start_Index;
+	int num_vertices = mesh.vertices_Num;
+
+	float t = FLT_MAX;
+
+	for (int i = 0; i < num_vertices; i += 3) {
+		glm::vec3 baryPosition;
+		glm::vec3 v0, v1, v2;
+		v0 = vertices[start_index + i].position;
+		v1 = vertices[start_index + i + 1].position;
+		v2 = vertices[start_index + i + 2].position;
+
+		bool res = glm::intersectRayTriangle(rt.origin, rt.direction, v0, v1, v2, baryPosition);
+		float ti = FLT_MAX;
+		glm::vec3 intersectPoint = rt.origin + rt.direction * baryPosition.z;
+		if (res)
+			ti = glm::length(intersectPoint - rt.origin) / glm::length(rt.direction);
+		if (ti < t) {
+			t = ti;
+			normal = glm::normalize(vertices[start_index + i].normal + vertices[start_index + i + 1].normal + vertices[start_index + i + 2].normal);
+			intersectionPoint = intersectPoint;
+		}
+	}
+
+	// no intersection
+	if (t == FLT_MAX) {
+		return -1;
+	}
+
+	int sign = 1;
+	if (glm::dot(rt.direction, normal) >= 0) {
+		outside = false;
+	//	sign = -1;
+	}
+	else {
+	//	sign = 1;
+		outside = true;
+		//printf("outside\n");
+	}
+
+	
+
+	//local to world
+	intersectionPoint = glm::vec3(multiplyMV(mesh.transform, glm::vec4(intersectionPoint, 1.0f)));
+	normal = float(sign) * glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(normal, 0.0f)));
+	//printf ("Hit Triangle: %f %f %f \n", intersectionPoint.x, intersectionPoint.y, intersectionPoint.z);
+
+	
+	return glm::length(r.origin - intersectionPoint);
+}

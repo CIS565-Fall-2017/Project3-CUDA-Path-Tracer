@@ -35,7 +35,7 @@ extern FILE *fp;
 #define Sorting_Toggle 0
 #define AntiAliasing_Toggle 1
 #define MotionBlur_Toggle 0
-#define Depth_Of_Field_Toggle 1
+#define Depth_Of_Field_Toggle 0
 
 void checkCUDAErrorFn(const char *msg, const char *file, int line) {
 #if ERRORCHECK
@@ -96,6 +96,8 @@ static ShadeableIntersection * dev_intersections = NULL;
 static PathSegment * dev_cache_paths = NULL;
 static ShadeableIntersection * dev_cache_intersections = NULL;
 static int * dev_flag_array = NULL;
+
+static Vertex * dev_vertices = NULL;
 // ...
 
 void pathtraceInit(Scene *scene) {
@@ -125,6 +127,9 @@ void pathtraceInit(Scene *scene) {
 	cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
 	cudaMalloc(&dev_flag_array, pixelcount * sizeof(int));
+
+	cudaMalloc(&dev_vertices, hst_scene->vertices.size() * sizeof(Vertex));
+	cudaMemcpy(dev_vertices, hst_scene->vertices.data(), hst_scene->vertices.size() * sizeof(Vertex), cudaMemcpyHostToDevice);
     checkCUDAError("pathtraceInit");
 }
 
@@ -203,6 +208,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 
 		segment.ray.origin = cam.position;
 		segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
+		segment.is_terminated = false;
 		thrust::default_random_engine rng = makeSeededRandomEngine(iter, x + y, 0);
 		thrust::uniform_real_distribution<float> u01(0, 1);
 
@@ -257,6 +263,7 @@ __global__ void computeIntersections(
 	, Geom * geoms
 	, int geoms_size
 	, ShadeableIntersection * intersections
+	, Vertex *vertices
 	)
 {
 	int path_index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -293,6 +300,9 @@ __global__ void computeIntersections(
 			else if (geom.type == SPHERE)
 			{
 				t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+			}
+			else if (geom.type == MESH) {
+				t = meshIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, vertices);
 			}
 			// TODO: add more intersection tests here... triangle? metaball? CSG?
 
@@ -406,7 +416,8 @@ __global__ void shadeRealMaterial(
 			}
 			else {
 				flag_array[idx] = 0;
-				image[this_Path.pixelIndex] += this_Path.color;
+				if(pathSegments[idx].is_terminated)
+					image[this_Path.pixelIndex] += this_Path.color;
 			}
 		}
 		else {
@@ -600,6 +611,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 			, dev_geoms
 			, hst_scene->geoms.size()
 			, dev_intersections
+			, dev_vertices
 			);
 		checkCUDAError("trace one bounce");
 		cudaMemcpy(dev_cache_intersections, dev_intersections, num_paths * sizeof(ShadeableIntersection),  cudaMemcpyDeviceToDevice);
@@ -639,6 +651,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 				, dev_geoms
 				, hst_scene->geoms.size()
 				, dev_intersections
+				, dev_vertices
 				);
 			checkCUDAError("trace one bounce");
 #endif
@@ -651,6 +664,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 				, dev_geoms
 				, hst_scene->geoms.size()
 				, dev_intersections
+				, dev_vertices
 				);
 			checkCUDAError("trace one bounce");
 			cudaDeviceSynchronize();
