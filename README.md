@@ -13,6 +13,11 @@ project, and we will not be able to grade you without a good README.
 
 ## 1. Part 1 - Core Features
 ####**Basic BSDF Feature.** 
+
+ - **BSDF**:  a simple Lambert, specular and also mixture of Lambert and specular material in **ScatterRay**;
+ - **Steam Compaction**: through thrust::remove to remove the 0 remaining bounces inside pathSegments;
+ - **Material Sorting**: through thrust::sort_by_key to compact pathSegments with the same material together.
+
 The Cornell box are Lambert material, and the sphere at the center is a mixture of both Lambert and perfect specular material, therefore it has some reflectivity and also roughness. 
 
 **Cornell.txt** after 5000 iterations:
@@ -20,8 +25,6 @@ The Cornell box are Lambert material, and the sphere at the center is a mixture 
 
 **Mirror.txt** a specular and Lambert mixture sphere at the center, after 500 iterations:
 ![enter image description here](https://lh3.googleusercontent.com/-zhM-jUWEfnE/Wc8GCnjUv-I/AAAAAAAAA68/FGqjPM4225c88tWV9qbfbIynRMweThMWgCLcBGAs/s0/cornell.2017-09-30_02-42-46z.5000samp.png "cornell.2017-09-30_02-42-46z.5000samp.png")
-
-####**Contiguous in memory by material type**
 
 ## 2. Part 2 - Own Features
 ### 1) Direct lighting
