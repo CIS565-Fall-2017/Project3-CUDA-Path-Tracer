@@ -5,7 +5,7 @@
 #include <thrust/random.h>
 #include <thrust/remove.h>
 
-#include "stream_compaction/efficient.h"
+#include "stream_compaction/efficient_shared.h"
 #include "sceneStructs.h"
 #include "scene.h"
 #include "glm/glm.hpp"
@@ -21,7 +21,7 @@
 #define COMPACT 1
 #define CONTIG_MAT 0
 #define CACHE_FIRST 0
-#define BV_CULLING 1
+#define BV_CULLING 0
 
 // feature flags
 #define ANTI_ALIAS 1
@@ -600,7 +600,7 @@ float pathtrace(uchar4 *pbo, int frame, int iter) {
 			iterationComplete = true;
 		} else {
 #if COMPACT
-		num_paths = StreamCompaction::Efficient::compact(num_paths, dev_indices, dev_indices);
+		num_paths = StreamCompaction::Efficient_Shared::compact(num_paths, dev_indices, dev_indices);
 		if (num_paths <= 0) {
 			iterationComplete = true;
 		}
