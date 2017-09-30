@@ -219,9 +219,11 @@ void scatterRay(
 			float cosThetaI = glm::dot(glm::normalize(normal), glm::normalize(lastRayDir));
 		    float randomResult = u01(rng);
 
+			//if cosine theta >0.f which means leaving 
+			//if cosine theta <0.f which means entering 
 			if (cosThetaI > 0.f)
 			{
-				normal = -normal;
+				normal *= -1.f;
 				float temp = etaI;
 				etaI = etaT;
 				etaT = temp;
@@ -230,17 +232,21 @@ void scatterRay(
 		    if (randomResult >= 0.5)
 		    {
 		        newRayDir = glm::reflect(pathSegment.ray.direction, normal);
-				glm::vec3 result = Evaluate(cosThetaI, etaI, etaT);
-		        finalColor = (m.color + lastColor * m.specular.color)*Evaluate(cosThetaI, etaI, etaT);
-				//finalColor = lastColor * m.specular.color*Evaluate(cosThetaI, etaI, etaT);
+		        finalColor = m.color * lastColor * m.specular.color*Evaluate(cosThetaI, etaI, etaT);
 		    }
 		    else
 		    {
+				//refraction 
 		        if (Refract(lastRayDir, normal, etaI / etaT, &newRayDir))
 		        {
-		            finalColor = (m.color + lastColor*m.specular.color)*(glm::vec3(1.f) - Evaluate(cosThetaI, etaI, etaT));
-					//finalColor = lastColor*m.specular.color*(glm::vec3(1.f) - Evaluate(cosThetaI, etaI, etaT));
+		            finalColor = m.color *lastColor*m.specular.color*(glm::vec3(1.f) - Evaluate(cosThetaI, etaI, etaT));				
 		        }
+				//total reflection 
+				else
+				{
+					newRayDir = glm::reflect(pathSegment.ray.direction, normal);
+					finalColor = m.color * lastColor * m.specular.color*(glm::vec3(1.f) - Evaluate(cosThetaI, etaI, etaT));
+				}
 		    }
 		}
 		//perfect specular

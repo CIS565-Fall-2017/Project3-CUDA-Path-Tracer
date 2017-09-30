@@ -229,8 +229,9 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		segment.remainingBounces = traceDepth;
 		
 		//TODO:special code for realistic camera
-		thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, traceDepth);
-		RealisticCamera(pathSegments[index], rng);
+		//Realistic Camera Part
+		/*thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, traceDepth);
+		RealisticCamera(pathSegments[index], rng);*/
 	}
 
 	
