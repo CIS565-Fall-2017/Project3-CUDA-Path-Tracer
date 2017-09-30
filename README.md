@@ -15,10 +15,10 @@ project, and we will not be able to grade you without a good README.
 1. Basic BSDF Feature. 
 The Cornell box are Lambert material, and the sphere at the center is a mixture of both Lambert and perfect specular material, therefore it has some reflectivity and also roughness. 
 
-After 5000 iterations:
+**Cornell.txt** after 5000 iterations:
 ![enter image description here](https://lh3.googleusercontent.com/-i2Wx3KM3VGc/Wc8ElRgYFCI/AAAAAAAAA6s/RT3osXf1LLc67gfhvPe51cIgmMRUZL38gCLcBGAs/s0/cornell.2017-09-30_02-37-01z.5000samp.png "cornell.2017-09-30_02-37-01z.5000samp.png")
 
-A specular and Lambert mixture sphere at the center, after 500 iterations:
+**Mirror.txt** a specular and Lambert mixture sphere at the center, after 500 iterations:
 ![enter image description here](https://lh3.googleusercontent.com/-zhM-jUWEfnE/Wc8GCnjUv-I/AAAAAAAAA68/FGqjPM4225c88tWV9qbfbIynRMweThMWgCLcBGAs/s0/cornell.2017-09-30_02-42-46z.5000samp.png "cornell.2017-09-30_02-42-46z.5000samp.png")
 
 2. Contiguous in memory by material type
@@ -41,7 +41,11 @@ At the last of **generateRayFromCamera** kernel function, and rebuild the projec
 
  Also, **lensRadius**  and **focalDistance** defined at the beginning of pathtrace.cu can be changed according to the translation of objects inside the scene. We can focus on the sphere in the Cornell box:
 
+Cornell.txt after 5000 iterations:
+![enter image description here](https://lh3.googleusercontent.com/-HJFEbFjS1x8/Wc-8C9pIZDI/AAAAAAAAA7g/XXqN69WTs80SHLmExtIDW3BH23WevDg5wCLcBGAs/s0/cornell.2017-09-30_15-37-14z.5000samp.png "cornell.2017-09-30_15-37-14z.5000samp.png")
 
+Realistic.txt after 5000 iterations:
+![enter image description here](https://lh3.googleusercontent.com/-JbpKdBJO3so/Wc-9ZIgJDtI/AAAAAAAAA7w/EBlwHkN8TrYKAkc-Q_-oL5GAz6Pxx-s9QCLcBGAs/s0/cornell.2017-09-30_15-44-36z.5000samp.png "cornell.2017-09-30_15-44-36z.5000samp.png")
 
 #### 3) Fresnel Dielectric
 To test Fresnel effect, please use the **glass.txt** in scene files. 
