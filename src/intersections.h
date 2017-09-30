@@ -171,16 +171,153 @@ __host__ __device__ float triangleIntersectionTest(Geom triangle, Ray r,
 
 	intersectionPoint = multiplyMV(triangle.transform, glm::vec4(objspaceIntersection, 1.f));
 
+	normal = glm::normalize(glm::cross(triangle.triangle.p0 - triangle.triangle.p1, triangle.triangle.p0 - triangle.triangle.p2));
+	outside = true;
 
-	normal = glm::normalize(glm::cross(triangle.triangle.p0 - triangle.triangle.p1, triangle.triangle.p0 - triangle.triangle.p1));
-	glm::vec4 norm = glm::vec4(glm::cross(triangle.triangle.p0 - triangle.triangle.p1, triangle.triangle.p0 - triangle.triangle.p1) , 0.0f);
-	normal = glm::normalize(multiplyMV(triangle.invTranspose, norm));
 	if (glm::dot(q.origin, normal) < 0) {
 		outside = false;
 	}
-	else {
-		outside = true;
-	}
 
 	return t;
+}
+
+__host__ __device__ bool boundingVolumeIntersectionTest(Geom box, Ray r) {
+	Ray q;
+	q.origin = multiplyMV(box.inverseTransform, glm::vec4(r.origin, 1.0f));
+	q.direction = glm::normalize(multiplyMV(box.inverseTransform, glm::vec4(r.direction, 0.0f)));
+
+	// Ray - box intersection, referenced Scratchapixel.com
+	float tmin = (box.box.min.x - q.origin.x) / q.direction.x;
+	float tmax = (box.box.max.x - q.origin.x) / q.direction.x;
+
+	if (tmin > tmax) {
+		float temp = tmin;
+		tmin = tmax;
+		tmax = temp;
+	}
+
+	float tymin = (box.box.min.y - q.origin.y) / q.direction.y;
+	float tymax = (box.box.max.y - q.origin.y) / q.direction.y;
+
+	if (tymin > tymax) {
+		float temp = tymin;
+		tymin = tymax;
+		tymax = temp;
+	}
+
+	if ((tmin > tymax) || (tymin > tmax)) {
+		return false;
+	}
+
+	if (tymin > tmin) {
+		tmin = tymin;
+	}
+
+	if (tymax < tmax) {
+		tmax = tymax;
+	}
+
+	float tzmin = (box.box.min.z - q.origin.z) / q.direction.z;
+	float tzmax = (box.box.max.z - q.origin.z) / q.direction.z;
+
+	if (tzmin > tzmax) {
+		float temp = tzmin;
+		tzmin = tzmax;
+		tzmax = temp;
+	}
+
+	if ((tmin > tzmax) || (tzmin > tmax)) {
+		return false;
+	}
+
+	if (tzmin > tmin) {
+		tmin = tzmin;
+	}
+
+	if (tzmax < tmax) {
+		tmax = tzmax;
+	}
+
+	return true;
+}
+
+__host__ __device__ bool boundingboxIntersectionTest(Geom box, Ray r) {
+	Ray q;
+	q.origin = multiplyMV(box.inverseTransform, glm::vec4(r.origin, 1.0f));
+	q.direction = glm::normalize(multiplyMV(box.inverseTransform, glm::vec4(r.direction, 0.0f)));
+
+	glm::vec3 bmin = multiplyMV(box.inverseTransform, glm::vec4(box.box.min, 1.0f));
+	glm::vec3 bmax = multiplyMV(box.inverseTransform, glm::vec4(box.box.max, 1.0f));
+
+
+	float tmin = -1e38f;
+	float tmax = 1e38f;
+	glm::vec3 tmin_n;
+	glm::vec3 tmax_n;
+
+	int xyz = 0;
+		float qdxyz = q.direction[xyz];
+		/*if (glm::abs(qdxyz) > 0.00001f)*/ {
+			float t1 = (bmin.x - q.origin[xyz]) / qdxyz;
+			float t2 = (bmax.x - q.origin[xyz]) / qdxyz;
+			float ta = glm::min(t1, t2);
+			float tb = glm::max(t1, t2);
+			glm::vec3 n;
+			n[xyz] = t2 < t1 ? +1 : -1;
+			if (ta > 0 && ta > tmin) {
+				tmin = ta;
+				tmin_n = n;
+			}
+			if (tb < tmax) {
+				tmax = tb;
+				tmax_n = n;
+			}
+		}
+
+		xyz = 1;
+		/*if (glm::abs(qdxyz) > 0.00001f)*/ {
+			float t1 = (bmin.y - q.origin[xyz]) / qdxyz;
+			float t2 = (bmax.y - q.origin[xyz]) / qdxyz;
+			float ta = glm::min(t1, t2);
+			float tb = glm::max(t1, t2);
+			glm::vec3 n;
+			n[xyz] = t2 < t1 ? +1 : -1;
+			if (ta > 0 && ta > tmin) {
+				tmin = ta;
+				tmin_n = n;
+			}
+			if (tb < tmax) {
+				tmax = tb;
+				tmax_n = n;
+			}
+		}
+
+		xyz = 2;
+		/*if (glm::abs(qdxyz) > 0.00001f)*/ {
+			float t1 = (bmin.z - q.origin[xyz]) / qdxyz;
+			float t2 = (bmax.z - q.origin[xyz]) / qdxyz;
+			float ta = glm::min(t1, t2);
+			float tb = glm::max(t1, t2);
+			glm::vec3 n;
+			n[xyz] = t2 < t1 ? +1 : -1;
+			if (ta > 0 && ta > tmin) {
+				tmin = ta;
+				tmin_n = n;
+			}
+			if (tb < tmax) {
+				tmax = tb;
+				tmax_n = n;
+			}
+		}
+
+
+	if (tmax >= tmin && tmax > 0) {
+		if (tmin <= 0) {
+			tmin = tmax;
+			tmin_n = tmax_n;
+		}
+
+		return true;
+	}
+	return false;
 }

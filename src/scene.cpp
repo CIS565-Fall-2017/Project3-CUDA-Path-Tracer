@@ -152,12 +152,34 @@ int Scene::loadMesh() {
 			utilityCore::safeGetline(fp_in, line);
 		} 
 
+
 		for (size_t i = 0; i < shapes.size(); i++) {
+
+			float minX = std::numeric_limits<float>::max();
+			float minY = std::numeric_limits<float>::max();
+			float minZ = std::numeric_limits<float>::max();
+			float maxX = std::numeric_limits<float>::min();
+			float maxY = std::numeric_limits<float>::min();
+			float maxZ = std::numeric_limits<float>::min();
+
+			Geom newGeom;
+			newGeom.type = BV;
+
+				newGeom.materialid = materialid;
+				loadTransformations(&newGeom, translate, rotate, scale);
+				newGeom.transform = utilityCore::buildTransformationMatrix(
+					newGeom.translation, newGeom.rotation, newGeom.scale);
+				newGeom.inverseTransform = glm::inverse(newGeom.transform);
+				newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
+				geoms.push_back(newGeom);
+
+			geoms.push_back(newGeom);
+			int boundingIndex = geoms.size(); 
+			cout << "Bounding box geom index: " << boundingIndex << endl;
 			
 			cout << "shape" << i << endl;
 			for (size_t f = 0; f < shapes[i].mesh.indices.size() / 3; f++) {
-				cout << "triangle " << f << endl;
-				Geom newGeom;
+				newGeom;
 
 				newGeom.type = TRIANGLE;
 			
@@ -166,23 +188,23 @@ int Scene::loadMesh() {
 					attribute.vertices[3 * index.vertex_index + 1],
 					attribute.vertices[3 * index.vertex_index + 2]);
 
-				cout << index.vertex_index << endl;
-				cout << "this is a point:" << attribute.vertices[3 * index.vertex_index] << endl;
-
 				index = shapes[i].mesh.indices[3 * f + 1];
 				newGeom.triangle.p1 = glm::vec3(attribute.vertices[3 * index.vertex_index],
 					attribute.vertices[3 * index.vertex_index + 1],
 					attribute.vertices[3 * index.vertex_index + 2]);
 
-				cout << index.vertex_index << endl;
-
-
 				index = shapes[i].mesh.indices[3 * f + 2];
 				newGeom.triangle.p2 = glm::vec3(attribute.vertices[3 * index.vertex_index],
 					attribute.vertices[3 * index.vertex_index + 1],
 					attribute.vertices[3 * index.vertex_index + 2]);
-			
-				cout << index.vertex_index << endl;
+
+				minX = std::min(minX, min(newGeom.triangle.p0.x, min(newGeom.triangle.p1.x, newGeom.triangle.p2.x)));
+				minY = std::min(minY, min(newGeom.triangle.p0.y, min(newGeom.triangle.p1.y, newGeom.triangle.p2.y)));
+				minZ = std::min(minZ, min(newGeom.triangle.p0.z, min(newGeom.triangle.p1.z, newGeom.triangle.p2.z)));
+
+				maxX = std::max(maxX, max(newGeom.triangle.p0.x, max(newGeom.triangle.p1.x, newGeom.triangle.p2.x)));
+				maxY = std::max(maxY, max(newGeom.triangle.p0.y, max(newGeom.triangle.p1.y, newGeom.triangle.p2.y)));
+				maxZ = std::max(maxZ, max(newGeom.triangle.p0.z, max(newGeom.triangle.p1.z, newGeom.triangle.p2.z)));
 
 				newGeom.materialid = materialid;
 				loadTransformations(&newGeom, translate, rotate, scale);
@@ -192,7 +214,8 @@ int Scene::loadMesh() {
 				newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
 				geoms.push_back(newGeom);
 			}
-			
+			geoms.at(boundingIndex).box.min = glm::vec3(minX, minY, minZ);
+			geoms.at(boundingIndex).box.max = glm::vec3(maxX, maxY, maxZ);
 
 		}
 	}

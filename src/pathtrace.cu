@@ -254,8 +254,21 @@ __global__ void computeIntersections(
 				t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
 			}
 			// TODO: add more intersection tests here... triangle? metaball? CSG?
-			else if (geom.type == TRIANGLE)
+			else if (geom.type == BV)
 			{
+				//if it intersects
+				//if (boundingVolumeIntersectionTest(geom, pathSegment.ray)) {
+				//	i++;
+				//	geom = geoms[i];
+				//	while (geom.type == TRIANGLE) {
+				//		t = triangleIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+				//		i++;
+				//		geom = geoms[i];
+				//	}
+				//}
+				t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+			}
+			else if (geom.type == TRIANGLE) {
 				t = triangleIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
 			}
 
