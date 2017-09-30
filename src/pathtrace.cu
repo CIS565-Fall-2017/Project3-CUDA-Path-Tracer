@@ -22,7 +22,7 @@
 
 #define CACHEBOUNCE 0
 
-#define DOF 1
+#define DOF 0
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -254,6 +254,10 @@ __global__ void computeIntersections(
 				t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
 			}
 			// TODO: add more intersection tests here... triangle? metaball? CSG?
+			else if (geom.type == TRIANGLE)
+			{
+				t = triangleIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+			}
 
 			// Compute the minimum t from the intersection tests to determine what
 			// scene geometry object was hit first.
