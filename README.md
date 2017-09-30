@@ -11,8 +11,8 @@ CUDA Path Tracer
 *DO NOT* leave the README to the last minute! It is a crucial part of the
 project, and we will not be able to grade you without a good README.
 
-### 1. Part 1 - Core Features
-1. Basic BSDF Feature. 
+## 1. Part 1 - Core Features
+####**Basic BSDF Feature.** 
 The Cornell box are Lambert material, and the sphere at the center is a mixture of both Lambert and perfect specular material, therefore it has some reflectivity and also roughness. 
 
 **Cornell.txt** after 5000 iterations:
@@ -21,13 +21,13 @@ The Cornell box are Lambert material, and the sphere at the center is a mixture 
 **Mirror.txt** a specular and Lambert mixture sphere at the center, after 500 iterations:
 ![enter image description here](https://lh3.googleusercontent.com/-zhM-jUWEfnE/Wc8GCnjUv-I/AAAAAAAAA68/FGqjPM4225c88tWV9qbfbIynRMweThMWgCLcBGAs/s0/cornell.2017-09-30_02-42-46z.5000samp.png "cornell.2017-09-30_02-42-46z.5000samp.png")
 
-2. Contiguous in memory by material type
+####**Contiguous in memory by material type**
 
-### 2. Part 2 - Own Features
-#### 1) Direct lighting
+## 2. Part 2 - Own Features
+### 1) Direct lighting
 
 
-#### 2) Realistic Camera Effect
+### 2) Realistic Camera Effect
 
 Uncomment
 
@@ -47,10 +47,13 @@ At the last of **generateRayFromCamera** kernel function, and rebuild the projec
 **Realistic.txt** after 5000 iterations:
 ![enter image description here](https://lh3.googleusercontent.com/-JbpKdBJO3so/Wc-9ZIgJDtI/AAAAAAAAA7w/EBlwHkN8TrYKAkc-Q_-oL5GAz6Pxx-s9QCLcBGAs/s0/cornell.2017-09-30_15-44-36z.5000samp.png "cornell.2017-09-30_15-44-36z.5000samp.png")
 
-#### 3) Fresnel Dielectric
+**Realistic1.txt** after 500 iterations:
+
+
+### 3) Fresnel Dielectric
 To test Fresnel effect, please use the **glass.txt** in scene files. 
 This scene is basically the same as the Cornell box scene, however, the sphere at the center is a glass ball, which has reflection and refraction. The Fresnel implementation here is quite naive, it simply add up Fresnel specular 
 
 
 
-### 3. Performance Analysis 
+## 3. Performance Analysis 
