@@ -7,29 +7,43 @@
 Scene::Scene(string filename) {
     cout << "Reading scene from " << filename << " ..." << endl;
     cout << " " << endl;
+
     char* fname = (char*)filename.c_str();
     fp_in.open(fname);
+
     if (!fp_in.is_open()) {
         cout << "Error reading from file - aborting!" << endl;
         throw;
     }
+
     while (fp_in.good()) {
         string line;
         utilityCore::safeGetline(fp_in, line);
         if (!line.empty()) {
             vector<string> tokens = utilityCore::tokenizeString(line);
-            if (strcmp(tokens[0].c_str(), "MATERIAL") == 0) {
+            if (strcmp(tokens[0].c_str(), "MATERIAL") == 0)
+			{
                 loadMaterial(tokens[1]);
                 cout << " " << endl;
-            } else if (strcmp(tokens[0].c_str(), "OBJECT") == 0) {
+            } else if (strcmp(tokens[0].c_str(), "OBJECT") == 0) 
+			{
                 loadGeom(tokens[1]);
                 cout << " " << endl;
-            } else if (strcmp(tokens[0].c_str(), "CAMERA") == 0) {
+            } else if (strcmp(tokens[0].c_str(), "CAMERA") == 0) 
+			{
                 loadCamera();
                 cout << " " << endl;
             }
+			else if (strcmp(tokens[0].c_str(), "FILM") == 0)
+			{
+				loadFilm();
+				cout << " " << endl;
+			}
         }
     }
+
+	// After loading, initialize
+	this->initialize();
 }
 
 int Scene::loadGeom(string objectid) {
@@ -88,11 +102,50 @@ int Scene::loadGeom(string objectid) {
         return 1;
     }
 }
+int Scene::loadFilm() {
+	cout << "Loading Film ..." << endl;
+	RenderState &state = this->state;
+	Film &film = state.film;
+
+	for (int i = 0; i < 3; i++) {
+		string line;
+		utilityCore::safeGetline(fp_in, line);
+		vector<string> tokens = utilityCore::tokenizeString(line);
+		
+		if (strcmp(tokens[0].c_str(), "FILTER_RADIUS") == 0) 
+		{
+			film.filterRadius = atof(tokens[1].c_str());
+		}
+		else if (strcmp(tokens[0].c_str(), "FILTER_ALPHA") == 0) 
+		{
+			film.filterAlpha = atof(tokens[1].c_str());
+		}
+		else if (strcmp(tokens[0].c_str(), "GAMMA") == 0) 
+		{
+			film.gamma = atof(tokens[1].c_str());
+			film.invGamma = 1.f / film.gamma;
+		}
+	}
+
+	cout << "Loaded film!" << endl;
+	return 1;
+}
+
+void Scene::initialize()
+{
+	Film & film = state.film;
+
+	glm::vec3 g = glm::vec3(film.gamma);
+
+	for (Material & m : this->materials)
+		m.color = glm::pow(m.color, g);
+}
 
 int Scene::loadCamera() {
     cout << "Loading Camera ..." << endl;
     RenderState &state = this->state;
     Camera &camera = state.camera;
+	Film &film = state.film;
     float fovy;
 
     //load static properties
@@ -144,7 +197,7 @@ int Scene::loadCamera() {
     //set up render camera stuff
     int arraylen = camera.resolution.x * camera.resolution.y;
     state.image.resize(arraylen);
-    std::fill(state.image.begin(), state.image.end(), glm::vec3());
+    std::fill(state.image.begin(), state.image.end(), glm::vec4());
 
     cout << "Loaded camera!" << endl;
     return 1;
