@@ -58,18 +58,6 @@ REFR        1
 REFRIOR     1.49
 EMITTANCE   0
 
-// Camera
-CAMERA
-RES         800 800
-FOVY        19.5
-ITERATIONS  10000
-DEPTH       10
-FILE        cornell
-EYE         0.0 5 19
-LOOKAT      0 5 0
-UP          0 1 0
-
-
 // Ceiling light
 OBJECT 0
 sphere
@@ -125,4 +113,16 @@ material 5
 TRANS       -2.5 6 1
 ROTAT       45 45 0
 SCALE       2.0 2.0 2.0
+
+
+// Camera
+CAMERA
+RES         800 800
+FOVY        19.5
+ITERATIONS  5000
+DEPTH       10
+FILE        cornell
+EYE         0.0 5 19
+LOOKAT      0 5 0
+UP          0 1 0
 

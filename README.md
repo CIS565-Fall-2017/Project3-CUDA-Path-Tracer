@@ -16,15 +16,15 @@ http://www.pbrt.org/
 **Highlights**<br />
     Below are some are some renders using multiple importance sampling and and naive path tracing. Notice the noise rection due to direct light multiple importance sampling in the 100 samples per pixel image. 
 <br />
-* Compaction
+* Compaction<br />
 <br />
     The compaction optimization was not much of an optimization given that it did not reduce the render time per pixel sample. Reasons for this could be the sorting overhead. I tried to increase the pixel count to 1000x1000 image and did not see the compaction fuctions catching up to no compaction version. The warp retiring benefits we get from removing the dead paths does not outway the overhead from removing them in the first place.
 <br />
-* First Bounce Caching
+* First Bounce Caching<br />
 <br />
     Of three optimizations that were performed, first bounce caching was the only one that provided any performance improvement. Across several depth termination settings it provided a constant savings of roughly 2ms. This is the amount of time it takes to determine the first itersection from the camera. 
 <br />
-* Material Sorting
+* Material Sorting<br />
 <br />
     Material sorting was much worse than not sorting at all. This is likely due to the overhead of sorting not being greater than the savings. The purported benefits of sorting paths by material type was that if one type of material had many instructions to complete compared to other materials then you would get some performance benefit by only taking that code path for the warp. However, these performance benefits are only realized if the intersections per material are mutiples of 32, allowing the warps to execute only one material code path. This is highly unlikely. It is far more likely that they are not multiples of 32 and some warps must stride 2 or more materials. This negates the benefits of sorting becuase in order for the next kernel call to start executing, it must wait around for these kinds of mixed material warps to finish. The only way I could see this working with existing code is calling the uber shader for each material (and only on the array bounds of the material) and kicking off each kernel in its own stream to allow async kernel execution (so that the next material specific uber shader kernel call doesn't have to wait for the previous to finish before it starts running). 
 <br />
@@ -35,19 +35,22 @@ http://www.pbrt.org/
 
 
 **MIS with Fresnel Reflection and Transmission**<br />
-**800x800 5000spp**<br />
-![](img/cornellFresnelReflectionAndTransmissionMIS5000.png)
+**MIS 800x800 5000spp**<br />
+![](img/cornellGlassCubeMIS5000.png)
 
-**800x800 5000spp**<br />
-![](img/cornellCubeFresnelReflectionAndTransmissionMIS5000.png)
+**MIS 800x800 5000spp**<br />
+![](img/cornellGlassMIS5000.png)
 
-**MIS VS Naive**<br />
-**800x800 100spp**<br/>
-![](img/cornellMISvsNAIVE100.png)
+**MIS 800x800 5000spp**<br />
+![](img/cornellGlassYellowMIS5000.png)
 
 **MIS with just diffuse**<br />
 **800x800 5000spp**<br />
 ![](img/cornellMIS5000.png)
+
+**MIS VS Naive**<br />
+**800x800 100spp**<br/>
+![](img/cornellGlassYellowMIS5000.png)
 
 
 **Data**<br />

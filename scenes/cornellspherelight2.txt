@@ -2,7 +2,7 @@
 CAMERA
 RES         800 800
 FOVY        19.5
-ITERATIONS  10000
+ITERATIONS  5000
 DEPTH       10
 FILE        cornell
 EYE         0.0 5 19
