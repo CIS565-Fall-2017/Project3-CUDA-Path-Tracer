@@ -21,7 +21,7 @@
 #define COMPACT 1
 #define CONTIG_MAT 0
 #define CACHE_FIRST 0
-#define BV_CULLING 0
+#define BV_CULLING 1
 
 // feature flags
 #define ANTI_ALIAS 1
@@ -230,8 +230,8 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		);
 
 #if DEPTH_OF_FIELD
-		float focalD = 10;
-		float lensR = 0.4;
+		float focalD = 11;
+		float lensR = 0.8;
 		float t = glm::abs(focalD / segment.ray.direction.z);
 		glm::vec3 pFocus = t * segment.ray.direction;
 		glm::vec3 origin = lensR * squareToDiskConcentric(u01(rng), u01(rng));

@@ -48,17 +48,17 @@ RGB         .98 .98 .98
 TEXTUREMAP 
 SPECEX      0
 SPECRGB     .98 .98 .98
-REFL        0
+REFL        1
 REFR        0
 REFRIOR     0
 EMITTANCE   0
 
 // Camera
 CAMERA
-RES         800 800
+RES        1024 1024
 FOVY        45	
 ITERATIONS  5000
-DEPTH       1024
+DEPTH       16
 FILE        cornell
 EYE         0.0 5 10.5
 LOOKAT      0 5 0

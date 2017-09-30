@@ -25,7 +25,7 @@ Tested on GeForce GTX 1070
 
 ##### Ideal Diffuse
 
-![](img/diffse.png)
+![](img/antialias.png)
 
 ##### Perfectly Specular-reflective
 
@@ -33,17 +33,22 @@ Tested on GeForce GTX 1070
 
 #### Arbitrary Mesh Loading
 
-| Naive | Anti-aliasing |  Anti-aliasing | 
-| ------------- | ----------- | ----------- |
-| ![](img/mesh1.png) | ![](img/mesh2.png) | ![](img/mesh3.png) |
+| Tetrahedron | Octahedron |  Icosahedron | Dodecahedron| 
+| ----------- | ----------- | ----------- | ----------- |
+| 4 Triangles | 8 Triangles |  20 Triangles | 36 Triangles | 
+| ![](img/tetra.png) | ![](img/octa.png) | ![](img/icosa.png) | ![](img/dodeca.png) |
 
 ![](img/numtris_perf.png)
 
 #### Depth-of-Field
 
-| f = 30, r = 5 | f = 30, r = 5 | f = 30, r = 5 | 
+| f = 10, r = 0.2 | f = 11, r = 0.4 | f = 10, r = 0.8 | 
 | ------------- | ----------- | ----------- |
 | ![](img/depth1.png) | ![](img/depth2.png) | ![](img/depth3.png) |
+
+| f = 5, r = 0.4 | f = 11, r = 0.4 | f = 15, r = 0.4 | 
+| ------------- | ----------- | ----------- |
+| ![](img/depth4.png) | ![](img/depth2.png) | ![](img/depth5.png)
 
 #### Antialiasing
 
