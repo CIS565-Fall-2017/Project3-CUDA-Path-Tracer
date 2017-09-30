@@ -84,6 +84,13 @@ static ShadeableIntersection * dev_intersections = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
 // ...
 
+//PathSeg and Isect indices sorted by Material
+static int * dev_PathSegIndices = NULL;
+static int * dev_IsectIndices = NULL;
+
+//Caching first bounce
+static ShadeableIntersection * dev_IsectCached = NULL;
+
 void pathtraceInit(Scene *scene) {
     hst_scene = scene;
     const Camera &cam = hst_scene->state.camera;
@@ -105,6 +112,15 @@ void pathtraceInit(Scene *scene) {
 
     // TODO: initialize any extra device memeory you need
 
+	//PathSeg and Isect indices sorted by Material
+	cudaMalloc(&dev_PathSegIndices, pixelcount * sizeof(int));
+
+	cudaMalloc(&dev_IsectIndices, pixelcount * sizeof(int));
+
+	//Caching first bounce
+	cudaMalloc(&dev_IsectCached, pixelcount * sizeof(ShadeableIntersection));
+	cudaMemset(dev_IsectCached, 0, pixelcount * sizeof(ShadeableIntersection));
+
     checkCUDAError("pathtraceInit");
 }
 
@@ -116,8 +132,47 @@ void pathtraceFree() {
   	cudaFree(dev_intersections);
     // TODO: clean up any extra device memory you created
 
+	cudaFree(dev_PathSegIndices);
+	cudaFree(dev_IsectIndices);
+	cudaFree(dev_IsectCached);
+
     checkCUDAError("pathtraceFree");
 }
+
+// =============================================================================
+//				GENERATE 3D POINT BASED ON DISK CONOCENTRIC
+// =============================================================================
+
+__host__ __device__
+glm::vec3 squareToDiskConocentric(const glm::vec2 &sample)
+{
+	glm::vec3 output(0.0f);
+	glm::vec2 uOffset = 2.0f * sample - glm::vec2(1.0f);
+
+	if (uOffset.x == 0.0f + RAY_EPSILON && uOffset.y == 0.0f + RAY_EPSILON)
+	{
+		return glm::vec3(0.0f);
+	}
+
+	float theta = 0.0f;
+	float r = 0.0f;
+
+	if (std::fabs(uOffset.x) > std::fabs(uOffset.y))
+	{
+		r = uOffset.x;
+		theta = (PI / 4.0f) *  (uOffset.y / uOffset.x);
+	}
+
+	else
+	{
+		r = uOffset.y;
+		theta = (PI / 2.0f) - (PI / 4.0f) * (uOffset.x / uOffset.y);
+	}
+
+	output = r * glm::vec3(cos(theta), sin(theta), 0.0f);
+	return output;
+}
+
 
 // =============================================================================
 //					GENERATE RAY FROM CAMERA KERNEL FUNCTION
@@ -136,22 +191,53 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 	int x = (blockIdx.x * blockDim.x) + threadIdx.x;
 	int y = (blockIdx.y * blockDim.y) + threadIdx.y;
 
-	if (x < cam.resolution.x && y < cam.resolution.y) {
+	if (x < cam.resolution.x && y < cam.resolution.y) 
+	{
 		int index = x + (y * cam.resolution.x);
 		PathSegment & segment = pathSegments[index];
 
 		segment.ray.origin = cam.position;
-    segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
+		segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
 		// TODO: implement antialiasing by jittering the ray
+		// Note: If antialiasing -- can NOT cache first bounce!
+
+		thrust::default_random_engine rng = makeSeededRandomEngine(iter, x, y);
+		thrust::uniform_real_distribution<float> u01(-1, 1);
+		float offset_x = u01(rng);
+		float offset_y = u01(rng);
+
+		//Non anti-aliased
 		segment.ray.direction = glm::normalize(cam.view
-			- cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
-			- cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
-			);
+												- cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
+												- cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
+												);
+		
+		//Anti-Aliasing
+		//segment.ray.direction = glm::normalize(cam.view
+		//										- cam.right * cam.pixelLength.x * ((float)x + offset_x - (float)cam.resolution.x * 0.5f)
+		//										- cam.up * cam.pixelLength.y * ((float)y + offset_y - (float)cam.resolution.y * 0.5f)
+		//										);
 
 		segment.pixelIndex = index;
 		segment.remainingBounces = traceDepth;
-	}
+
+		//Depth of field
+		//Generate sample point on disk lens, shoot ray through that
+		if (cam.lensRadius > 0.0f)
+		{
+			thrust::uniform_real_distribution<float> u02(0, 1);
+			glm::vec2 sample = glm::vec2(u02(rng), u02(rng));
+
+			glm::vec3 pLens = cam.lensRadius * squareToDiskConocentric(sample);
+			glm::vec3 pFocus = cam.focalDistance * segment.ray.direction + segment.ray.origin;
+			glm::vec3 aperaturePt = segment.ray.origin + (cam.up * pLens[1]) + (cam.right * pLens[0]);
+
+			segment.ray.origin = aperaturePt;
+			segment.ray.direction = glm::normalize(pFocus - aperaturePt);
+		}//end DOF check
+
+	}//end if 
 }
 
 // =============================================================================
@@ -268,15 +354,14 @@ __global__ void shadeFakeMaterial (
 		if (intersection.t > 0.0f) 
 		{ 
 			// Set up the RNG
-			// LOOK: this is how you use thrust's RNG! Please look at
-			// makeSeededRandomEngine as well.
+			// LOOK: this is how you use thrust's RNG! Please look at makeSeededRandomEngine as well.
 
-			//thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
+			thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
 			
 			//Use depth for non-compact version to work properly
 			//https://groups.google.com/forum/#!topic/cis-565-fall-2017/thgdf2jzDyo
 			//thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
-			thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegments[idx].remainingBounces);
+			//thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegments[idx].remainingBounces);
 
 
 			thrust::uniform_real_distribution<float> u01(0, 1);
@@ -298,6 +383,7 @@ __global__ void shadeFakeMaterial (
 				//float lightTerm = glm::dot(intersection.surfaceNormal, glm::vec3(0.0f, 1.0f, 0.0f));
 				//pathSegments[idx].color *= (materialColor * lightTerm) * 0.3f + ((1.0f - intersection.t * 0.02f) * materialColor) * 0.7f;
 				//pathSegments[idx].color *= u01(rng); // apply some noise because why not
+
 				scatterRay(pathSegments[idx], intersection.intersectionPt, intersection.surfaceNormal, material, rng);
 				pathSegments[idx].remainingBounces--;
 
@@ -337,7 +423,7 @@ __global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterati
 // Check if remaining bounces == 0
 // Check if path intersection t value == -1 (didn't hit anything)
 
-
+//UNUSED
 __global__ void kernMapRemainingBouncesToBoolean(int n, int *bools, PathSegment *pathSegments)
 {
 	int index = (blockIdx.x * blockDim.x) + threadIdx.x;
@@ -350,6 +436,7 @@ __global__ void kernMapRemainingBouncesToBoolean(int n, int *bools, PathSegment 
 	}
 }//end kernMapRemainingBounces
 
+//UNUSED
 __global__ void kernMapNoIsectPathToBoolean(int n, int *bools, ShadeableIntersection *intersections)
 {
 	int index = (blockIdx.x * blockDim.x) + threadIdx.x;
@@ -360,7 +447,7 @@ __global__ void kernMapNoIsectPathToBoolean(int n, int *bools, ShadeableIntersec
 	}
 }
 
-
+// Predicate for thrust::partition
 struct hasRemainingBounces
 {
 	__host__ __device__
@@ -371,6 +458,18 @@ struct hasRemainingBounces
 };
 
 
+//Fill dev_PathSegIndices and dev_IsectIndices with their corresponding material ID
+// These arrays should essentially be the same since pathSeg's and Isects correspond to each other
+__global__ void kernSortByMaterial(int n, int *pathSegIndices, int *isectIndices, ShadeableIntersection *isects)
+{
+	int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+	if (index < n)
+	{
+		int currMatID = isects[index].materialId;
+		pathSegIndices[index] = currMatID;
+		isectIndices[index] = currMatID;
+	}
+}
 
 // =============================================================================
 //							PATH TRACING CPU FUNCTION
@@ -435,6 +534,10 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 
 	int num_remainingPaths = num_paths;
 
+
+	//NOTE: USE TIMER TO PRINT THE TIME FOR EACH ITERATION OF WHILE LOOP
+
+
 	// --- PathSegment Tracing Stage ---
 	// Shoot ray into scene, bounce between objects, push shading chunks
 
@@ -444,21 +547,55 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 		// clean shading chunks
 		cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
+		//DO I NEED THIS? OR DO I NOT WANT TO DO THIS BECAUSE I WANT TO KEEP USING IT?
+		//cudaMemset(dev_IsectCached, 0, pixelcount * sizeof(ShadeableIntersection));
+
 		// tracing
 		//dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
 		dim3 numblocksPathSegmentTracing = (num_remainingPaths + blockSize1d - 1) / blockSize1d;
+
+		//Caching first bounce
+		//Don't start at iter = 0, that's ray from camera to screen
 		
-		computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>>(
-			depth
-			, num_remainingPaths //num_paths
-			, dev_paths
-			, dev_geoms
-			, hst_scene->geoms.size()
-			, dev_intersections
-			);
+		// Compute intersections
+
+		if (CACHE_FIRST_BOUNCE && depth == 0 && iter == 1)
+		{
+			computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>>(
+																				depth
+																				, num_remainingPaths //num_paths
+																				, dev_paths
+																				, dev_geoms
+																				, hst_scene->geoms.size()
+																				, dev_IsectCached
+																				);
+		}//end if
+		else
+		{
+			computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>>(
+																				depth
+																				, num_remainingPaths //num_paths
+																				, dev_paths
+																				, dev_geoms
+																				, hst_scene->geoms.size()
+																				, dev_intersections
+																				);
+		}//end else
+
+		//TESTING 
+		//computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>>(
+		//	depth
+		//	, num_remainingPaths //num_paths
+		//	, dev_paths
+		//	, dev_geoms
+		//	, hst_scene->geoms.size()
+		//	, dev_intersections
+		//	);
+
+
 		checkCUDAError("trace one bounce");
 		cudaDeviceSynchronize();
-		depth++;
+		//depth++;
 
 
 		// TODO:
@@ -470,28 +607,76 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 		// TODO: compare between directly shading the path segments and shading
 		// path segments that have been reshuffled to be contiguous in memory.
 
-		shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
-			iter,
-			num_remainingPaths, //num_paths,
-			dev_intersections,
-			dev_paths,
-			dev_materials,
-			depth
-			);
+		if (CACHE_FIRST_BOUNCE && depth == 0 && iter == 1)
+		{
+			if (SORT_BY_MATERIAL)
+			{
+				//Store material ID's in dev_PathSegIndices and dev_IsectIndices respectively
+				kernSortByMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(num_remainingPaths, dev_PathSegIndices, dev_IsectIndices, dev_IsectCached);
+
+				//Sort the PathSegments and Isects arrays in place according to materialID's placed in their corresponding dev_indices arrays 
+				thrust::sort_by_key(thrust::device, dev_PathSegIndices, dev_PathSegIndices + num_remainingPaths, dev_paths);
+				thrust::sort_by_key(thrust::device, dev_IsectIndices, dev_IsectIndices + num_remainingPaths, dev_IsectCached);
+			}
+
+			shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
+																			iter,
+																			num_remainingPaths, //num_paths,
+																			dev_IsectCached,
+																			dev_paths,
+																			dev_materials,
+																			depth
+																			);
+		}//end if first bounce
+
+		//Operating on everything else after first bounce
+		else
+		{
+			if (SORT_BY_MATERIAL)
+			{
+				//Store material ID's in dev_PathSegIndices and dev_IsectIndices respectively
+				kernSortByMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(num_remainingPaths, dev_PathSegIndices, dev_IsectIndices, dev_intersections);
+
+				//Sort the PathSegments and Isects arrays in place according to materialID's placed in their corresponding dev_indices arrays 
+				thrust::sort_by_key(thrust::device, dev_PathSegIndices, dev_PathSegIndices + num_remainingPaths, dev_paths);
+				thrust::sort_by_key(thrust::device, dev_IsectIndices, dev_IsectIndices + num_remainingPaths, dev_intersections);
+			}
 
 
-		// TODO: 
-		// Stream compact away all of the terminated paths.
+			shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
+																			iter,
+																			num_remainingPaths, //num_paths,
+																			dev_intersections,
+																			dev_paths,
+																			dev_materials,
+																			depth
+																			);
+		}//end else 
+
+		//TESTING
+		//shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
+		//																iter,
+		//																num_remainingPaths, //num_paths,
+		//																dev_intersections,
+		//																dev_paths,
+		//																dev_materials,
+		//																depth
+		//																);
+
+
+		// TODO: Stream compact away all of the terminated paths.
 		// You may use either your implementation or `thrust::remove_if` or its cousins.
-
-		//PathSegment* lastRemainingPath = thrust::remove_if(thrust::device, dev_paths, dev_paths + num_remainingPaths, hasRemainingBounces());		//DONT USE THIS
+		// NOTE: DO NOT USE REMOVE_IF
 		PathSegment* lastRemainingPath = thrust::partition(thrust::device, dev_paths, dev_paths + num_remainingPaths, hasRemainingBounces());
 		num_remainingPaths = lastRemainingPath - dev_paths;
 
+		// Increment depth
+		depth++;
+
 
 		// TODO: should be based off stream compaction results.
+		// To test anti-aliasing, change depth >= 1, and move the camera around. You'll see jagged edges become smoother
 		iterationComplete = ((depth >= traceDepth || num_remainingPaths <= 0) ? true : false);
-		//iterationComplete = ((depth >= traceDepth) ? true : false);
 
 	}//end while
 
