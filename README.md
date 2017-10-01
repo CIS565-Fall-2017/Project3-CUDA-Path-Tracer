@@ -28,6 +28,8 @@ The Cornell box are Lambert material, and the sphere at the center is a mixture 
 
 ## 2. Part 2 - Own Features
 ### 1) Direct lighting
+**cornell.txt** after 5000 iterations:
+![enter image description here](https://lh3.googleusercontent.com/-HP8DYyMJ-lo/WdDvhCkQvxI/AAAAAAAAA8o/VlEKIv-vmycPnpmsbdQjqiBYjPfBeNPcQCLcBGAs/s0/cornell.2017-10-01_03-59-22z.5000samp.png "cornell.2017-10-01_03-59-22z.5000samp.png")
 
 
 ### 2) Realistic Camera Effect
@@ -60,5 +62,3 @@ This scene is basically the same as the Cornell box scene, however, the sphere a
 
 
 ## 3. Performance Analysis 
-
-CUDA Timer
