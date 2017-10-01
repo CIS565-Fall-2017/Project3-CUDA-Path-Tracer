@@ -7,19 +7,9 @@ Sarah Forcier
 
 Tested on GeForce GTX 1070
 
-
 ### Overview
 
 This project introduces a simple CUDA Monte Carlo path tracer. A path tracer is a highly parallel algorithm since each pixel of the image casts a ray in the scene and accumulates color until reaching a light. An algorithm designed for the GPU takes advantage of this parallelization and creates a seperate thread for each pixel. This path tracer handles diffuse and specular materials, arbitrary mesh objects along with simple spheres and cubes, and real lens-based cameras with variable depth-of-field. To achieve addition acceleration, the path tracer culls intersection test with bounding volumes, sorts intersections in order of materials, caches each pixels' first bounce, and removes terminated ray with stream compaction.    
-
-#### Controls
-
-* Esc to save an image and exit.
-* S to save an image. Watch the console for the output filename.
-* Space to re-center the camera at the original scene lookAt point
-* left mouse button to rotate the camera
-* right mouse button on the vertical axis to zoom in/out
-* middle mouse button to move the LOOKAT point in the scene's X/Z plane
 
 ### Path Tracing Features
 
@@ -40,6 +30,7 @@ The path tracer loads vertices, indices, normals, and uv coordinates with the op
 | 8 Triangles |  20 Triangles | 36 Triangles | 
 | ![](img/octa.png) | ![](img/icosa.png) | ![](img/dodeca.png) |
 | Cylinder |  Torus | Helix | 
+| ----------- | ----------- | ----------- |
 | 80 Triangles | 200 Triangles |  492 Triangles |
 | ![](img/cylinder.png) | ![](img/torus.png) | ![](img/coil.png) | 
 
@@ -59,15 +50,18 @@ Real cameras uses lenses with thicknesses and sizes instead of the pin-hole conc
 | ------------- | ----------- | ----------- |
 | ![](img/depth4.png) | ![](img/depth2.png) | ![](img/depth5.png)
 
+In order to achieve depth-of-field, both CPU and GPU path tracers sample points on a circle (the imaginary lens) and trace rays through this point instead of a pinhole without affecting performance. There are many sampling algorithms for chosing this point. I used uniform disk sampling for the least bias. 
+
 #### Antialiasing
 
 The images below demonstrate the quality improvement antialiasing provides - the sphere transition appears smoother with anti-aliasing. This feature is achieved by jittering the ray spawned from the camera so that each iteration spawns a slighly different ray. In the case of the pixels on the sphere edge, jittering the ray will cause the ray to sometimes hit the sphere and sometimes hit the back wall, and the result is a smoothed average of these different events.
 
-| Naive | | Anti-aliasing | |
-| ------------- | ----------- | ------------- | ----------- |
-| ![](img/naive.png) | ![](img/naive_close.png) | | ![](img/antialias.png) | ![](img/antialias_close.png) |
+| Naive | Anti-aliasing | 
+| ------------- | ----------- | 
+| ![](img/naive.png) | ![](img/antialias.png) | 
+| ![](img/naive_close.png) | ![](img/antialias_close.png) |
 
-Antialiasing is a simple feature that provides great image improvement without affecting performance and is not changed between GPU and CPU versions. This implementation simply takes a random 2D sample within the pixel square. However, there are many other sampling distributions, such as stratified or blue-noise dithered, that look better in monte carlo path tracing. 
+Antialiasing is a simple feature that provides great image improvement without affecting performance and is not changed between GPU and CPU versions. This implementation simply takes a random 2D sample within the pixel square. However, there are many other sampling distributions, such as stratified or blue-noise dithered, that look better in Monte Carlo path tracing. 
 
 ### Optimizations
 
@@ -75,9 +69,25 @@ Antialiasing is a simple feature that provides great image improvement without a
 
 * Ray Termination
 
-* Sorted Materials
-
-* Cache first bounce intersection
+On the CPU, path tracing is a recursive algorithm. However, this is not possible on the GPU, so instead path tracing must be iterative. To terminate rays, the array of rays is stream compacted and only active rays are analyzed in the next iteration. This optimization provides benefits for large depths.  
 
 * Shared Memory Stream Compaction
 
+This feature is an optimization to the stream compaction algorithm used to removed terminated rays from later iterations. Shared memory is used speed up memory access by reducing the number of global access needed. See the GPU accelerated stream compaction [here](https://github.com/sarahforcier/Project2-Stream-Compaction)  
+
+* Sorted Materials
+
+This optimization sorts the pixels based on the materials the current ray intersects. In theory, this optimization should provide a performance increase because all the paths interacting with the same materal are contiguous in memory before shading. However, the shading kernel does not perform many global memory access, but instead does a lot of computation which do not benefit from contiguous memory. Sorting takes more time than is saved, so this feature does help performance.
+
+* Cache first bounce intersection
+
+The naive and cached graphs are overlayed because caching the first bounce does nothing to performance. In addition, when antialiasing is used, the first ray is not the same, so caching does not accelerate later iterations. 
+
+### Controls
+
+* Esc to save an image and exit.
+* S to save an image. Watch the console for the output filename.
+* Space to re-center the camera at the original scene lookAt point
+* left mouse button to rotate the camera
+* right mouse button on the vertical axis to zoom in/out
+* middle mouse button to move the LOOKAT point in the scene's X/Z plane
