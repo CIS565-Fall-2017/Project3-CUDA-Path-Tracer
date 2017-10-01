@@ -15,19 +15,19 @@ This project is tend to compare running performance difference in computing pref
 
 ### Features implemented
 
-![](build/1. Naive with Fresnel.png)
+![](img/1. Naive with Fresnel.png)
 
 * Naive Path Tracing with Fresnel
 
-![](build/2. Direct Light.png)
+![](img/2. Direct Light.png)
 
 * Simple direct light with fake Sample_Li.
 
-![](build/3. Realistic Camera.png)
+![](img/3. Realistic Camera.png)
 
 * Realistic Camera. Focal distance is set on the backwall so the sphere between camera and backwall is blured.
 
-![](build/4. Trace.gif)
+![](img/4. Trace.gif)
 
 * Motion Blur.
 
