@@ -89,6 +89,64 @@ __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
     return -1;
 }
 
+
+__host__ __device__ float aabbIntersectionTest(
+	glm::vec3 translation,
+	glm::vec3 halfSideLength,
+	Ray r,
+	glm::vec3 &intersectionPoint, 
+	glm::vec3 &normal, bool &outside) 
+{
+	Ray q;
+	//glm::mat4 aabbTransform = glm::inverse(utilityCore::buildTransformationMatrix(translation, glm::vec3(0), halfSideLength * 2.0f));
+	halfSideLength *= 2.0f;
+	halfSideLength = glm::vec3(1.0f) / halfSideLength;
+	glm::mat4 aabbTransform = glm::mat4(
+		glm::vec4(halfSideLength.x, 0, 0, 0),
+		glm::vec4(0, halfSideLength.y, 0, 0),
+		glm::vec4(0, 0, halfSideLength.z, 0),
+		glm::vec4(-halfSideLength.x * translation.x, -halfSideLength.y * translation.y, -halfSideLength.z * translation.z, 1));
+	q.origin = multiplyMV(aabbTransform, glm::vec4(r.origin, 1.0f));
+	q.direction = glm::normalize(multiplyMV(aabbTransform, glm::vec4(r.direction, 0.0f)));
+
+	float tmin = -1e38f;
+	float tmax = 1e38f;
+	glm::vec3 tmin_n;
+	glm::vec3 tmax_n;
+	for (int xyz = 0; xyz < 3; ++xyz) {
+		float qdxyz = q.direction[xyz];
+		/*if (glm::abs(qdxyz) > 0.00001f)*/ {
+			float t1 = (-0.5f - q.origin[xyz]) / qdxyz;
+			float t2 = (+0.5f - q.origin[xyz]) / qdxyz;
+			float ta = glm::min(t1, t2);
+			float tb = glm::max(t1, t2);
+			glm::vec3 n;
+			n[xyz] = t2 < t1 ? +1 : -1;
+			if (ta > 0 && ta > tmin) {
+				tmin = ta;
+				tmin_n = n;
+			}
+			if (tb < tmax) {
+				tmax = tb;
+				tmax_n = n;
+			}
+		}
+	}
+
+	if (tmax >= tmin && tmax > 0) {
+		outside = true;
+		if (tmin <= 0) {
+			tmin = tmax;
+			tmin_n = tmax_n;
+			outside = false;
+		}
+		intersectionPoint = multiplyMV(aabbTransform, glm::vec4(getPointOnRay(q, tmin), 1.0f));
+		normal = glm::normalize(multiplyMV(aabbTransform, glm::vec4(tmin_n, 0.0f)));
+		return glm::length(r.origin - intersectionPoint);
+	}
+	return -1;
+}
+
 // CHECKITOUT
 /**
  * Test intersection between a ray and a transformed sphere. Untransformed,

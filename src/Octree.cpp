@@ -12,7 +12,7 @@ AxisBoundingBox geomBoundingBox(Geom g) {
 	cubePts.push_back(g.transform * glm::vec4(-0.5f, -0.5f, 0.5f, 1.0f));
 	cubePts.push_back(g.transform * glm::vec4(-0.5f, -0.5f, -0.5f, 1.0f));
 	glm::vec3 minimums = glm::vec3(FLT_MAX);
-	glm::vec3 maximums = glm::vec3(FLT_MIN);
+	glm::vec3 maximums = glm::vec3(-FLT_MAX);
 	for (int i = 0; i < 8; i++) {
 		glm::vec4 pos = cubePts[i];
 		minimums.x = minimums.x < pos.x ? minimums.x : pos.x;
@@ -117,6 +117,18 @@ void OctreeBuilder::splitNode(OctreeNodeCPU* node, Scene* scene) {
 		}
 	}
 
+	// edge case: more than one element is inside a newly created leaf
+	// example: 
+	// 1. first geom add to corner of root, no divide
+	// 2. second geom in direction of first, but closer to center. divide
+	// 3. both are now in same octant. need to split octant again
+	for (int i = 0; i < node->children.size(); i++) {
+		if (node->children[i]->eltIndices.size() > 1) {
+			splitNode(node->children[i], scene);
+		}
+	}
+
+
 	node->eltIndices = keep;
 }
 
@@ -130,7 +142,7 @@ void OctreeBuilder::buildFromScene(Scene* scene) {
 	}
 
 	minXYZ = glm::vec3(FLT_MAX);
-	maxXYZ = glm::vec3(FLT_MIN);
+	maxXYZ = glm::vec3(-FLT_MAX);
 
 	// get the bounds of the entire scene
 	for (int i = 0; i < scene->geomBounds.size(); i++) {
@@ -240,6 +252,8 @@ void OctreeBuilder::buildGPUfromCPU() {
 	rootGPU.center = root->center;
 	rootGPU.depth = 0;
 	rootGPU.parentIdx = -1;
+
+	allGPUNodes.push_back(rootGPU);
 
 	addNodeTo1D(root, allGPUNodes, octreeOrderGeomIDX, 0);
 }

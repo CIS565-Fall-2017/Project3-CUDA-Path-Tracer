@@ -1,7 +1,8 @@
 #pragma once
 
 #include <vector>
-#include "scene.h"
+//#include "scene.h"
+#include "Octree.h"
 
 void pathtraceInit(Scene *scene);
 void pathtraceFree();

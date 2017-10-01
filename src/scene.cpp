@@ -4,6 +4,8 @@
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtx/string_cast.hpp>
 
+#define DEBUGSPHERES 1
+
 Scene::Scene(string filename) {
     cout << "Reading scene from " << filename << " ..." << endl;
     cout << " " << endl;
@@ -30,6 +32,28 @@ Scene::Scene(string filename) {
             }
         }
     }
+
+#ifdef DEBUGSPHERES
+	for (int i = 0; i < 10000; i++) {
+		Geom newsphere;
+		newsphere.type = SPHERE;
+		newsphere.materialid = 1 + rand() % (materials.size() - 1);
+		float rx = 5.0f * ((float)(rand() % 1000) - 500.0f) / 500.0f;
+		float ry = 5.0f + 5.0f * ((float)(rand() % 1000) - 500.0f) / 500.0f;
+		float rz = 5.0f * ((float)(rand() % 1000) - 500.0f) / 500.0f;
+		float rr = ((float)(rand() % 1000) + 1.0f) / 500.0f;
+		rr = 0.25f;
+		newsphere.rotation = glm::vec3(0.0f);
+		newsphere.translation = glm::vec3(rx, ry, rz);
+		newsphere.scale = glm::vec3(rr);
+		newsphere.transform = utilityCore::buildTransformationMatrix(newsphere.translation, newsphere.rotation, newsphere.scale);
+		newsphere.inverseTransform = glm::inverse(newsphere.transform);
+		newsphere.invTranspose = glm::inverseTranspose(newsphere.transform);
+
+		geoms.push_back(newsphere);
+	}
+#endif // DEBUGSPHERES
+
 }
 
 int Scene::loadGeom(string objectid) {

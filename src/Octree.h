@@ -69,6 +69,9 @@ public:
 		}
 	}
 
+	glm::vec3 sceneCenter() { return 0.5f * (minXYZ + maxXYZ); }
+	glm::vec3 sceneHalfEdgeSize() { return 0.5f * (maxXYZ - minXYZ); }
+
 	void buildFromScene(Scene* scene);
 	// the data structure in 1d for GPU traversal
 	std::vector<OctreeNodeGPU> allGPUNodes;

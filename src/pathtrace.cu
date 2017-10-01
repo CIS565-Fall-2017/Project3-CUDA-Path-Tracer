@@ -15,6 +15,7 @@
 #include "interactions.h"
 
 #define ERRORCHECK 1
+#define OCTREE 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -42,6 +43,18 @@ __host__ __device__
 thrust::default_random_engine makeSeededRandomEngine(int iter, int index, int depth) {
 	int h = utilhash((1 << 31) | (depth << 22) | iter) ^ utilhash(index);
 	return thrust::default_random_engine(h);
+}
+
+__global__ void kernRearrangeGeomToOctree(
+	const int* octGeomIdx,
+	Geom* geomsOld,
+	Geom* geomsNew,
+	int num_geoms)
+{
+	int idx = threadIdx.x + blockIdx.x * blockDim.x;
+	if (idx >= num_geoms) return;
+
+	geomsNew[idx] = geomsOld[octGeomIdx[idx]];
 }
 
 //Kernel that writes the image to the OpenGL PBO directly.
@@ -76,10 +89,15 @@ static ShadeableIntersection * dev_intersections = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
 // ...
 
+static OctreeNodeGPU* dev_octree = NULL;
+static glm::vec3 sceneBounds;
+
 void pathtraceInit(Scene *scene) {
 	hst_scene = scene;
 	const Camera &cam = hst_scene->state.camera;
 	const int pixelcount = cam.resolution.x * cam.resolution.y;
+
+
 
 	cudaMalloc(&dev_image, pixelcount * sizeof(glm::vec3));
 	cudaMemset(dev_image, 0, pixelcount * sizeof(glm::vec3));
@@ -95,9 +113,45 @@ void pathtraceInit(Scene *scene) {
 	cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
 	cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
-	// TODO: initialize any extra device memeory you need
-
 	checkCUDAError("pathtraceInit");
+
+#ifdef OCTREE
+	OctreeBuilder octree = OctreeBuilder();
+	octree.buildFromScene(scene);
+	octree.buildGPUfromCPU();
+	sceneBounds = octree.sceneHalfEdgeSize();
+
+	cudaMalloc(&dev_octree, octree.allGPUNodes.size() * sizeof(OctreeNodeGPU));
+	cudaMemcpy(dev_octree, octree.allGPUNodes.data(), octree.allGPUNodes.size() * sizeof(OctreeNodeGPU), cudaMemcpyHostToDevice);
+	checkCUDAError("copying octree data");
+
+	Geom* dev_geoms_temp;
+	cudaMalloc(&dev_geoms_temp, scene->geoms.size() * sizeof(Geom));
+	checkCUDAError("initializing temp geom buffer");
+	int* dev_geomIdx_temp;
+	cudaMalloc(&dev_geomIdx_temp, octree.octreeOrderGeomIDX.size() * sizeof(int));
+	checkCUDAError("initializing temp geom idx buffer");
+	cudaMemcpy(dev_geomIdx_temp, octree.octreeOrderGeomIDX.data(), octree.octreeOrderGeomIDX.size() * sizeof(int), cudaMemcpyHostToDevice);
+	checkCUDAError("copying temp geometry idx");
+
+	const int blockSize = 128;
+	dim3 numblocksGeomTransfer = (scene->geoms.size() + blockSize - 1) / blockSize;
+	kernRearrangeGeomToOctree << <numblocksGeomTransfer, blockSize >> >(dev_geomIdx_temp, dev_geoms, dev_geoms_temp, scene->geoms.size());
+	checkCUDAError("sorting geometry by octree ordering");
+
+	Geom* temp = dev_geoms;
+	dev_geoms = dev_geoms_temp;
+	dev_geoms_temp = temp;
+
+	cudaFree(dev_geomIdx_temp);
+	cudaFree(dev_geoms_temp);
+	checkCUDAError("ending OCtree setup");
+
+#endif
+
+
+
+
 }
 
 void pathtraceFree() {
@@ -107,6 +161,10 @@ void pathtraceFree() {
 	cudaFree(dev_materials);
 	cudaFree(dev_intersections);
 	// TODO: clean up any extra device memory you created
+#ifdef  OCTREE
+	cudaFree(dev_octree);
+#endif //  OCTREE
+
 
 	checkCUDAError("pathtraceFree");
 }
@@ -155,6 +213,121 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		segment.pixelIndex = index;
 		segment.remainingBounces = traceDepth;
 	}
+}
+
+__global__ void computeIntersectionsOctree(
+	int depth,
+	int num_paths,
+	PathSegment* pathSegments,
+	Geom* geoms,
+	ShadeableIntersection * intersections,
+	OctreeNodeGPU * octree,
+	glm::vec3 sceneHalfEdgeSize
+	)
+{
+	int path_index = blockIdx.x * blockDim.x + threadIdx.x;
+	if (path_index >= num_paths) return;
+
+	float t;
+	glm::vec3 intersect_point;
+	glm::vec3 normal;
+	float t_min = FLT_MAX;
+	int hit_geom_index = -1;
+	bool outside = true;
+
+	glm::vec3 temp_intersect;
+	glm::vec3 temp_normal;
+
+	// this will have the remaining number of children to check at each level in the octree
+	int remainingChildrenStack[12];
+	bool testedGeometryStack[12];
+	// first: get the number of children of root, push it to stack
+	int stackDepthPtr = 0;
+	testedGeometryStack[stackDepthPtr] = false;
+	remainingChildrenStack[stackDepthPtr] = octree[0].childEndIdx - octree[0].childStartIdx;
+
+	OctreeNodeGPU current = octree[0];
+	PathSegment pathSegment = pathSegments[path_index];
+
+	// if doesn't hit the root, return immediately
+	t = aabbIntersectionTest(current.center, sceneHalfEdgeSize, pathSegment.ray, temp_intersect, temp_normal, outside);
+	if (t < 0.0f) {
+		intersections[path_index].t = -1.0f;
+		return;
+	}
+
+	do {
+		// test intersection of geometries in this node.
+		// unfortunately needs to be part of loop, but only done once per node
+		if (!testedGeometryStack[stackDepthPtr]) {
+			for (int i = current.eltStartIdx; i < current.eltEndIdx; i++) {
+				Geom & geom = geoms[i];
+
+				if (geom.type == CUBE)
+				{
+					t = boxIntersectionTest(geom, pathSegment.ray, temp_intersect, temp_normal, outside);
+				}
+				else if (geom.type == SPHERE)
+				{
+					t = sphereIntersectionTest(geom, pathSegment.ray, temp_intersect, temp_normal, outside);
+				}
+
+				// Compute the minimum t from the intersection tests to determine what
+				// scene geometry object was hit first.
+				if (t > 0.0f && t_min > t)
+				{
+					t_min = t;
+					hit_geom_index = i;
+					intersect_point = temp_intersect;
+					normal = temp_normal;
+				}
+			}
+			testedGeometryStack[stackDepthPtr] = true; // mark as finished
+		}
+
+		// see if there are any remaining children
+		if (remainingChildrenStack[stackDepthPtr] == 0) {
+			// back up stack, set current to its parent
+			stackDepthPtr -= 1;
+			int parentIdx = current.parentIdx;
+			if (parentIdx > -1) current = octree[parentIdx]; // edge case, root
+			else break;
+		}
+		else {
+			// test intersection against next child
+			int childIdx = current.childEndIdx - remainingChildrenStack[stackDepthPtr];
+			OctreeNodeGPU child = octree[childIdx];
+			float depthDivisor = float(1 << (child.depth + 1));
+			glm::vec3 childHalfEdgeSize = sceneHalfEdgeSize / depthDivisor;
+			glm::vec3 childCenter = child.center;
+			// decrement remaining ptr on stack
+			remainingChildrenStack[stackDepthPtr] -= 1;
+
+			// try to intersect the bounding box of this octree node
+			float octT = aabbIntersectionTest(childCenter, childHalfEdgeSize, pathSegment.ray, temp_intersect, temp_normal, outside);
+			
+			if (octT > 0.0f && t_min > octT) {
+				// push info to stack, set current to child
+				stackDepthPtr++;
+				current = child;
+				testedGeometryStack[stackDepthPtr] = false;
+				remainingChildrenStack[stackDepthPtr] = current.childEndIdx - current.childStartIdx;
+			}
+		}	
+	} while (stackDepthPtr > -1);
+
+	if (hit_geom_index == -1)
+	{
+		intersections[path_index].t = -1.0f;
+	}
+	else
+	{
+		//The ray hits something
+		intersections[path_index].t = t_min;
+		intersections[path_index].materialId = geoms[hit_geom_index].materialid;
+		intersections[path_index].surfaceNormal = normal;
+	}
+
 }
 
 // TODO:
@@ -263,7 +436,7 @@ __global__ void shadeMaterialBasic(
 		}
 		else {
 			
-			if (mat.hasRefractive) {
+			if (0) {// temp disabled(mat.hasRefractive) {
 				// calculate base fresnel to decide whether to refract or reflect
 				bool external = glm::dot(isx.surfaceNormal, rayOut) < 0.0f;
 				float NdotV = glm::abs(glm::dot(-rayOut, isx.surfaceNormal));
@@ -291,7 +464,7 @@ __global__ void shadeMaterialBasic(
 					
 				}
 			}
-			else if (mat.hasReflective) {
+			if (mat.hasReflective) {
 				glm::vec3 reflected = glm::reflect(pathSegments[idx].ray.direction, isx.surfaceNormal);
 				pathSegments[idx].color *= mat.specular.color;
 				pathSegments[idx].remainingBounces = pathSegments[idx].remainingBounces - 1;
@@ -406,9 +579,31 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
 		// clean shading chunks
 		cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
-
-		// tracing
 		dim3 numblocksPathSegmentTracing = (active_paths + blockSize1d - 1) / blockSize1d;
+
+#ifdef OCTREE
+		// tracing
+		//int depth,
+			//int num_paths,
+			//PathSegment* pathSegments,
+			//Geom* geoms,
+			//ShadeableIntersection * intersections,
+			//OctreeNodeGPU * octree,
+			//glm::vec3 sceneHalfEdgeSize
+		computeIntersectionsOctree << <numblocksPathSegmentTracing, blockSize1d >> > (
+			depth,
+			active_paths,
+			dev_paths,
+			dev_geoms,
+			dev_intersections,
+			dev_octree,
+			sceneBounds
+			);
+
+
+#else
+		// tracing
+
 		computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
 			depth
 			, active_paths
@@ -417,6 +612,9 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 			, hst_scene->geoms.size()
 			, dev_intersections
 			);
+#endif // OCTREE
+
+
 		checkCUDAError("trace one bounce");
 		cudaDeviceSynchronize();
 		depth++;
