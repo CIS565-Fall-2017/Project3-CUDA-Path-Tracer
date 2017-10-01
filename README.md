@@ -29,6 +29,7 @@ The path tracer loads vertices, indices, normals, and uv coordinates with the op
 | ----------- | ----------- | ----------- |
 | 8 Triangles |  20 Triangles | 36 Triangles | 
 | ![](img/octa.png) | ![](img/icosa.png) | ![](img/dodeca.png) |
+
 | Cylinder |  Torus | Helix | 
 | ----------- | ----------- | ----------- |
 | 80 Triangles | 200 Triangles |  492 Triangles |
@@ -40,7 +41,7 @@ The above objects were loaded into the scene, with and without bounding volume c
 
 #### Depth-of-Field
 
-Real cameras uses lenses with thicknesses and sizes instead of the pin-hole concept that a naive path tracer is based on. The curvature and size of the lens controls the focal distance ($d$) and the radius affects how much is in focus. As the radius approaches zero, the images converge to the pinhole construct. Of course in real cameras, focus and aperature are controlled by a system of lenses. The sphere is in focus 11 units away from the camera.
+Real cameras uses lenses with thicknesses and sizes instead of the pin-hole concept that a naive path tracer is based on. The curvature and size of the lens controls the focal distance (d) and the radius affects how much is in focus. As the radius (r) approaches zero, the images converge to the pinhole construct. Of course in real cameras, focus and aperature are controlled by a system of lenses. The sphere is in focus 11 units away from the camera.
 
 | f = 10, r = 0.2 | f = 11, r = 0.4 | f = 10, r = 0.8 | 
 | ------------- | ----------- | ----------- |
@@ -56,7 +57,7 @@ In order to achieve depth-of-field, both CPU and GPU path tracers sample points 
 
 The images below demonstrate the quality improvement antialiasing provides - the sphere transition appears smoother with anti-aliasing. This feature is achieved by jittering the ray spawned from the camera so that each iteration spawns a slighly different ray. In the case of the pixels on the sphere edge, jittering the ray will cause the ray to sometimes hit the sphere and sometimes hit the back wall, and the result is a smoothed average of these different events.
 
-| Naive | Anti-aliasing | 
+| Naive | Antialiasing | 
 | ------------- | ----------- | 
 | ![](img/naive.png) | ![](img/antialias.png) | 
 | ![](img/naive_close.png) | ![](img/antialias_close.png) |
@@ -73,11 +74,11 @@ On the CPU, path tracing is a recursive algorithm. However, this is not possible
 
 * Shared Memory Stream Compaction
 
-This feature is an optimization to the stream compaction algorithm used to removed terminated rays from later iterations. Shared memory is used speed up memory access by reducing the number of global access needed. See the GPU accelerated stream compaction [algorithm](https://github.com/sarahforcier/Project2-Stream-Compaction) and [reference](https://developer.nvidia.com/gpugems/GPUGems3/gpugems3_ch39.html)
+This feature is an optimization to the stream compaction algorithm used to removed terminated rays from later iterations. Shared memory is used speed up memory access by reducing the number of global access needed. See the GPU accelerated stream compaction [algorithm](https://github.com/sarahforcier/Project2-Stream-Compaction) and [reference](https://developer.nvidia.com/gpugems/GPUGems3/gpugems3_ch39.html). This algorithm could be further improved by changing our memory access pattern to avoid bank conflicts.
 
 * Sorted Materials
 
-This optimization sorts the pixels based on the materials the current ray intersects. In theory, this optimization should provide a performance increase because all the paths interacting with the same materal are contiguous in memory before shading. However, the shading kernel does not perform many global memory access, but instead does a lot of computation which do not benefit from contiguous memory. Sorting takes more time than is saved, so this feature does help performance.
+This optimization sorts the pixels based on the materials the current ray intersects. In theory, this optimization should provide a performance increase because all the paths interacting with the same materal are contiguous in memory before shading. However, the shading kernel does not perform many global memory access, but instead does a lot of computation which do not benefit from contiguous memory. Sorting takes more time than is saved, so this feature does help performance. 
 
 * Cache first bounce intersection
 
