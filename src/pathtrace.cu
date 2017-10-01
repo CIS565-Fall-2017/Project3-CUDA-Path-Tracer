@@ -744,6 +744,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	
 
 	//TODO material compactio
+	//************************************************Material Compaction*******************************************
 	//MaterialKey << <blocksPerGrid1d, blockSize1d >> >(dev_intersections, materialKey, num_paths);
 	//cudaMemcpy(materialKey1, materialKey, num_paths*sizeof(int),cudaMemcpyDeviceToDevice);
 	//thrust::device_ptr<int> dev_thrust_keys1(materialKey);
@@ -752,6 +753,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	//thrust::device_ptr<PathSegment> dev_thrust_valueSeg(dev_paths);
 	//thrust::sort_by_key(dev_thrust_keys1, dev_thrust_keys1 + pixelcount, dev_thrust_valuesInt);
 	//thrust::sort_by_key(dev_thrust_keys2, dev_thrust_keys2 + pixelcount, dev_thrust_valueSeg);
+	//*************************************End of Material Compaction **********************************************
 
 
 	// TODO:
@@ -774,43 +776,43 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	//**************************************************Naive Integrator**********************************************
 	//TODO
 	//Naive path tracing integrator
-	//shadeMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
-	//	iter,
-	//	num_paths,
-	//	dev_intersections,
-	//	dev_paths,
-	//	dev_materials,
-	//	traceDepth);
+	shadeMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
+		iter,
+		num_paths,
+		dev_intersections,
+		dev_paths,
+		dev_materials,
+		traceDepth);
 
- //   BouncesLeft << <blocksPerGrid1d, blockSize1d >> > (dev_paths, compactSteamsIn, processLeft);
- //   cudaMemcpy(steamCompactionOut, compactSteamsIn, sizeof(int)*pixelcount, cudaMemcpyDeviceToHost);
+    BouncesLeft << <blocksPerGrid1d, blockSize1d >> > (dev_paths, compactSteamsIn, processLeft);
+    cudaMemcpy(steamCompactionOut, compactSteamsIn, sizeof(int)*pixelcount, cudaMemcpyDeviceToHost);
 
- //   newEnd = thrust::remove(steamCompactionOut, steamCompactionOut + num_paths, 0);
- // 
- //   traceSize = newEnd - steamCompactionOut;
+    newEnd = thrust::remove(steamCompactionOut, steamCompactionOut + num_paths, 0);
+  
+    traceSize = newEnd - steamCompactionOut;
 
- //   if (newEnd == steamCompactionOut)
- //   {
- //   	  iterationComplete = true; // TODO: should be based off stream compaction results.
- //   }
+    if (newEnd == steamCompactionOut)
+    {
+    	  iterationComplete = true; // TODO: should be based off stream compaction results.
+    }
 
 	//**************************************End of naive integrator *****************************************************
 
 	//**************************************Direct lighting***************************************************************
   //TODO
   //direct lighting path tracing integrator 
-	DirectLightingIntegrator << <numblocksPathSegmentTracing, blockSize1d >> >
-		(iter,
-			num_paths,
-			dev_intersections,
-			dev_paths,
-			dev_materials,
-			dev_geoms,
-			1,
-			traceDepth,
-			hst_scene->geoms.size());
+	//DirectLightingIntegrator << <numblocksPathSegmentTracing, blockSize1d >> >
+	//	(iter,
+	//		num_paths,
+	//		dev_intersections,
+	//		dev_paths,
+	//		dev_materials,
+	//		dev_geoms,
+	//		1,
+	//		traceDepth,
+	//		hst_scene->geoms.size());
 
-	iterationComplete = true;
+	//iterationComplete = true;
 	//****************************************End of direct lighting 
   
 	}
