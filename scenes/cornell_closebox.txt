@@ -65,6 +65,8 @@ FOVY        45
 ITERATIONS  5000
 DEPTH       8
 FILE        cornell_closebox
+FOCALDISTANCE	9
+LENSRADIUS	1
 EYE         0.0 5 4
 LOOKAT      0 5 0
 UP          0 1 0
@@ -141,11 +143,3 @@ material 4
 TRANS       0 4 0
 ROTAT       45 0 45
 SCALE       1.8 1.8 1.8
-
-// Front wall
-OBJECT 9
-cube
-material 1
-TRANS       0 5 5
-ROTAT       0 90 0
-SCALE       .01 10 10

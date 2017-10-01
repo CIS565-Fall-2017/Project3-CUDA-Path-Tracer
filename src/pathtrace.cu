@@ -16,15 +16,15 @@
 using namespace std;
 
 #define ERRORCHECK 1
-#define ANTIALIASING 0
+#define ANTIALIASING 1
 #define STREAM_COMPACTION 0 // very slow
-#define CACHE_FIRST_BOUNDE 0
+#define CACHE_FIRST_BOUNCE 0
 #define SORT_MATERIAL 0 // extremely slow
-//#define NUMSAMPLES 1024
 #define STRATIFIED 0
 #define DOF 0
 #define MSI 0
 #define DIRECT_LIGHTING 0
+#define TIMER 0
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -379,10 +379,10 @@ __global__ void shadeFakeMaterial(
 #else
 		  scatterRay(pathSegments[idx], intersection.point, intersection.surfaceNormal, material, rng);
 		  pathSegments[idx].remainingBounces--;
-		  /*if (pathSegments[idx].remainingBounces == 0)
+		  if (pathSegments[idx].remainingBounces == 0)
 		  {
 			  pathSegments[idx].color = glm::vec3(0.0f);
-		  }*/
+		  }
 #if DIRECT_LIGHTING
 		  if (pathSegments[idx].remainingBounces == 0)
 		  {
@@ -549,8 +549,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
 	// tracing
 	dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
-#if CACHE_FIRST_BOUNDE
-	if (depth == 0 && cache_first_bounce)
+#if CACHE_FIRST_BOUNCE
+	/*if (depth == 0 && cache_first_bounce)
 	{
 		cudaMemcpy(dev_intersections, dev_first_intersections, num_paths * sizeof(dev_first_intersections[0]),cudaMemcpyDeviceToDevice);
 	}
@@ -564,8 +564,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 			, hst_scene->geoms.size()
 			, dev_intersections
 			);
-	}
-	/*if (depth == 0 && iter == 1)
+	}*/
+	if (depth == 0 && iter == 1)
 	{
 		computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
 			depth
@@ -591,7 +591,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 			, hst_scene->geoms.size()
 			, dev_intersections
 			);
-	}*/
+	}
 #else
 	computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
 		depth
@@ -607,12 +607,12 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	cudaDeviceSynchronize();
 	depth++;
 
-#if CACHE_FIRST_BOUNDE
-	if (!cache_first_bounce)
+#if CACHE_FIRST_BOUNCE
+	/*if (!cache_first_bounce)
 	{
 		cache_first_bounce = true;
 		cudaMemcpy(dev_first_intersections, dev_intersections, num_paths * sizeof(dev_first_intersections[0]), cudaMemcpyDeviceToDevice);
-	}
+	}*/
 #endif
 
 	// TODO:
@@ -628,6 +628,16 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	thrust::sort_by_key(thrust::device, dev_intersections, dev_intersections + num_paths, dev_paths, compare_material());
 #endif
 
+#if TIMER
+	cudaEvent_t start, stop;
+	if (iter == 1)
+	{
+		cudaEventCreate(&start);
+		cudaEventCreate(&stop);
+		cudaEventRecord(start);
+	}
+#endif
+
   shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>> (
     iter,
     num_paths,
@@ -639,6 +649,18 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	dev_lights,
 	dev_geoms
   );
+
+#if TIMER
+  if (iter == 1)
+  {
+		cudaEventRecord(stop);
+		cudaEventSynchronize(stop);
+		float prev_elapsed_time_cpu_milliseconds = 0;
+		cudaEventElapsedTime(&prev_elapsed_time_cpu_milliseconds, start, stop);
+		//std::cout << "Elapsed time: " << prev_elapsed_time_cpu_milliseconds << "ms per iteration when depth = " << depth << std::endl;
+		std::cout << prev_elapsed_time_cpu_milliseconds << std::endl;
+  }
+#endif
 
 #if STREAM_COMPACTION
 	dim3 numBlocksPixels = (num_paths + blockSize1d - 1) / blockSize1d;
