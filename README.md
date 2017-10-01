@@ -14,7 +14,7 @@ In this project, I implemented a simple CUDA Monte Carlo path tracer. Although p
 
 #### _More Feature filled Path Tracer I made but on the CPU can be found [here](https://github.com/Aman-Sachan-asach/Monte-Carlo-Path-Tracer)._
 
-[![](img/StreamCompactionDepthTest.png)](https://vimeo.com/235422890)
+[![](img/CUDAPathTracerVimeoLink.png)](https://vimeo.com/236271250)
 
 ### Introduction to Monte Carlo Path Tracing
 
@@ -108,3 +108,9 @@ Because the direct Lighting Integration Scheme stops after the first bounce it r
 
 * Q (+ve change) and W (-ve change) adjust the radius of the camera lens by 0.1 units
 * E (+ve change) and R (-ve change) adjust the focal distance by 0.5 units
+
+## Bloopers
+
+![](img/everything_is_ specular.png)
+
+_Everything was a specular surface. whoops_
