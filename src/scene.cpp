@@ -84,6 +84,11 @@ int Scene::loadGeom(string objectid) {
         newGeom.inverseTransform = glm::inverse(newGeom.transform);
         newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
 
+		if (materials[newGeom.materialid].emittance > 0)
+		{
+			lights.push_back(newGeom);
+		}
+
         geoms.push_back(newGeom);
         return 1;
     }
@@ -96,7 +101,7 @@ int Scene::loadCamera() {
     float fovy;
 
     //load static properties
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 7; i++) {
         string line;
         utilityCore::safeGetline(fp_in, line);
         vector<string> tokens = utilityCore::tokenizeString(line);
@@ -111,7 +116,11 @@ int Scene::loadCamera() {
             state.traceDepth = atoi(tokens[1].c_str());
         } else if (strcmp(tokens[0].c_str(), "FILE") == 0) {
             state.imageName = tokens[1];
-        }
+        } else if (strcmp(tokens[0].c_str(), "FOCALDISTANCE") == 0) {
+			camera.focalDistance = atof(tokens[1].c_str());
+		} else if (strcmp(tokens[0].c_str(), "LENSRADIUS") == 0) {
+			camera.lensRadius = atof(tokens[1].c_str());
+		}
     }
 
     string line;
