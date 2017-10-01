@@ -10,6 +10,7 @@
 enum GeomType {
     SPHERE,
     CUBE,
+	TRIS,
 };
 
 struct Ray {
@@ -17,15 +18,30 @@ struct Ray {
     glm::vec3 direction;
 };
 
+struct Tri;
+
 struct Geom {
     enum GeomType type;
     int materialid;
+	glm::vec3 a, b;
     glm::vec3 translation;
     glm::vec3 rotation;
     glm::vec3 scale;
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+	glm::vec3 mt;
+	glm::vec3 mr;
+};
+
+struct Tri
+{
+	const float ep = 1e-5f;
+	const float _ep = -1e-5f;
+
+	int idx;
+	glm::vec3 position[3];
+	glm::vec3 normal[3];
 };
 
 struct Material {
@@ -49,6 +65,8 @@ struct Camera {
     glm::vec3 right;
     glm::vec2 fov;
     glm::vec2 pixelLength;
+	float ap;
+	float f;
 };
 
 struct RenderState {
@@ -73,4 +91,5 @@ struct ShadeableIntersection {
   float t;
   glm::vec3 surfaceNormal;
   int materialId;
+  bool outside;
 };

@@ -28,6 +28,8 @@ using namespace std;
 
 extern Scene* scene;
 extern int iteration;
+extern double tperf;
+extern bool timer;
 
 extern int width;
 extern int height;

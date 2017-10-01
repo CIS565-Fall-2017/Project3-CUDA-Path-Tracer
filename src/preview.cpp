@@ -1,5 +1,6 @@
 #define _CRT_SECURE_NO_DEPRECATE
 #include <ctime>
+#include <sstream>
 #include "main.h"
 #include "preview.h"
 
@@ -173,7 +174,13 @@ void mainLoop() {
         glfwPollEvents();
         runCuda();
 
-        string title = "CIS565 Path Tracer | " + utilityCore::convertIntToString(iteration) + " Iterations";
+		std::string str;
+		if (timer) {
+			std::ostringstream strs;
+			strs << tperf;
+			str = strs.str();
+		}
+        string title = "CIS565 Path Tracer | " + utilityCore::convertIntToString(iteration) + " Iterations | " + str;
         glfwSetWindowTitle(window, title.c_str());
 
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);

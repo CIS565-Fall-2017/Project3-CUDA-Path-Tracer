@@ -17,9 +17,11 @@ private:
     int loadGeom(string objectid);
     int loadCamera();
 public:
-    Scene(string filename);
+    Scene(string filename, float aTime);
     ~Scene();
 
+	float aniTime;
+	std::vector<Tri> tris;
     std::vector<Geom> geoms;
     std::vector<Material> materials;
     RenderState state;
