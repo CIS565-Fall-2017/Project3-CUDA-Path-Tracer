@@ -169,9 +169,42 @@ bool init() {
 }
 
 void mainLoop() {
+
+	//**********************Performance Analysis*****************
+	//cudaEvent_t start, stop;
+	//cudaEventCreate(&start);
+	//cudaEventCreate(&stop);
+	
+	double timebase = glfwGetTime();
+	FILE * pFile;
+	pFile = fopen("Analysis.txt", "w");
+	//float milliseconds = 0.f;
+	double timeGoes;
+	double time;
+	//**********************End*****************
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
+
+		//**********************Performance Analysis*****************
+		/*cudaEventRecord(start);*/
+		//**********************End*****************
+
         runCuda();
+		
+		//**********************Performance Analysis*****************
+		time = glfwGetTime();
+		if (time - timebase > 0.0) {
+			timeGoes = time - timebase;
+			fprintf(pFile, "%f\n", timeGoes);
+
+			timebase = time;
+		}
+		//cudaEventRecord(stop);
+		//cudaEventElapsedTime(&milliseconds, start, stop);
+		//
+		//fprintf(pFile, "%d\n", milliseconds);
+
+		//**********************End*****************
 
         string title = "CIS565 Path Tracer | " + utilityCore::convertIntToString(iteration) + " Iterations";
         glfwSetWindowTitle(window, title.c_str());
@@ -185,6 +218,9 @@ void mainLoop() {
         glDrawElements(GL_TRIANGLES, 6,  GL_UNSIGNED_SHORT, 0);
         glfwSwapBuffers(window);
     }
+	//**********************Performance Analysis*****************
+	fclose(pFile);
+	//**********************End*****************
     glfwDestroyWindow(window);
     glfwTerminate();
 }

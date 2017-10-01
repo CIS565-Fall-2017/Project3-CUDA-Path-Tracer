@@ -108,10 +108,18 @@ TRANS       5 5 0
 ROTAT       0 0 0
 SCALE       .01 10 10
 
-// Sphere
+// Sphere1
 OBJECT 6
 sphere
 material 4
 TRANS       -1 4 -1
 ROTAT       0 0 0
 SCALE       3 3 3
+
+//Sphere2
+OBJECT 7
+sphere
+material 4
+TRANS       1 2 1
+ROTAT       0 0 0
+SCALE       2 2 2
