@@ -6,7 +6,7 @@ SPECRGB     0 0 0
 REFL        0
 REFR        0
 REFRIOR     0
-EMITTANCE   13
+EMITTANCE   5
 
 // Diffuse white
 MATERIAL 1
@@ -60,7 +60,7 @@ EMITTANCE   0
 
 //Glass
 MATERIAL    6
-RGB         0.2 0.2 0.98
+RGB         0.98 0.98 0.98
 SPECEX      0
 SPECRGB		.98 .98 .98
 REFL        1
@@ -73,9 +73,9 @@ CAMERA
 RES         800 800
 FOVY        45
 ITERATIONS  5000
-DEPTH       3
+DEPTH       16
 FILE        cornell
-EYE         2.0 5.5 7.0
+EYE         0.0 5 4
 LOOKAT      0 5 0
 UP          0 1 0
 
@@ -84,9 +84,9 @@ UP          0 1 0
 OBJECT 0
 cube
 material 0
-TRANS       -1 10 5
+TRANS       0 10 0
 ROTAT       0 0 0
-SCALE       3 0.3 3
+SCALE       3 .3 3
 
 // Floor
 OBJECT 1
@@ -131,96 +131,47 @@ SCALE       .01 10 10
 // Sphere
 OBJECT 6
 sphere
-material 2
-TRANS       -3 4 -5
+material 6
+TRANS       -1 4 -1
 ROTAT       0 0 0
-SCALE       1 1 1
+SCALE       3 3 3
 
-// Sphere
+//// Sphere 2
 OBJECT 7
 sphere
-material 3
-TRANS       -2.4 4 -4
-ROTAT       0 0 0
-SCALE       1 1 1
+material 2
+TRANS       1 2 1
+ROTAT       0 0 0 
+SCALE       2 2 2
 
-// Sphere
+// Light 2
+//OBJECT 7
+//cube
+//material 0
+//TRANS       0 0 0
+//ROTAT       0 0 0
+//SCALE       3 .3 3
+
+// Blue Cube
 OBJECT 8
-sphere
-material 2
-TRANS       -1.8 4 -3
-ROTAT       0 0 0
-SCALE       1 1 1
+cube
+material 5
+TRANS       2 5 -2
+ROTAT       .5 -45 0
+SCALE      4 4 0.3
 
-// Sphere
+//Refractive sphere
 OBJECT 9
-sphere
-material 3
-TRANS       -1.2 4 -2
-ROTAT       0 0 0
-SCALE       1 1 1
-
-// Sphere
-OBJECT 10
-sphere
-material 2
-TRANS       -0.6 4 -1
-ROTAT       0 0 0
-SCALE       1 1 1
-
-// Sphere
-OBJECT 11
-sphere
-material 3
-TRANS       0 4 0
-ROTAT       0 0 0
-SCALE       1 1 1
-
-// Sphere
-OBJECT 12
-sphere
-material 2
-TRANS       .6 4 1
-ROTAT       0 0 0
-SCALE       1 1 1
-
-// Sphere
-OBJECT 13
-sphere
-material 3
-TRANS       1.2 4 2
-ROTAT       0 0 0
-SCALE       1 1 1
-
-// Sphere
-OBJECT 14
-sphere
-material 2
-TRANS       1.8 4 3
-ROTAT       0 0 0
-SCALE       1 1 1
-
-// Sphere
-OBJECT 15
-sphere
-material 3
-TRANS       2.4 4 4
-ROTAT       0 0 0
-SCALE       1 1 1
-
-
-// Sphere
-OBJECT 16
-sphere
-material 2
-TRANS       3 4 5
-ROTAT       0 0 0
-SCALE       1 1 1
-
-//Table
-OBJECT 17
 cube
 material 6
-TRANS       0 3.4 0
-ROTAT       0 0 0
-SCALE       10 0.2 10
+TRANS 0 1 0
+ROTAT 0 0 0
+SCALE 8 .1 8
+
+// Front wall
+OBJECT 10
+cube
+material 1
+TRANS       0 5 5
+ROTAT       0 90 0
+SCALE       .01 10 10

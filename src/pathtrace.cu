@@ -15,10 +15,11 @@
 #include "intersections.h"
 #include "interactions.h"
 #include "../stream_compaction/efficient.h"
+#include "../stream_compaction/common.h"
 
 #define ERRORCHECK 1
-#define FIRSTBOUNCE 1
-#define SORTBYMATERIAL 0
+#define FIRSTBOUNCE 0
+#define SORTBYMATERIAL 1
 #define DEPTHOFFIELD 0
 #define DIRECTLIGHTING 1
 
@@ -46,6 +47,12 @@ void checkCUDAErrorFn(const char *msg, const char *file, int line) {
 #endif
 }
 
+using StreamCompaction::Common::PerformanceTimer;
+PerformanceTimer& timer()
+{
+	static PerformanceTimer timer;
+	return timer;
+}
 __host__ __device__
 thrust::default_random_engine makeSeededRandomEngine(int iter, int index, int depth) {
     int h = utilhash((1 << 31) | (depth << 22) | iter) ^ utilhash(index);
@@ -97,7 +104,7 @@ static Geom * dev_lights = NULL;
 int num_Lights;
 #endif
 
-static float lensRadius = 0.5f;
+static float lensRadius = 0.3f;
 static float focalDistance = 3.5f;
 
 void pathtraceInit(Scene *scene) {
@@ -496,10 +503,11 @@ __global__ void populateMaterialIds(int numPaths, int * materialIds, ShadeableIn
 
 }
 
-
-
-//kernel to scatter pathSegments based on scanned boolean array
-
+template<typename T>
+void printElapsedTime(T time, std::string note = "")
+{
+	std::cout << "   elapsed time: " << time << "ms    " << note << std::endl;
+}
 
 //stream compaction function that calls the above 2 kernels 
 //calls the scan algorithm on the boolean array 
@@ -652,6 +660,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 #endif
 
 #if DIRECTLIGHTING
+	timer().startGpuTimer();
 	pathTraceWithDirectLighting << <numblocksPathSegmentTracing, blockSize1d >> > (
 		iter,
 		numPathsActive,
@@ -662,6 +671,9 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		num_Lights,
 		dirLight
 		);
+	timer().endGpuTimer();
+	printElapsedTime(timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+	printf("%i\n", numPathsActive);
 #else
   pathTraceBasic<<<numblocksPathSegmentTracing, blockSize1d>>> (
     iter,
@@ -673,12 +685,11 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 #endif
   //Stream Compaction
   //Compact dev_paths
-
   PathSegment * newEnd = thrust::partition(thrust::device, dev_paths, dev_paths + num_paths, PathSegment::is_active());
 
   numPathsActive = newEnd - dev_paths;
 
-  if (depth > traceDepth || numPathsActive == 0) iterationComplete = true; // TODO: should be based off stream compaction results.
+  if (depth > traceDepth || numPathsActive == 0) iterationComplete = true; 
 	}
 
   // Assemble this iteration and apply it to the image
