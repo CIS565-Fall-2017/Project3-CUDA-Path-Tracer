@@ -183,6 +183,8 @@ int Scene::loadGeom(string objectid) {
           newMesh.bboxInverseTransform = glm::inverse(newMesh.bboxTransform);
 
           newMesh.triangleEndIdx = tris.size();
+          cout << "start: " << newMesh.triangleStartIdx << endl;
+          cout << "end:   " << newMesh.triangleEndIdx << endl;
           meshes.push_back(newMesh);
 
         }

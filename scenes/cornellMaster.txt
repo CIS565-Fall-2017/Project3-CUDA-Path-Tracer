@@ -22,7 +22,7 @@ EMITTANCE   0
 MATERIAL 2
 RGB         .85 .35 .35
 SPECEX      0
-SPECRGB     .9 .9 .9
+SPECRGB     .98 .98 .98
 REFL        1
 REFR        0
 REFRIOR     0
@@ -40,10 +40,20 @@ EMITTANCE   0
 
 // Specular white
 MATERIAL 4
-RGB         0 0 0
+RGB         .98 .98 .98
 SPECEX      0
 SPECRGB     .98 .98 .98
 REFL        1
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+
+// Diffuse blue
+MATERIAL 5
+RGB         .35 .25 .85
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
 REFR        0
 REFRIOR     0
 EMITTANCE   0
@@ -108,10 +118,11 @@ TRANS       5 5 0
 ROTAT       0 0 0
 SCALE       .01 10 10
 
-// Sphere
+// Triangle
 OBJECT 6
-sphere
-material 4
-TRANS       -1 4 -1
-ROTAT       0 0 0
-SCALE       3 3 3
+mesh
+material 5
+TRANS       0 5 0
+ROTAT       0 45 0
+SCALE       0.5 0.5 0.5
+FILENAME ../scenes/mastersword.obj

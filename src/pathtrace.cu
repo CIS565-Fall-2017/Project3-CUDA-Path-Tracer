@@ -20,6 +20,9 @@
 #define SORT_BY_MATERIAL 0
 #define CACHE_FIRST_HIT 1
 #define DIRECT_LIGHTING 1
+#define COLOR_BY_NORMALS 0
+#define MEASURE_SHADER 0
+#define MEASURE_PATHS_PER_ITERATION 0
 
 #define ERRORCHECK 1
 
@@ -108,7 +111,19 @@ static int *dev_lightIdxs = NULL;
 static Mesh *dev_meshes = NULL;
 static Triangle *dev_tris = NULL;
 
+#if MEASURE_SHADER || MEASURE_PATHS_PER_ITERATION
+int measuredIterations = 0;
+float elapsedTotal = 0.0f;
+cudaEvent_t shadeStart, shadeStop;
+#endif
+
 void pathtraceInit(Scene *scene) {
+#if MEASURE_SHADER || MEASURE_PATHS_PER_ITERATION
+    cudaEventCreate(&shadeStart);
+    cudaEventCreate(&shadeStop);
+    measuredIterations = 0;
+    elapsedTotal = 0.0f;
+#endif
     hst_scene = scene;
     const Camera &cam = hst_scene->state.camera;
     const int pixelcount = cam.resolution.x * cam.resolution.y;
@@ -431,15 +446,23 @@ __global__ void shadeRealMaterial(
                                  // Set up the RNG
                                  // LOOK: this is how you use thrust's RNG! Please look at
                                  // makeSeededRandomEngine as well.
+
+#if COLOR_BY_NORMALS
+      pathSegments[idx].color = glm::abs(intersection.surfaceNormal);
+      pathSegments[idx].remainingBounces = 0;
+#endif
+
+      if (pathSegments[idx].remainingBounces <= 0) {
+        return;
+      }
+
       thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegments[idx].remainingBounces);
       thrust::uniform_real_distribution<float> u01(0, 1);
 
       Material material = materials[intersection.materialId];
       glm::vec3 materialColor = material.color;
 
-      if (pathSegments[idx].remainingBounces <= 0) {
-        return;
-      }
+
 
       // If the material indicates that the object was a light, "light" the ray
       if (material.emittance > 0.0f) {
@@ -461,7 +484,7 @@ __global__ void shadeRealMaterial(
         pathSegments[idx].remainingBounces--;
 
 #if DIRECT_LIGHTING
-        if (pathSegments[idx].remainingBounces == 0) {
+        if (pathSegments[idx].remainingBounces == 0 && material.hasReflective <= 0.0f) {
           thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
           thrust::uniform_real_distribution<float> u01(0.0f, 0.99999f);
           int randomIdx = (int)floor(u01(rng) * num_lights);
@@ -479,7 +502,14 @@ __global__ void shadeRealMaterial(
             Material lightMaterial = materials[geoms[lightIdx].materialid];
             pathSegments[idx].color *= lightMaterial.color * lightMaterial.emittance;
           }
+          else {
+            pathSegments[idx].color = glm::vec3(0.0f);
+          }
         }
+#else
+      if (pathSegments[idx].remainingBounces == 0) {
+        pathSegments[idx].color = glm::vec3(0.0f);
+      }
 #endif
       }
       // If there was no intersection, color the ray black.
@@ -620,7 +650,12 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
   // materials you have in the scenefile.
   // TODO: compare between directly shading the path segments and shading
   // path segments that have been reshuffled to be contiguous in memory.
-
+#if MEASURE_SHADER || MEASURE_PATHS_PER_ITERATION
+  if (measuredIterations < 16) {
+    cudaEventRecord(shadeStart);
+    cudaEventSynchronize(shadeStart);
+  }
+#endif
   shadeRealMaterial<<<numblocksPathSegmentTracing, blockSize1d>>> (
     iter,
     num_paths,
@@ -637,12 +672,39 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
     dev_tris
 #endif
   );
+
+#if MEASURE_SHADER || MEASURE_PATHS_PER_ITERATION
+  if (measuredIterations < 16) {
+    cudaEventRecord(shadeStop);
+    measuredIterations++;
+    cudaEventSynchronize(shadeStop);
+    float elapsed;
+    cudaEventElapsedTime(&elapsed, shadeStart, shadeStop);
+    elapsedTotal += elapsed;
+#if MEASURE_PATHS_PER_ITERATION
+    printf("elapsed:    %.3f\n", elapsed);
+    printf("num paths: %d\n", num_paths);
+#endif
+  }
+  if (measuredIterations == 16) {
+    printf("100 iterations average: %.3f\n", elapsedTotal / 16.0f);
+    measuredIterations++;
+  }
+#endif
+
 #if COMPACTION
   dev_path_end = thrust::partition(thrust::device, dev_paths, dev_paths + num_paths, is_terminated_path());
   num_paths = dev_path_end - dev_paths;
   iterationComplete = (num_paths <= 0); // TODO: should be based off stream compaction results.
 #else 
   iterationComplete = (depth >= traceDepth);
+#endif
+
+#if MEASURE_PATHS_PER_ITERATION
+  if (iterationComplete && measuredIterations <= 16) {
+    printf("end iteration-----------------------\n");
+  }
+
 #endif
 	}
 

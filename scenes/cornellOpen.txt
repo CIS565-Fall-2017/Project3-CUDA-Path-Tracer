@@ -48,6 +48,26 @@ REFR        0
 REFRIOR     0
 EMITTANCE   0
 
+// Diffuse magenta
+MATERIAL 5
+RGB         .85 .15 .8
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+
+// Diffuse yellow
+MATERIAL 6
+RGB         .85 .8 .1
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+
 // Camera
 CAMERA
 RES         800 800
@@ -74,7 +94,7 @@ cube
 material 1
 TRANS       0 0 0
 ROTAT       0 0 0
-SCALE       10 .01 10
+SCALE       10 .01 30
 
 // Ceiling
 OBJECT 2
@@ -82,12 +102,12 @@ cube
 material 1
 TRANS       0 10 0
 ROTAT       0 0 90
-SCALE       .01 10 10
+SCALE       .01 10 30
 
 // Back wall
 OBJECT 3
 cube
-material 1
+material 6
 TRANS       0 5 -5
 ROTAT       0 90 0
 SCALE       .01 10 10
@@ -98,7 +118,7 @@ cube
 material 2
 TRANS       -5 5 0
 ROTAT       0 0 0
-SCALE       .01 10 10
+SCALE       .01 10 30
 
 // Right wall
 OBJECT 5
@@ -106,7 +126,7 @@ cube
 material 3
 TRANS       5 5 0
 ROTAT       0 0 0
-SCALE       .01 10 10
+SCALE       .01 10 30
 
 // Sphere
 OBJECT 6
@@ -115,3 +135,11 @@ material 4
 TRANS       -1 4 -1
 ROTAT       0 0 0
 SCALE       3 3 3
+
+// "Front" wall
+OBJECT 7
+cube
+material 5
+TRANS       90 5 11
+ROTAT       0 0 0
+SCALE       30 30 .01
