@@ -7,6 +7,13 @@ CUDA Path Tracer
 * Tested on: Windows 10, i7-6700HQ @ 2.60GHz 8GB, GTX 960M 4096MB (Personal Laptop)
 
 ### Yuxin Hu
+## Basic Cornell Box
+![Cornell Box 5000 samples](/img/cornell.basic.5000samp.png)
+  <p align="center"><b>Cornell Box 5000 samples</b></p>
+  
+![Sphere Light 5000 samples](/img/sphere.basic.5000samp.png)
+  <p align="center"><b>Sphere Light 5000 samples</b></p>
+  
 ## Depth of Field
 ![Cornell Box With Depth Of Field 5000 samples](/img/cornell.depthOfField.5000samp.png)
   <p align="center"><b>Cornell Box With Depth Of Field 5000 samples</b></p>
