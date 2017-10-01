@@ -44,7 +44,7 @@ EMITTANCE   0
 
 // Specular white
 MATERIAL 4
-RGB         .98 .98 .98
+RGB         .6 .6 .7
 TEXTUREMAP 
 SPECEX      0
 SPECRGB     .98 .98 .98
@@ -55,12 +55,12 @@ EMITTANCE   0
 
 // Camera
 CAMERA
-RES        1024 1024
+RES        600 600
 FOVY        45	
 ITERATIONS  5000
-DEPTH       16
+DEPTH       64
 FILE        cornell
-EYE         0.0 5 10.5
+EYE         0.0 5 4.5
 LOOKAT      0 5 0
 UP          0 1 0
 
@@ -120,3 +120,11 @@ material 4
 TRANS       -1 4 -1
 ROTAT       0 0 0
 SCALE       3 3 3
+
+// Back wall
+OBJECT 7
+cube
+material 1
+TRANS       0 5 5
+ROTAT       0 90 0
+SCALE       .01 5 10

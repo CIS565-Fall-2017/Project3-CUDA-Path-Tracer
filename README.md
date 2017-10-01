@@ -70,7 +70,14 @@ Antialiasing is a simple feature that provides great image improvement without a
 
 * Ray Termination
 
-On the CPU, path tracing is a recursive algorithm. However, this is not possible on the GPU, so instead path tracing must be iterative. To terminate rays, the array of rays is stream compacted and only active rays are analyzed in the next iteration. This optimization provides benefits for large depths.  
+On the CPU, path tracing is a recursive algorithm. However, this is not possible on the GPU, so instead path tracing must be iterative. To terminate rays, the array of rays is stream compacted and only active rays are analyzed in the next iteration. This optimization provides benefits for large depths and for open scenes. For closed scenes, rays are only terminated when they hit the light, which is less common than escaping the scene, so less rays are terminated for each depth (see graph below). The open scene is darker because more rays escape before hitting the light whereas in the open scene, the rays are trapped and bounce between walls until they hit the light. 
+
+| Open | Half | Closed | 
+| ------------- | ----------- | ----------- | 
+| ![](img/open.png) | ![](img/partial.png) | ![](img/closed.png) | 
+| 57 ms/iteration | 85 ms/iteration | 143 ms/iteration | 
+
+![](img/stream_compact.png)  
 
 * Shared Memory Stream Compaction
 
