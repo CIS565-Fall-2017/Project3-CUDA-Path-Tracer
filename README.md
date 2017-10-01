@@ -9,7 +9,7 @@ CUDA Path Tracer
 Project Description
 ======================
 
-This projects implements the naive path tracer and direct light path tracer( Refering to PBRT, Phisically Based Rendering Thried Edition)
+This projects implements the naive path tracer and direct light path tracer( Refering to PBRT, Phisically Based Rendering Third Edition)
 
 Features implemented
 ======================
