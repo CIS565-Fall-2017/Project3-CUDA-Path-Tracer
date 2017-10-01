@@ -30,7 +30,7 @@ The Cornell box are Lambert material, and the sphere at the center is a mixture 
 ### 1) Direct lighting
 **cornell.txt** after 5000 iterations:
 ![enter image description here](https://lh3.googleusercontent.com/-HP8DYyMJ-lo/WdDvhCkQvxI/AAAAAAAAA8o/VlEKIv-vmycPnpmsbdQjqiBYjPfBeNPcQCLcBGAs/s0/cornell.2017-10-01_03-59-22z.5000samp.png "cornell.2017-10-01_03-59-22z.5000samp.png")
-
+*Since in direct lighting, the every ray from camera would only be traced once, therefore, we cannot see any global illumination from this image, and also it is darker than the normal naive path tracing processed images.* 
 
 ### 2) Realistic Camera Effect
 
