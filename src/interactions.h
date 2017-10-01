@@ -41,6 +41,13 @@ glm::vec3 calculateRandomDirectionInHemisphere(
         + sin(around) * over * perpendicularDirection2;
 }
 
+__host__ __device__ float schlick(float costheta, float n1, float n2)
+{
+	float R0 = (n1 - n2) / (n1 + n2);
+	R0 *= R0;
+	return R0 + (1 - R0) * pow((1 - costheta), 5);
+}
+
 /**
  * Scatter a ray with some probabilities according to the material properties.
  * For example, a diffuse surface scatters in a cosine-weighted hemisphere.
@@ -70,10 +77,76 @@ __host__ __device__
 void scatterRay(
 		PathSegment & pathSegment,
         glm::vec3 intersect,
-        glm::vec3 normal,
+        glm::vec3 &normal,
         const Material &m,
         thrust::default_random_engine &rng) {
     // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
+
+	if (glm::dot(pathSegment.ray.direction, normal) > 0.0f && m.hasRefractive <= 0.001f)
+	{
+		pathSegment.color = glm::vec3(0.0f);
+		pathSegment.remainingBounces = 0;
+		return;
+	}
+	if (m.hasReflective > 0.0f)
+	{
+		pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
+		pathSegment.ray.direction = glm::normalize(pathSegment.ray.direction);
+		pathSegment.ray.origin = intersect + pathSegment.ray.direction * 0.001f;
+		pathSegment.color *= m.color;
+		pathSegment.remainingBounces--;
+	}
+	else if (m.emittance > 0.0f)
+	{
+		pathSegment.color *= m.color * m.emittance;
+		pathSegment.remainingBounces = 0;
+	}
+	else if (m.hasRefractive > 0.0f)
+	{
+		float n1, n2;
+		float cosTheta, eta;
+
+		n1 = 1.0f;
+		n2 = m.indexOfRefraction;
+		cosTheta = glm::dot(pathSegment.ray.direction, normal);
+
+		if (cosTheta > .0f)
+		{
+			normal = -normal;
+			eta = n2 / n1;
+		}
+		else
+		{
+			eta = n1 / n2;
+		}
+		thrust::uniform_real_distribution<float> u01(0, 1);
+		float fresnel = schlick(fabs(cosTheta), n1, n2);
+		if (u01(rng) < fresnel)
+		{
+			pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
+			pathSegment.color *= m.color;
+		}
+		else
+		{
+			pathSegment.ray.direction = glm::refract(pathSegment.ray.direction, normal, eta);
+		}
+		
+		pathSegment.ray.origin = intersect + pathSegment.ray.direction * 0.001f;
+		pathSegment.ray.direction = glm::normalize(pathSegment.ray.direction);
+		pathSegment.remainingBounces--;
+	}
+	else
+	{
+
+		PathSegment temp = pathSegment;
+
+		pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
+		pathSegment.ray.direction = glm::normalize(pathSegment.ray.direction);
+		pathSegment.ray.origin = intersect + pathSegment.ray.direction * 0.02f;
+		pathSegment.color *= m.color;
+		pathSegment.remainingBounces--;
+	}
+
 }
