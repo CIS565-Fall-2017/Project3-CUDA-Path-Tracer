@@ -73,7 +73,7 @@ On the CPU, path tracing is a recursive algorithm. However, this is not possible
 
 * Shared Memory Stream Compaction
 
-This feature is an optimization to the stream compaction algorithm used to removed terminated rays from later iterations. Shared memory is used speed up memory access by reducing the number of global access needed. See the GPU accelerated stream compaction [here](https://github.com/sarahforcier/Project2-Stream-Compaction)  
+This feature is an optimization to the stream compaction algorithm used to removed terminated rays from later iterations. Shared memory is used speed up memory access by reducing the number of global access needed. See the GPU accelerated stream compaction [algorithm](https://github.com/sarahforcier/Project2-Stream-Compaction) and [reference](https://developer.nvidia.com/gpugems/GPUGems3/gpugems3_ch39.html)
 
 * Sorted Materials
 
