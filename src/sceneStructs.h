@@ -39,7 +39,7 @@ struct Material {
     float indexOfRefraction;
     float emittance;
 };
-
+enum MaterialType { Lambert, Reflective, Emmissive, Refractive, Other};
 struct Camera {
     glm::ivec2 resolution;
     glm::vec3 position;

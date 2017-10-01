@@ -116,8 +116,10 @@ int Scene::loadCamera() {
 
     string line;
     utilityCore::safeGetline(fp_in, line);
+	// look at is the location of the reference
     while (!line.empty() && fp_in.good()) {
         vector<string> tokens = utilityCore::tokenizeString(line);
+		// eye is the camera location
         if (strcmp(tokens[0].c_str(), "EYE") == 0) {
             camera.position = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
         } else if (strcmp(tokens[0].c_str(), "LOOKAT") == 0) {
