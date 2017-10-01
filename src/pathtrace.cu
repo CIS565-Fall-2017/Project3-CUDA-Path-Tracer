@@ -159,8 +159,8 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		float y_jitter = y + u01(rng);
 
 		segment.ray.direction = glm::normalize(cam.view
-			- cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
-			- cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
+			- cam.right * cam.pixelLength.x * ((float)x_jitter - (float)cam.resolution.x * 0.5f)
+			- cam.up * cam.pixelLength.y * ((float)y_jitter - (float)cam.resolution.y * 0.5f)
 			);
 
 		segment.pixelIndex = index;
@@ -396,31 +396,31 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	int depth = 0;
 	PathSegment* dev_path_end = dev_paths + pixelcount;
 	int num_paths = dev_path_end - dev_paths;
-	if (iter == 1) {
+	//if (iter == 1) {
 		generateRayFromCamera << <blocksPerGrid2d, blockSize2d >> > (cam, iter, traceDepth, dev_paths);
 		cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
-		dim3 numblocksPathSegmentTracing = (pixelcount + blockSize1d - 1) / blockSize1d;
-		computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
-			depth
-			, num_paths
-			, dev_paths
-			, dev_geoms
-			, hst_scene->geoms.size()
-			, dev_intersections
-			, dev_pathMaterials
-			);
+		//dim3 numblocksPathSegmentTracing = (pixelcount + blockSize1d - 1) / blockSize1d;
+		//computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
+		//	depth
+		//	, num_paths
+		//	, dev_paths
+		//	, dev_geoms
+		//	, hst_scene->geoms.size()
+		//	, dev_intersections
+		//	, dev_pathMaterials
+		//	);
 
-		cudaMemcpy(dev_cachePaths, dev_paths, pixelcount * sizeof(PathSegment), cudaMemcpyDeviceToDevice);
-		cudaMemcpy(dev_cacheIntersections, dev_intersections, pixelcount * sizeof(ShadeableIntersection), cudaMemcpyDeviceToDevice);
+		//cudaMemcpy(dev_cachePaths, dev_paths, pixelcount * sizeof(PathSegment), cudaMemcpyDeviceToDevice);
+		//cudaMemcpy(dev_cacheIntersections, dev_intersections, pixelcount * sizeof(ShadeableIntersection), cudaMemcpyDeviceToDevice);
 
 		checkCUDAError("generate camera ray");
-	}
-	else
-	{
-		cudaMemcpy(dev_paths, dev_cachePaths, pixelcount * sizeof(PathSegment), cudaMemcpyDeviceToDevice);
-		cudaMemcpy(dev_intersections, dev_cacheIntersections, pixelcount * sizeof(ShadeableIntersection), cudaMemcpyDeviceToDevice);
-	}
+	//}
+	//else
+	//{
+	//	cudaMemcpy(dev_paths, dev_cachePaths, pixelcount * sizeof(PathSegment), cudaMemcpyDeviceToDevice);
+	//	cudaMemcpy(dev_intersections, dev_cacheIntersections, pixelcount * sizeof(ShadeableIntersection), cudaMemcpyDeviceToDevice);
+	//}
 
 
 
@@ -457,7 +457,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		// TODO: compare between directly shading the path segments and shading
 		// path segments that have been reshuffled to be contiguous in memory.
 
-		sortByMaterials(num_paths);
+		//sortByMaterials(num_paths);
 
 		shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>> (
 			iter,
