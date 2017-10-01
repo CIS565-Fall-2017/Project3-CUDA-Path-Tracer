@@ -37,9 +37,9 @@ Scene::Scene(string filename) {
 
 int Scene::loadGeom(string objectid) {
     int id = atoi(objectid.c_str());
-    if (id != geoms.size()) {
+    if (false) {
         cout << "ERROR: OBJECT ID does not match expected number of geoms" << endl;
-        return -1;
+        //return -1;
     } else {
         cout << "Loading Geom " << id << "..." << endl;
         std::vector<Geom> newGeoms;

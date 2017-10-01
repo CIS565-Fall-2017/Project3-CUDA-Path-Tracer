@@ -23,7 +23,7 @@
 
 #define CACHE_CAMERA_RAYS false
 #define AA_JITTER false
-#define BVH_DEPTH 6 /*
+#define BVH_DEPTH 13 /*
 		0
 	  /   \
 	1		1
@@ -128,7 +128,7 @@ void constructBVHTree() {
 	//BVHNode * BVHnodes = new BVHNode[num_BVHnodes];
 	std::vector<BVHNode> BVHnodes;
 	BVHnodes.resize(num_BVHnodes);
-	printf("test: %i %i", BVHstart[0], BVHend[0]);
+	//printf("test: %i %i", BVHstart[0], BVHend[0]);
 	glm::vec3 maxb = thrust::transform_reduce(thrust::device, dev_geoms, dev_geoms + num_geoms, get_maxb(), glm::vec3(-1.0f*INFINITY), get_max_vec());
 	glm::vec3 minb = thrust::transform_reduce(thrust::device, dev_geoms, dev_geoms + num_geoms, get_minb(), glm::vec3(1.0f*INFINITY), get_min_vec());
 	BVHnodes[0] = BVHNode();
@@ -161,7 +161,7 @@ void constructBVHTree() {
 					int num_left = end - (dev_geoms + start_idx + buck_off);
 					float left_sa = thrust::transform_reduce(thrust::device, dev_geoms + start_idx + buck_off, dev_geoms + start_idx + buck_off + num_left, get_sa(), 0.0f, sum_sa());
 					buck_off += num_left;
-					printf("left_sa %f\n", left_sa);
+					//printf("left_sa %f\n", left_sa);
 					buckIdx[buck] = buck_off;
 					buckCost[buck] = left_sa;
 				}

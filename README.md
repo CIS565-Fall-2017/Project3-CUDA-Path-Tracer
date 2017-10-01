@@ -3,11 +3,21 @@ CUDA Path Tracer
 
 **University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 3**
 
-* (TODO) YOUR NAME HERE
-* Tested on: (TODO) Windows 22, i7-2222 @ 2.22GHz 22GB, GTX 222 222MB (Moore 2222 Lab)
+* Charles Wang
+* Tested on: Windows 10, i7-6700K @ 4.00GHz 16GB, GTX 1060 6GB (Personal Computer)
 
-### (TODO: Your README)
+![](img/loris.gif)
 
-*DO NOT* leave the README to the last minute! It is a crucial part of the
-project, and we will not be able to grade you without a good README.
+**Project Overview and Goals**
 
+The goal of this project is to implement a simple GPU Path Tracer.
+
+The features included in this project are:
+ - Naive Path Tracing ("BRDF" sampled lambert and perfect specular)
+ - BVH (Bounding Volume Hierarchy) Acceleration 
+ - OBJ loading
+ - Stream compaction for terminating rays and free-ing up threads
+ - Depth of Field
+ - Naive Anti-Aliasing
+
+Performance Analysis and more implementational details to come!

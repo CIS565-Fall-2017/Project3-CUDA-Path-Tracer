@@ -25,7 +25,7 @@ __global__ void kernCheckBounds(int n, Geom* geoms) {
 		return;
 	}
 	Geom &geom = geoms[idx];
-	printf("id: %i, new idx: %i, old idx %i xmin: %f xmax: %f\n", geom.type, idx, geom.id, geom.minb.x,geom.maxb.x);
+	//printf("id: %i, new idx: %i, old idx %i xmin: %f xmax: %f\n", geom.type, idx, geom.id, geom.minb.x,geom.maxb.x);
 }
 __global__ void kernCalculateBounds(int n, Geom* geoms) {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -102,7 +102,8 @@ __global__ void kernCalculateBounds(int n, Geom* geoms) {
 	//printf("idx: %i, max %f %f %f\n", idx, geom.maxb.x, geom.maxb.y, geom.maxb.z);
 	//printf("idx: %i, min %f %f %f\n", idx, geom.minb.x, geom.minb.y, geom.minb.z);
 	//printf("idx: %i, mid %f %f %f, type %i, sa: %f\n", idx, geom.midpoint.x, geom.midpoint.y, geom.midpoint.z, geom.type, geom.surface_area);
-	printf("id: %i, idx: %i\n", geom.type, idx);
+	
+	//printf("id: %i, idx: %i\n", geom.type, idx);
 }
 
 struct testpred {
@@ -186,20 +187,20 @@ __global__ void kernFillBVH(int idx, int *BVHIndices, BVHNode * BVHnodes) {
 
 __global__ void kernSetBVHTransform(int n, BVHNode * BVHnodes) {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
-	printf("%i \n", idx);
+	//printf("%i \n", idx);
 	if (idx > n) {
 		return;
 	}
 	BVHNode & node = BVHnodes[idx];
-	printf("node: %i %f %f\n", idx, node.minb.x ,node.maxb.x);
+	//printf("node: %i %f %f\n", idx, node.minb.x ,node.maxb.x);
 	glm::vec3 translate = (node.maxb + node.minb) / 2.0f;
 	glm::vec3 scale = (node.maxb - node.minb);
 	node.transform = dev_buildTransformationMatrix(
 		translate, glm::vec3(0.0f), scale);
 	node.inverseTransform = glm::inverse(node.transform);
 	node.invTranspose = glm::inverseTranspose(node.transform);
-	printf("idx: %i, trans: %f %f %f, scale %f %f %f\n", idx, translate.x, translate.y, translate.z,
-		scale.x, scale.y, scale.z);
+	/*printf("idx: %i, trans: %f %f %f, scale %f %f %f\n", idx, translate.x, translate.y, translate.z,
+		scale.x, scale.y, scale.z);*/
 }
 
 __host__ __device__ float BVHIntersectionTest(BVHNode box, Ray r,
@@ -260,14 +261,14 @@ __global__ void computeBVHIntersections(
 
 	if (path_index < num_paths)
 	{
-		glm::vec2 geom_ranges[20];
+		glm::vec2 geom_ranges[200];
 		int geom_idx = 0;
 		PathSegment pathSegment = pathSegments[path_index];
 		if (pathSegment.pixelIndex == 400) {
 			int pixelIndex = pathSegment.pixelIndex;
 			pixelIndex++;
 		}
-		BVHNode* stack[64];
+		BVHNode* stack[200];
 		BVHNode* * stackPtr = stack;
 		*stackPtr++ = NULL; // push
 
