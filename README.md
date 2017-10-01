@@ -35,7 +35,7 @@ All the feature can be turned off by changing define value in pathtrace.cu from 
 * GPU version runs faster then CPU version due to the number of threads in parallel.
 * Could implement a better shadow checking function.
 
-### Direct light
+### Realistic Camera
 
 ![](img/3.png)
 
