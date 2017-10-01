@@ -6,7 +6,7 @@ CUDA Path Tracer
 * Aman Sachan
 * Tested on: Windows 10, i7-7700HQ @ 2.8GHz 32GB, GTX 1070(laptop GPU) 8074MB (Personal Machine: Customized MSI GT62VR 7RE)
 
-# Overview
+## Overview
 
 In this project, I implemented a simple CUDA Monte Carlo path tracer. Although path tracers are typically implemented on the CPU, path tracing itself is a highly parallel algorithm if you think about it. For every pixel on the image, we cast a ray into the scene and track its movements until it reaches a light source, yielding a color on our screen. Each ray is dispatched as its own thread, for which intersections and material contributions are processed on the GPU.
 
@@ -20,7 +20,8 @@ Path tracing naturally simulates many effects that have to be added as special c
 
 Due to its accuracy and unbiased nature, path tracing is used to generate reference images when testing the quality of other rendering algorithms. In order to get high quality images from path tracing, a large number of rays must be traced to avoid visible noisy artifacts.
 
-# Features
+## Features
+### Naive Integration Scheme
 
 ### Stream Compaction
 
@@ -31,6 +32,8 @@ Due to its accuracy and unbiased nature, path tracing is used to generate refere
 ### Anti-Aliasing
 
 ### Depth of Field
+
+### Direct Lighting Integration Scheme
 
 ![](img/StreamCompactionDepthTest.png)
 ![](img/GPUPathTracer_AllFeaturesTiming.png)
