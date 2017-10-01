@@ -8,23 +8,28 @@ CUDA Path Tracer
 
 # Overview
 
-In this project, I was able to implement a basic Monte Carlo Path Tracer in CUDA.
+In this project, I was able to implement a basic Path Tracer in CUDA.
+
+100,000 samples, 8 bounces (~1h30m)
+![](img/materials100000samp.png)
 
 Features:
 - The Cornell Box
-- Depth of Field
-- Anti-Aliasing
-- Materials
+- [Depth of Field](#depth-of-field)
+- [Anti-Aliasing](#anti-aliasing)
+- [Materials](#materials)
     - Diffuse*
     - Specular*
     - Refractive
     - Subsurface 
-- Integration/Shading Techniques
+- [Shading Techniques](#shading-techniques)
     - Naive*
     - Direct Lighting
 - Stream Compaction for Ray Termination*
 - Material Sorting*
 - First Bounce Caching*
+
+[Analysis](#analysis)
 
 (*) denotes required features.
 
@@ -36,43 +41,57 @@ No Depth of Field             |  Depth of Field
 :-------------------------:|:-------------------------:
 ![](img/nodof_cornell.2017-09-29_04-40-15z.5000samp.png) Lens Radius: 0 & Focal Distance: 5  |  ![](img/dof_cornell.2017-09-29_04-28-53z.5000samp.png) Lens Radius: .2 & Focal Distance: 5 |
 
-## Anti-Aliasing
+## Anti&#8208;Aliasing
 
 NO AA      |  AA
 :-------------------------:|:-------------------------:
-![](img/noaa_cornell.2017-09-29_05-52-24z.5000samp.png)   |  ![](img/aa_cornell.2017-09-29_05-46-45z.5000samp.png)  |
+![](img/noaa.png)   |  ![](img/aa.png)  |
 
 You can definitely see the jagged edges are more profound on the left since AA is turned off. AA was achieved by randomly offsetting/jittering the pixel at each iteration.
 
 ## Materials
 
-![](img/materials.png)
+![](img/materials10000desc.png)
 
-### Subsurface Scattering
-
-![](img/subsurface/backleft.png)  |  ![](img/subsurface/backright.png) | ![](img/subsurface/frontright.png)
-:-------------------------:|:-------------------------:|:-------------------------:
-
-### Material Comparisons
-Diffuse             |  Specular
+### Specular
+Perfectly Specular   |  Pink Metal
 :-------------------------:|:-------------------------:
-![](img/diffuse1000.png)  |  ![](img/specular1000.png) |
+![](img/cornell.2017-10-01_07-20-52z.5000samp.png)      | ![](img/cornell.2017-10-01_07-40-20z.5000samp.png)  |
 
-
-Transmissive          |  Subsurface
+### Transmissive
+Refractive Index: 1.55    |  Refractive Index: 5
 :-------------------------:|:-------------------------:
-![](img/transmissive1000.png)  |  ![](img/subsurface1000.png) 
+![](img/1.55iorcornell.2017-10-01_07-24-56z.5000samp.png)      | ![](img/ior5cornell.2017-10-01_07-17-22z.5000samp.png)  |
 
 
-## Integration/Shading Techniques
+
+|   |Subsurface Scattering |  |
+| ------------- |:-------------:| -----:|
+| ![](img/subsurface/backleft.png)      | ![](img/subsurface/backright.png) | ![](img/subsurface/frontright.png) |
+
+Density: .9
+
+At each ray intersection with the object, the ray gets scattered through the object causing a random direction for the next bounce. A direction is chosen by spherical sampling. A distance is also sampled using `-log(rand(0, 1)) / density`.
+
+![](img/cornell.2017-10-01_15-40-44z.50000samp.png)
+
+Here's the same scene but with diffuse and transmissive materials.
+
+Diffuse             |  Transmissive
+:-------------------------:|:-------------------------:
+![](img/cornell.2017-10-01_16-27-12z.5000samp.png)  |  ![](img/cornell.2017-10-01_16-35-00z.5000samp.png)
+
+## Shading Techniques
 
 Naive             |  Direct Lighting
 :-------------------------:|:-------------------------:
 ![](img/naive_cornell.2017-09-23_19-25-09z.1285samp.png)  |  ![](img/direct_cornell.2017-09-29_06-05-30z.5000samp.png)
 
-There is no global illumination in direct lighting. When a ray hits an object in the scene, we sample its BSDF and shoot a second ray towards the light. We sample a random position on the light and determine its contribution. If there is another object in between the original object and the light, then the point is in shadow, otherwise the light is not occluded and we account for the light's contribution. Direct lighting only does a single bounce as opposed to the naive integrator.
+When a ray hits an object in the scene, we sample its BSDF and shoot a second ray towards the light. We sample a random position on the light and determine its contribution. If there is another object in between the original object and the light, then the point is in shadow, otherwise we account for the light's contribution. Direct lighting only does a single bounce as opposed to the naive integrator.
 
-In addition to not having Global Illumination, there is no support for transmissive and specular objects since there is only one bounce per iteration.
+*This is based on my CIS561 implementation of the direct lighting integrator.
+
+# Analysis
 
 # Future Work
 
@@ -80,6 +99,14 @@ In addition to not having Global Illumination, there is no support for transmiss
 - Photon Mapping
 - Acceleration Structures
 - OBJ Loader
+
+# References
+- [CIS 561 Path Tracer](https://github.com/AgentLee/PathTracer)
+- [PBRT](https://github.com/mmp/pbrt-v3)
+- Subsurface Scattering
+    - [http://www.davepagurek.com/blog/volumes-subsurface-scattering/]()
+    - [https://computergraphics.stackexchange.com/questions/5214/a-recent-approach-for-subsurface-scattering]()
+- [https://www.scratchapixel.com/]()
 
 # Bloopers
 
