@@ -4,6 +4,7 @@
 #include <thrust/execution_policy.h>
 #include <thrust/random.h>
 #include <thrust/remove.h>
+#include <glm/gtc/matrix_inverse.hpp>
 
 #include "sceneStructs.h"
 #include "scene.h"
@@ -18,13 +19,14 @@ using namespace std;
 #define ERRORCHECK 1
 #define ANTIALIASING 1
 #define STREAM_COMPACTION 0 // very slow
-#define CACHE_FIRST_BOUNCE 0
+#define CACHE_FIRST_BOUNCE 0 // set 0 when using DOF || ANTIALIASING
 #define SORT_MATERIAL 0 // extremely slow
 #define STRATIFIED 0
 #define DOF 0
 #define MSI 0
 #define DIRECT_LIGHTING 0
 #define TIMER 0
+#define MOTION_BLUR 0
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -194,12 +196,12 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 			- cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
 		);
 #endif
-
+//Reference: Physically Based Rendering, Third Edition p374
 #if DOF
 		thrust::uniform_real_distribution<float> u01(0, 1);
 		glm::vec2 sample = glm::vec2(u01(rng), u01(rng));
 		glm::vec2 pLens = cam.lensRadius * squareToDiskConcentric(sample);
-		float ft = glm::abs(cam.focalDistance / cam.view.z);
+		float ft = glm::abs(cam.focalDistance / segment.ray.direction.z);
 		glm::vec3 pFocus = segment.ray.origin + segment.ray.direction * ft;
 		segment.ray.origin += pLens.x * cam.right + pLens.y * cam.up;
 		segment.ray.direction = glm::normalize(pFocus - segment.ray.origin);
@@ -384,9 +386,9 @@ __global__ void shadeFakeMaterial(
 			  pathSegments[idx].color = glm::vec3(0.0f);
 		  }
 #if DIRECT_LIGHTING
-		  if (pathSegments[idx].remainingBounces == 0)
-		  {
-			  pathSegments[idx].color = glm::vec3(0.f, 0.f, 0.f);
+		  //if (pathSegments[idx].remainingBounces == 0)
+		  //{
+			  //pathSegments[idx].color = glm::vec3(0.f, 0.f, 0.f);
 
 			  thrust::uniform_int_distribution<float> u0l(0, num_lights);
 			  int lightidx = u0l(rng);
@@ -408,11 +410,17 @@ __global__ void shadeFakeMaterial(
 			  }*/
 			  if (abs(t_min - glm::length(pointonlight - ray.origin)) < 1e-3f)
 			  {
-				  pathSegments[idx].color *= (materiallight.color * materiallight.emittance);
+				  pathSegments[idx].color *= (material.color * materiallight.color * materiallight.emittance);
 				  //pathSegments[idx].color = glm::vec3(0.f,0.f,1.f);
 			  }
+			  else
+			  {
+				  //pathSegments[idx].color = glm::vec3(0.f, 1.f, 0.f);
+				  //pathSegments[idx].color == glm::vec3(0.0f);
+			  }
+			  pathSegments[idx].remainingBounces--;
 
-		  }
+		  //}
 #endif
 #endif
 #if MSI
@@ -530,6 +538,22 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
     //   for you.
 
     // TODO: perform one iteration of path tracing
+
+#if MOTION_BLUR
+	float step = 1 / (hst_scene->state.iterations*1.f);
+	for (int i = 0; i < hst_scene->geoms.size(); i++)
+	{
+		if (hst_scene->geoms[i].motion)
+		{
+			hst_scene->geoms[i].translation += hst_scene->geoms[i].translate * step;
+			hst_scene->geoms[i].rotation += hst_scene->geoms[i].rotate * step;
+			hst_scene->geoms[i].transform = utilityCore::buildTransformationMatrix(hst_scene->geoms[i].translation, hst_scene->geoms[i].rotation, hst_scene->geoms[i].scale);
+			hst_scene->geoms[i].inverseTransform = glm::inverse(hst_scene->geoms[i].transform);
+			hst_scene->geoms[i].invTranspose = glm::inverseTranspose(hst_scene->geoms[i].transform);
+		}
+	}
+	cudaMemcpy(dev_geoms, &(hst_scene->geoms)[0], hst_scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
+#endif
 
 	generateRayFromCamera <<<blocksPerGrid2d, blockSize2d >>>(cam, iter, traceDepth, dev_paths);
 	checkCUDAError("generate camera ray");

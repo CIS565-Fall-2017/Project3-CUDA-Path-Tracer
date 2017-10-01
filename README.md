@@ -21,6 +21,7 @@ CUDA Path Tracer
 * Refraction with Frensel effects
 * Physically-based depth-of-field
 * Stochastic Sampled Antialiasing
+* Motion blur
 
 ## Results
 
@@ -36,7 +37,7 @@ I adjust the emittance of emissive material to be larger to better show the feat
 
 #### Refraction with Frensel effects
 
-Reference: https://graphics.stanford.edu/courses/cs148-10-summer/docs/2006--degreve--reflection_refraction.pdf
+(Reference: https://graphics.stanford.edu/courses/cs148-10-summer/docs/2006--degreve--reflection_refraction.pdf)
 
 ![](img/cornell2.2017-10-01_17-34-12z.5000samp.png)
 
@@ -66,6 +67,8 @@ From left to right(Reflective/Diffuse): 1/0, 0.75/0.25/, 0.5/0.5, 0.25/0.75, 0/1
 
 #### Physically-based depth-of-field
 
+(Reference for DOF from Physically Based Rendering, Third Edition p374)
+
 (Reference for Concentric Sample Disk from https://www.dartdocs.org/documentation/dartray/0.0.1/core/ConcentricSampleDisk.html)
 
 ![](img/cornell3.2017-09-29_19-28-18z.5000samp.png)
@@ -75,6 +78,8 @@ For the image above: focal distance = 9, lensradius = 1;
 |no DOF | With DOF |
 |------|------|
 |![](img/cornell2.2017-10-01_17-34-12z.5000samp.png) | ![](img/cornell2.2017-10-01_17-40-31z.5000samp.png) |
+
+Left: Without Depth of Field; Right: With Depth of Field;
 
 For the image with dof above: focal distance = 10.5, lensradius = 0.5;
 
@@ -87,6 +92,16 @@ Left: Without Stochastic Sampled Antialiasing; Right: With Stochastic Sampled An
 |no AA | With AA |
 |------|------|
 |![](img/cornell2.2017-10-01_17-45-29z.5000samp.png) | ![](img/cornell2.2017-10-01_17-34-12z.5000samp.png) |
+
+#### Motion Blur
+
+|no Motion Blur | With Motion Blur |
+|------|------|
+|![](img/cornell2.2017-10-01_23-40-15z.5000samp.png) | ![](img/cornell2.2017-10-01_23-35-37z.5000samp.png) |
+
+Left: Without Motion Blur; Right: With Motion Blur;
+
+For the image with Motion Blur above: for the cube on the left side, its original translation is [-2.8 5 0], rotation is[45 0 45], and its final translation is [-1.8 6 1], rotation is[45,45,45];
 
 ## Performance Analysis
 
@@ -118,7 +133,7 @@ Next, let's see the time used in shadematerial function for the first interation
 
 ![](img/form2.png)
 
-| Depth(Oepn box) | Stream compaction | No Stream compaction |
+| Depth(Close box) | Stream compaction | No Stream compaction |
 |:----------------|:------------------|:---------------------|
 | 1               | 1.59933           | 1.57213              |
 | 2               | 1.68032           | 1.65667              |
