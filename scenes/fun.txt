@@ -1,6 +1,6 @@
 // Emissive material (light)
 MATERIAL 0
-RGB         1 1 1
+RGB         1 0 1
 TEXTUREMAP 
 SPECEX      0
 SPECRGB     0 0 0
@@ -45,13 +45,46 @@ EMITTANCE   0
 // texture
 MATERIAL 4
 RGB         .98 .98 .98
-TEXTUREMAP ..\scenes\uv_mapper.jpg
+TEXTUREMAP 
 SPECEX      0
 SPECRGB     .98 .98 .98
+REFL        1
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+
+// Emissive material (light)
+MATERIAL 5
+RGB         1 1 0
+TEXTUREMAP 
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   5
+
+// Diffuse blue
+MATERIAL 6
+RGB         0 0 1
+TEXTUREMAP 
+SPECEX      0
+SPECRGB     0 0 0
 REFL        0
 REFR        0
 REFRIOR     0
 EMITTANCE   0
+
+// Emissive material (light)
+MATERIAL 7
+RGB         1 1 1
+TEXTUREMAP 
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   5
 
 // Camera
 CAMERA
@@ -67,10 +100,10 @@ UP          0 1 0
 // Ceiling light
 OBJECT 0
 cube
-material 0
-TRANS       0 10 0
+material 5
+TRANS       -2 10 2
 ROTAT       0 0 0
-SCALE       3 .3 3
+SCALE       3 .3 2
 
 // Floor
 OBJECT 1
@@ -114,8 +147,49 @@ SCALE       .01 10 10
 
 // Mesh
 OBJECT 6
-mesh ..\scenes\torus.obj
+mesh ..\scenes\cylinder.obj
 material 4
-TRANS       -1 4 -1
+TRANS       -2 2.5 0
 ROTAT       0 0 0
-SCALE      1.5 1.5 1.5
+SCALE      1 2.5 1
+
+// Mesh
+OBJECT 6
+mesh ..\scenes\coil.obj
+material 1
+TRANS       -2 2.5 0
+ROTAT       0 0 0
+SCALE      1 1 1
+
+// Ceiling light
+OBJECT 7
+cube
+material 0
+TRANS       2 10 2
+ROTAT       0 0 0
+SCALE       3 .3 2
+
+// sphere
+OBJECT 8
+sphere
+material 1
+TRANS       0 1 2
+ROTAT       0 0 0
+SCALE      2.5 2.5 2.5
+
+// cube
+OBJECT 9
+cube
+material 1
+TRANS       2 3 -1
+ROTAT       0 55 0
+SCALE      3 7 3
+
+// Ceiling light
+OBJECT 7
+cube
+material 7
+TRANS       7 3 7
+ROTAT       90 45 0
+SCALE       3 .3 3
+
