@@ -82,6 +82,7 @@ static ShadeableIntersection * dev_intersections = NULL;
 //static bool* streamFlag = NULL;
 static int* compactSteamsIn= NULL;
 static int* materialKey = NULL;
+static int* materialKey1 = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
 // ...
 
@@ -110,6 +111,7 @@ void pathtraceInit(Scene *scene) {
 	cudaMalloc(&compactSteamsIn, pixelcount * sizeof(int));
 	//cudaMalloc(&streamFlag, sizeof(bool)*pixelcount);
 	cudaMalloc(&materialKey, pixelcount * sizeof(int));
+	cudaMalloc(&materialKey1, pixelcount * sizeof(int));
 
     checkCUDAError("pathtraceInit");
 }
@@ -126,6 +128,7 @@ void pathtraceFree() {
 	cudaFree(compactSteamsIn);
 	//cudaFree(streamFlag);
 	cudaFree(materialKey);
+	cudaFree(materialKey1);
     checkCUDAError("pathtraceFree");
 }
 
@@ -576,6 +579,8 @@ __global__ void DirectLightingIntegrator(
 				}
 
 				DirectShadowIntersection(shadowSegment, geoms, geoSize, shadowIntersection);
+				float surfaceArea = 2 * (geoms[0].scale.x*geoms[0].scale.z + geoms[0].scale.x*geoms[0].scale.y + geoms[0].scale.y*geoms[0].scale.z);
+				float pdf = glm::length2(intersectionPoint - lightPoint) / abs(glm::dot(shadowIntersection.surfaceNormal, shadowSegment.ray.direction)*surfaceArea);
 				Material shadowMaterial = materials[shadowIntersection.materialId];
 				//float emit = shadowMaterial.emittance;
 
@@ -583,7 +588,7 @@ __global__ void DirectLightingIntegrator(
 				{
 					if (shadowMaterial.emittance>0.f)
 					{
-						pathSegments[idx].color = materialIsc.color*shadowMaterial.color;
+						pathSegments[idx].color *= (materialIsc.color*shadowMaterial.color/pdf);
 					}
 					//inside shadow 
 					else
@@ -740,11 +745,14 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
 	//TODO material compactio
 	MaterialKey << <blocksPerGrid1d, blockSize1d >> >(dev_intersections, materialKey, num_paths);
-	thrust::device_ptr<int> dev_thrust_keys(materialKey);
+	cudaMemcpy(materialKey1, materialKey, num_paths*sizeof(int),cudaMemcpyDeviceToDevice);
+	thrust::device_ptr<int> dev_thrust_keys1(materialKey);
+	thrust::device_ptr<int> dev_thrust_keys2(materialKey1);
 	thrust::device_ptr<ShadeableIntersection> dev_thrust_valuesInt(dev_intersections);
 	thrust::device_ptr<PathSegment> dev_thrust_valueSeg(dev_paths);
-	thrust::sort_by_key(dev_thrust_keys, dev_thrust_keys + pixelcount, dev_thrust_valuesInt);
-	thrust::sort_by_key(dev_thrust_keys, dev_thrust_keys + pixelcount, dev_thrust_valueSeg);
+	thrust::sort_by_key(dev_thrust_keys1, dev_thrust_keys1 + pixelcount, dev_thrust_valuesInt);
+	thrust::sort_by_key(dev_thrust_keys2, dev_thrust_keys2 + pixelcount, dev_thrust_valueSeg);
+
 
 	// TODO:
 	// --- Shading Stage ---
