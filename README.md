@@ -67,3 +67,14 @@ This scene is basically the same as the Cornell box scene, however, the sphere a
 Here is the comparison between naive integrator and also direct lighting integrator. Also the result with material memory compaction and without material memory compaction are compared, the analysis graph of the processing time per iteration can be illustrated here:
 
 ![enter image description here](https://lh3.googleusercontent.com/-x701RQGZzqo/WdEbCSrE43I/AAAAAAAAA88/Co6uCdfTkrYf-0_Zl1Ow9VteN0ivtbp1gCLcBGAs/s0/performance.jpg "performance.jpg")
+
+*Notation: the data denotes the total time of a trace pass for every pixels per iteration. Therefore, they have 5000 numbers.*
+
+As you can see from this graph,  it is apparent that
+
+ - Direct lighting is far more faster than naive BSDF path tracing
+ - Sometimes it would take more time to trace after material compaction than trace without material compaction
+
+For the first phenomenon, I think it is because that naive path tracing would trace at lease 1 time and ad most 8 times, whereas direct lighting would only trace once for every scene. Therefore, for every pixel, the naive path tracing would of course be far more slower than direct lighting path tracing. 
+
+For the second phenomenon, since thrust::sort_by_key would also take extra time for processing, it is quite simply to understand that material compaction would take extra time. 
