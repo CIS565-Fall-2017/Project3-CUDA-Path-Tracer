@@ -577,6 +577,7 @@ __global__ void shadeNaiveMaterial(
 	Or more advanced [PBRT 15.1.1].
 
 	Only want to do this at last bounce (when remaining bounces == 0?)
+	Just make remainingBounces 0 at the end so it only runs through this once
 */
 __global__ void shadeDirectMaterial(
 	int iter
@@ -594,7 +595,7 @@ __global__ void shadeDirectMaterial(
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (idx < num_paths)
 	{
-		if (pathSegments[idx].remainingBounces < 0)
+		if (pathSegments[idx].remainingBounces <= 0)
 		{
 			return;
 		}
@@ -603,87 +604,89 @@ __global__ void shadeDirectMaterial(
 
 		if (intersection.t > 0.0f)
 		{
-			//You only want direct lighting on final bounce
-			if (pathSegments[idx].remainingBounces == 0)
+
+			Material isectMaterial = materials[intersection.materialId];
+
+			//This will return light's color if isect is of a light
+			glm::vec3 leResult = Le(-pathSegments[idx].ray.direction, isectMaterial, intersection.surfaceNormal);
+
+			//If isect belongs to a light
+			if (isectMaterial.emittance > 0.0f)
 			{
-				Material isectMaterial = materials[intersection.materialId];
+				pathSegments[idx].color *= leResult;		//QUESTION: return this or multiply it?
+				//pathSegments[idx].color *= (isectMaterial.color * isectMaterial.emittance);
+				pathSegments[idx].remainingBounces = 0;
+				return;
+			}
 
-				//This will return light's color if isect is of a light
-				glm::vec3 leResult = Le(pathSegments[idx].ray.direction, isectMaterial, intersection.surfaceNormal);
+			//Select random light source from lights array ------------------------
+			thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);	//QUESTION: should this be 0 or depth?
+			thrust::uniform_real_distribution<float> u01(0, 1);
+			int randLightIdx = glm::min(
+				(int)glm::floor(u01(rng) * numLights),
+				(numLights - 1));
 
-				//If isect belongs to a light
-				if (isectMaterial.emittance > 0.0f)
-				{
-					pathSegments[idx].color *= leResult;		//QUESTION: return this or multiply it?
-					pathSegments[idx].remainingBounces = 0;
-					return;
-				}
+			Geom currLight = lights[randLightIdx];
 
-				//Select random light source from lights array ------------------------
-				thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);	//QUESTION: should this be 0 or depth?
-				thrust::uniform_real_distribution<float> u01(0, 1);
-				int randLightIdx = glm::min(
-											(int)glm::floor(u01(rng) * numLights),
-											(numLights - 1));
+			//Call light's Sample_Li
+			//This gets us ray direction from isect to random point on light 
+			//We want to take this direction and shoot ray from isect's origin towards light 
+			//(might need to offset origin a bit off isect's normal so that we don't hit isect's object)
+			//This also returns the color of the light L(isect on light, direction from isect to random point on light)
+			//(check if direction needs to be negated)
 
-				Geom currLight = lights[randLightIdx];
+			glm::vec3 ptOnLight;
 
-				//Call light's Sample_Li
-				//This gets us ray direction from isect to random point on light 
-				//We want to take this direction and shoot ray from isect's origin towards light 
-				//(might need to offset origin a bit off isect's normal so that we don't hit isect's object)
-				//This also returns the color of the light L(isect on light, direction from isect to random point on light)
-				//(check if direction needs to be negated)
+			if (currLight.type == SPHERE)
+			{
+				glm::vec2 sample(u01(rng), u01(rng));
+				ptOnLight = sampleSphere(sample, currLight);
+			}
+			else if (currLight.type == CUBE)
+			{
+				glm::vec3 sample(u01(rng), u01(rng), u01(rng));
+				ptOnLight = sampleCube(sample, currLight);
+			}
 
-				glm::vec3 ptOnLight;
+			//Create shadow feeler ray ------------------------
+			glm::vec3 _dirToLight = ptOnLight - intersection.intersectionPt;
+			glm::vec3 rayDirToLight = glm::normalize(_dirToLight);
+			Ray rayToLight = spawnRay(intersection.intersectionPt, intersection.surfaceNormal, rayDirToLight);
+			//glm::vec3 isectPtOffsetted = intersection.intersectionPt + (intersection.surfaceNormal * EPSILON);
+			//glm::vec3 _dirToLight = ptOnLight - isectPtOffsetted;
+			//glm::vec3 rayDirToLight = glm::normalize(_dirToLight);
+			//Ray rayToLight;
+			//rayToLight.origin = isectPtOffsetted;
+			//rayToLight.direction = rayDirToLight;
 
-				if (currLight.type == SPHERE)
-				{
-					glm::vec2 sample(u01(rng), u01(rng));
-					ptOnLight = sampleSphere(sample, currLight);
-				}
-				else if (currLight.type == CUBE)
-				{
-					glm::vec3 sample(u01(rng), u01(rng), u01(rng));
-					ptOnLight = sampleCube(sample, currLight);
-				}
+			//Get the intersection from spawning this new shadow feeler ray ------------------------
+			ShadeableIntersection shadowIsect;
+			rayIntersect(rayToLight, geoms, numGeoms, shadowIsect);
 
-				//Create shadow feeler ray ------------------------
-				glm::vec3 _dirToLight = ptOnLight - intersection.intersectionPt;
-				glm::vec3 rayDirToLight = glm::normalize(_dirToLight);
-				Ray rayToLight = spawnRay(intersection.intersectionPt, intersection.surfaceNormal, rayDirToLight);
-				//glm::vec3 isectPtOffsetted = intersection.intersectionPt + (intersection.surfaceNormal * EPSILON);
-				//glm::vec3 rayDirToLight = glm::normalize(ptOnLight - isectPtOffsetted);
-				//Ray rayToLight;
-				//rayToLight.origin = isectPtOffsetted;
-				//rayToLight.direction = rayDirToLight;
+			//If length of the ray to light (before normalization!)
+			//is greater than length of the ray to shadowIsect (aka t value), then isect is in shadow
+			//OR if you hit something that's not the light that you sampled, then you're in shadow
+			//OR if you dist b/w shadowIsect and isect < dist b/w light and isect - 0.001 , you're in shadow
+			glm::vec3 visibility(1.0f);
+			if (shadowIsect.t > 0.0f)
+			{
+				visibility = ((glm::length(_dirToLight) - 0.1 > shadowIsect.t)
+					|| (glm::length(_dirToLight) + 0.1 < shadowIsect.t))
+					? glm::vec3(0.0f) : glm::vec3(1.0f);
+			}
 
-				//Get the intersection from spawning this new shadow feeler ray ------------------------
-				ShadeableIntersection shadowIsect;
-				rayIntersect(rayToLight, geoms, numGeoms, shadowIsect);
+			//Other LTE components ------------------------
+			//Assuming that light is two sided here
+			//Otherwise it would be: 
+			//glm::vec3 colorOnLight = Le(rayDirToLight, material, normal from sample function);
+			Material lightMat = materials[currLight.materialid];
+			glm::vec3 sampleLiResult = lightMat.color * lightMat.emittance;
+			glm::vec3 f = isectMaterial.color;	//if materials have more than 1 bxdf, need to implement function
+			float absDot = AbsDot(rayDirToLight, intersection.surfaceNormal);
 
-				//If length of the ray to light (before normalization!)
-				//is greater than length of the ray to shadowIsect (aka t value), then isect is in shadow
-				//OR if you hit something that's not the light that you sampled, then you're in shadow
-				//OR if you dist b/w shadowIsect and isect < dist b/w light and isect - 0.001 , you're in shadow
-				glm::vec3 visibility(1.0f);
-				if (shadowIsect.t > 0.0f)
-				{
-					visibility = (glm::length(_dirToLight) > shadowIsect.t) ? glm::vec3(0.0f) : glm::vec3(1.0f);
-				}
+			pathSegments[idx].color *= (leResult + (f * sampleLiResult * absDot * visibility));
 
-
-				//Other LTE components ------------------------
-				//Assuming that light is two sided here
-				//Otherwise it would be: 
-				//glm::vec3 colorOnLight = Le(rayDirToLight, material, normal from sample function);
-				Material lightMat = materials[currLight.materialid];
-				glm::vec3 sampleLiResult = lightMat.color * lightMat.emittance;
-				glm::vec3 f = isectMaterial.color;	//if materials have more than 1 bxdf, need to implement function
-				float absDot = AbsDot(rayDirToLight, intersection.surfaceNormal);
-
-				pathSegments[idx].color *= (leResult + (f * sampleLiResult * absDot * visibility));
-			}//end when remaining bounces == 0
+			pathSegments[idx].remainingBounces = 0;
 		}
 		else
 		{
@@ -948,9 +951,32 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 
 		//TESTING
 
-		if (DIRECT_LIGHTING)
-		{
-			shadeDirectMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
+		//if (DIRECT_LIGHTING)
+		//{
+			//shadeDirectMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
+			//	iter,
+			//	num_remainingPaths,
+			//	dev_intersections,
+			//	dev_paths,
+			//	dev_materials,
+			//	depth,
+			//	dev_lights,
+			//	hst_scene->lights.size(),
+			//	dev_geoms,
+			//	hst_scene->geoms.size());
+		//}
+		//else
+		//{
+			//shadeNaiveMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
+			//	iter,
+			//	num_remainingPaths, //num_paths,
+			//	dev_intersections,
+			//	dev_paths,
+			//	dev_materials,
+			//	depth);
+		//}
+
+			shadeDirectMaterial << <numblocksPathSegmentTracing, blockSize1d >> >(
 				iter,
 				num_remainingPaths,
 				dev_intersections,
@@ -961,19 +987,6 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 				hst_scene->lights.size(),
 				dev_geoms,
 				hst_scene->geoms.size());
-		}
-		else
-		{
-			shadeNaiveMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
-				iter,
-				num_remainingPaths, //num_paths,
-				dev_intersections,
-				dev_paths,
-				dev_materials,
-				depth);
-		}
-
-
 
 		// Stream Compaction Terminated Paths ----------------------------------------------------------------- 
 		PathSegment* lastRemainingPath = thrust::partition(thrust::device, dev_paths, dev_paths + num_remainingPaths, hasRemainingBounces());

@@ -17,7 +17,7 @@
 #define RAY_EPSILON			0.000005f
 #define SORT_BY_MATERIAL	true
 #define CACHE_FIRST_BOUNCE	true
-#define DIRECT_LIGHTING		false
+#define DIRECT_LIGHTING		true
 
 namespace utilityCore {
     extern float clamp(float f, float min, float max);
