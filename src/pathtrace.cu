@@ -7,6 +7,8 @@
 #include <thrust/remove.h>
 #include <thrust/device_ptr.h>
 
+#include <chrono>
+
 #include "sceneStructs.h"
 #include "scene.h"
 #include "glm/glm.hpp"
@@ -24,13 +26,13 @@
 //--------------------
 #define FIRST_BOUNCE_INTERSECTION_CACHING 0
 #define MATERIAL_SORTING 0
-#define INACTIVE_RAY_CULLING 0
+#define INACTIVE_RAY_CULLING 0 //Stream Compaction of rays
 #define DEPTH_OF_FIELD 0
-#define ANTI_ALIASING 1 // if you use first bounce caching, antialiasing will not work --> can make it work with 
+#define ANTI_ALIASING 0 // if you use first bounce caching, antialiasing will not work --> can make it work with 
 						// a more deterministic Supersampling approach to AA but requires more memory for 
 						// caching more intersections
 //Naive Integration is the default if nothing else is toggled
-#define DIRECT_LIGHTING_INTEGRATOR 1
+#define DIRECT_LIGHTING_INTEGRATOR 0
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -53,6 +55,20 @@ void checkCUDAErrorFn(const char *msg, const char *file, int line) {
     exit(EXIT_FAILURE);
 #endif
 }
+
+//------------------------------------------------
+//-------------------Timer------------------------
+using time_point_t = std::chrono::high_resolution_clock::time_point;
+time_point_t timeStartCpu;
+time_point_t timeEndCpu;
+float prevElapsedTime = 0.0f;
+
+void printTimerDetails(int iteration, int depth, float time)
+{
+	printf("%f\n", time);
+	//printf("Iteration %d; Depth %d: %f milliseconds\n", iteration, depth, time);
+}
+//------------------------------------------------
 
 __host__ __device__ thrust::default_random_engine makeSeededRandomEngine(int iter, int index, int depth) 
 {
@@ -170,9 +186,9 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		segment.ray.origin = cam.position;
 		segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
+		thrust::default_random_engine rng = makeSeededRandomEngine(iter, x, y);
 #if ANTI_ALIASING
 		// Antialiasing by jittering the ray direction using the offsets
-		thrust::default_random_engine rng = makeSeededRandomEngine(iter, x, y);
 		thrust::uniform_real_distribution<float> u01(-1, 1);
 		float x_offset = u01(rng);
 		float y_offset = u01(rng);
@@ -398,7 +414,10 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 	// 1D block for path tracing
 	const int blockSize1d = 128;
 
-    ///////////////////////////////////////////////////////////////////////////
+	////------------------------------------------------
+	////Timer Start
+	//timeStartCpu = std::chrono::high_resolution_clock::now();
+	////------------------------------------------------
 
 	// Recap:
 	// * Initialize array of path rays (using rays that come out of the camera)
@@ -426,12 +445,16 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 	PathSegment* dev_path_end = dev_paths + pixelcount;
 	int num_paths = dev_path_end - dev_paths;
 
+	//------------------------------------------------
 	// --- PathSegment Tracing Stage ---
+	//------------------------------------------------
 	// Shoot ray into scene, bounce between objects, push shading chunks
 	bool iterationComplete = false;
 	int activeRays = num_paths;
 	while (!iterationComplete) 
 	{
+		timeStartCpu = std::chrono::high_resolution_clock::now();
+
 		dim3 numblocksPathSegmentTracing = (activeRays + blockSize1d - 1) / blockSize1d;
 
 		// clean shading chunks
@@ -504,6 +527,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 		// Stream Compact your array of rays to cull out rays that are no longer active
 		//------------------------------------------------
 		//thrust::partition returns a pointer to the element in the array where the partition occurs 
+
 		PathSegment* partition_point = thrust::partition(thrust::device, dev_paths, dev_paths + activeRays, predicate_RemainingBounces());
 		activeRays = partition_point - dev_paths;
 #endif
@@ -512,11 +536,24 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 		{
 			iterationComplete = true;
 		}
+
+		timeEndCpu = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<double, std::milli> duration = timeEndCpu - timeStartCpu;
+		prevElapsedTime = static_cast<decltype(prevElapsedTime)>(duration.count());
+		printTimerDetails(iter, depth, prevElapsedTime);
 	}
 
 	// Assemble this iteration and apply it to the image
 	dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
 	finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
+
+	////------------------------------------------------
+	////Timer End
+	//timeEndCpu = std::chrono::high_resolution_clock::now();
+	//std::chrono::duration<double, std::milli> duration = timeEndCpu - timeStartCpu;
+	//prevElapsedTime = static_cast<decltype(prevElapsedTime)>(duration.count());
+	//printTimerDetails(iter, depth, prevElapsedTime);
+	////------------------------------------------------
 
     // Send results to OpenGL buffer for rendering
     sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image);
