@@ -66,4 +66,4 @@ This scene is basically the same as the Cornell box scene, however, the sphere a
 ## 3. Performance Analysis 
 Here is the comparison between naive integrator and also direct lighting integrator. Also the result with material memory compaction and without material memory compaction are compared, the analysis graph of the processing time per iteration can be illustrated here:
 
-
+![enter image description here](https://lh3.googleusercontent.com/-x701RQGZzqo/WdEbCSrE43I/AAAAAAAAA88/Co6uCdfTkrYf-0_Zl1Ow9VteN0ivtbp1gCLcBGAs/s0/performance.jpg "performance.jpg")
