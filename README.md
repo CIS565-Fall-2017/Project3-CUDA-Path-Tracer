@@ -12,7 +12,7 @@ CUDA Path Tracer
   <p align="center"><b>Cornell Box With Depth Of Field 5000 samples</b></p>
   
 ## Specular Material with Fresnel Dielectric Material
-![Cornell Box With Specular Material 5000 samples](/img/cornell.transmissive.5000samp.png)
+![Cornell Box With Specular Material 5000 samples](/img/cornell.transmissive.labled.5000samp.png)
   <p align="center"><b>Cornell Box With Specular Material 5000 samples</b></p>
   
 ## Performance Analysis
