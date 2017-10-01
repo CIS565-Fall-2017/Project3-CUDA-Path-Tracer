@@ -16,6 +16,7 @@
 
 #include "device_launch_parameters.h"
 
+#include "stream_compaction\common.h"
 #include "../stream_compaction/efficient.h"
 
 
@@ -739,7 +740,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		// tracing
 		dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
 
-#define CACHE false
+#define CACHE false	
 #define SORTBYMATERIAL false
 #define DIRECTLIGHTING false
 

@@ -78,7 +78,7 @@ cube
 material 0
 TRANS       0 9.75 0
 ROTAT       0 0 0
-SCALE       3 .3 3
+SCALE       3 .01 3
 
 // Floor
 OBJECT 1

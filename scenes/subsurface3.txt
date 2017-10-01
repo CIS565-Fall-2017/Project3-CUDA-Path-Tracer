@@ -169,8 +169,8 @@ DENSITY     .9
 CAMERA
 RES         800 800
 FOVY        45
-ITERATIONS  10000
-DEPTH       15
+ITERATIONS  50000
+DEPTH       20
 FILE        cornell
 EYE         0.0 5 10.5
 LOOKAT      0 5 0
@@ -183,9 +183,9 @@ FOCALDIST   10
 OBJECT 0
 sphere
 material 0
-TRANS       4 0 3
+TRANS       -4 0 -2
 ROTAT       0 0 0
-SCALE       5 5 5
+SCALE       3 3 3
 
 // Floor
 OBJECT 1
@@ -227,7 +227,7 @@ TRANS       5 5 0
 ROTAT       0 0 0
 SCALE       .01 10 10
 
-// Cube
+// Blue Cube
 OBJECT 6
 cube
 material 7

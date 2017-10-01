@@ -310,13 +310,6 @@ void scatterRay(
 	if (m.hasReflective) {
 		wi = glm::reflect(-wo, intersection.surfaceNormal);
 
-		//pdf = 1.f;
-		//color *= m.specular.color;
-		// Set up ray direction for next bounce
-		//spawnRay(pathSegment, normal, wi, intersect);
-		// Update color
-		//pathSegment.color *= m.color * color;
-		
 		pathSegment.color *= m.specular.color;
 	}
 	// Refractive Surface
@@ -362,7 +355,7 @@ void scatterRay(
 		ShadeableIntersection prevIsect = intersection;
 		ShadeableIntersection final;
 
-		float maxBounce = 10;
+		int	 maxBounce = 5;
 		while (maxBounce > 0) {
 			// Get the end point of the path 
 			// This should still be the same object
@@ -411,9 +404,7 @@ void scatterRay(
 		}
 
 		pathSegment.ray = nextRay;
-		pathSegment.color = offsetPath.color;/* * AbsDot(pathSegment.ray.direction, final.intersectPoint);*/
-		//pathSegment.color = offsetPath.color * AbsDot(pathSegment.ray.direction, final.surfaceNormal);
-		//pathSegment.color /= (.25 * PI);
+		pathSegment.color = offsetPath.color;
 
 		return;
 	}
