@@ -45,8 +45,8 @@ __host__ __device__ glm::vec3 multiplyMV(glm::mat4 m, glm::vec4 v) {
  * @param outside            Output param for whether the ray came from outside.
  * @return                   Ray parameter `t` value. -1 if no intersection.
  */
-__host__ __device__ float boxIntersectionTest(Geom box, Ray r,
-        glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) {
+__host__ __device__ float boxIntersectionTest(Geom &box, Ray &r,
+        glm::vec3 &intersectionPoint, glm::vec3 &normal/*, bool &outside*/) {
     Ray q;
     q.origin    =                multiplyMV(box.inverseTransform, glm::vec4(r.origin   , 1.0f));
     q.direction = glm::normalize(multiplyMV(box.inverseTransform, glm::vec4(r.direction, 0.0f)));
@@ -76,11 +76,11 @@ __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
     }
 
     if (tmax >= tmin && tmax > 0) {
-        outside = true;
+        //outside = true;
         if (tmin <= 0) {
             tmin = tmax;
             tmin_n = tmax_n;
-            outside = false;
+            //outside = false;
         }
         intersectionPoint = multiplyMV(box.transform, glm::vec4(getPointOnRay(q, tmin), 1.0f));
         normal = glm::normalize(multiplyMV(box.transform, glm::vec4(tmin_n, 0.0f)));
@@ -99,8 +99,8 @@ __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
  * @param outside            Output param for whether the ray came from outside.
  * @return                   Ray parameter `t` value. -1 if no intersection.
  */
-__host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
-        glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) {
+__host__ __device__ float sphereIntersectionTest(Geom &sphere, Ray &r,
+        glm::vec3 &intersectionPoint, glm::vec3 &normal/*, bool &outside*/) {
     float radius = .5;
 
     glm::vec3 ro = multiplyMV(sphere.inverseTransform, glm::vec4(r.origin, 1.0f));
@@ -120,6 +120,7 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
     float firstTerm = -vDotDirection;
     float t1 = firstTerm + squareRoot;
     float t2 = firstTerm - squareRoot;
+    bool outside;
 
     float t = 0;
     if (t1 < 0 && t2 < 0) {

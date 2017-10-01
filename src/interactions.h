@@ -67,35 +67,36 @@ glm::vec3 calculateRandomDirectionInHemisphere(
  * You may need to change the parameter list for your purposes!
  */
 __host__ __device__
-void scatterRay(
-		PathSegment & pathSegment,
-        glm::vec3 intersect,
-        glm::vec3 normal,
-        const Material &m,
-        thrust::default_random_engine &rng) {
+void scatterRayUniform(
+		PathSegment &pathSegment,
+    glm::vec3 &intersect,
+    glm::vec3 &normal,
+    const Material &m,
+    thrust::default_random_engine &rng) {
     // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
-  thrust::uniform_real_distribution<float> u01(0, 1);
-  float random = u01(rng);
-  bool specular = random > 0.5;
-  float color_comp = 2.0f;
-  if (!m.hasReflective) {
-    specular = false;
-    color_comp = 1.0f;
-  }
-
-  glm::vec3 dir;
-  if (specular) {
-    dir = glm::reflect(pathSegment.ray.direction, normal);
-  } else {
-    dir = calculateRandomDirectionInHemisphere(normal, rng);
-  }
+  glm::vec3 dir = calculateRandomDirectionInHemisphere(normal, rng);
   pathSegment.ray.direction = dir;
   pathSegment.ray.origin = intersect+dir*0.00001f; // avoid shadow acne
   --pathSegment.remainingBounces;
-  pathSegment.color = pathSegment.remainingBounces > 0 ?
-                          pathSegment.color * color_comp *
-                          (specular ? m.specular.color : m.color) :
-                          glm::vec3(0.0f);
+  //pathSegment.color = pathSegment.remainingBounces > 0 ?
+  //                        pathSegment.color * m.color : glm::vec3(0.0f);
+  pathSegment.color = pathSegment.color * m.color;
+}
+
+__host__ __device__
+void scatterRaySpecular(
+		PathSegment &pathSegment,
+    glm::vec3 &intersect,
+    glm::vec3 &normal,
+    const Material &m,
+    thrust::default_random_engine &rng) {
+  glm::vec3 dir = glm::reflect(pathSegment.ray.direction, normal);
+  pathSegment.ray.direction = dir;
+  pathSegment.ray.origin = intersect+dir*0.00001f; // avoid shadow acne
+  --pathSegment.remainingBounces;
+  //pathSegment.color = pathSegment.remainingBounces > 0 ?
+  //                        pathSegment.color * m.specular.color : glm::vec3(0.0f);
+  pathSegment.color = pathSegment.color* m.specular.color;
 }
