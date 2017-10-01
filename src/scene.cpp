@@ -38,11 +38,15 @@ Scene::Scene(string filename) {
 		Geom newsphere;
 		newsphere.type = SPHERE;
 		newsphere.materialid = 1 + rand() % (materials.size() - 1);
-		float rx = 5.0f * ((float)(rand() % 1000) - 500.0f) / 500.0f;
-		float ry = 5.0f + 5.0f * ((float)(rand() % 1000) - 500.0f) / 500.0f;
-		float rz = 5.0f * ((float)(rand() % 1000) - 500.0f) / 500.0f;
-		float rr = ((float)(rand() % 1000) + 1.0f) / 500.0f;
-		rr = 0.25f;
+		if (rand() % 1000 < 50) newsphere.materialid = 0; // light
+		float rx = (float)(rand() % 5000) / 5000.0f;
+		rx = 10.0f * rx - 5.0f;
+		float ry = (float)(rand() % 5000) / 5000.0f;
+		ry = 10.0f * ry;
+		float rz = (float)(rand() % 5000) / 5000.0f;
+		rz = 10.0f * rz - 5.0f;
+		float rr = (float)(rand() % 5000) / 5000.0f;
+		rr = rr * 0.4f + 0.1f;
 		newsphere.rotation = glm::vec3(0.0f);
 		newsphere.translation = glm::vec3(rx, ry, rz);
 		newsphere.scale = glm::vec3(rr);

@@ -101,11 +101,20 @@ __host__ __device__ float aabbIntersectionTest(
 	//glm::mat4 aabbTransform = glm::inverse(utilityCore::buildTransformationMatrix(translation, glm::vec3(0), halfSideLength * 2.0f));
 	halfSideLength *= 2.0f;
 	halfSideLength = glm::vec3(1.0f) / halfSideLength;
+	/*glm::mat4 aabbs = glm::mat4(
+		glm::vec4(halfSideLength.x, 0, 0, 0),
+		glm::vec4(0, halfSideLength.y, 0, 0),
+		glm::vec4(0, 0, halfSideLength.z, 0),
+		glm::vec4(translation.x, translation.y, translation.z, 1)
+		);
+
+	glm::mat4 aabbTransform = glm::inverse(aabbs); */
 	glm::mat4 aabbTransform = glm::mat4(
 		glm::vec4(halfSideLength.x, 0, 0, 0),
 		glm::vec4(0, halfSideLength.y, 0, 0),
 		glm::vec4(0, 0, halfSideLength.z, 0),
-		glm::vec4(-halfSideLength.x * translation.x, -halfSideLength.y * translation.y, -halfSideLength.z * translation.z, 1));
+		glm::vec4(-halfSideLength.x * translation.x, -halfSideLength.y * translation.y, -halfSideLength.z * translation.z, 1)
+		);
 	q.origin = multiplyMV(aabbTransform, glm::vec4(r.origin, 1.0f));
 	q.direction = glm::normalize(multiplyMV(aabbTransform, glm::vec4(r.direction, 0.0f)));
 

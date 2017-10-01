@@ -257,6 +257,7 @@ __global__ void computeIntersectionsOctree(
 	}
 
 	do {
+
 		// test intersection of geometries in this node.
 		// unfortunately needs to be part of loop, but only done once per node
 		if (!testedGeometryStack[stackDepthPtr]) {
@@ -285,8 +286,12 @@ __global__ void computeIntersectionsOctree(
 			testedGeometryStack[stackDepthPtr] = true; // mark as finished
 		}
 
+
 		// see if there are any remaining children
 		if (remainingChildrenStack[stackDepthPtr] == 0) {
+
+
+
 			// back up stack, set current to its parent
 			stackDepthPtr -= 1;
 			int parentIdx = current.parentIdx;
@@ -297,8 +302,8 @@ __global__ void computeIntersectionsOctree(
 			// test intersection against next child
 			int childIdx = current.childEndIdx - remainingChildrenStack[stackDepthPtr];
 			OctreeNodeGPU child = octree[childIdx];
-			float depthDivisor = float(1 << (child.depth + 1));
-			glm::vec3 childHalfEdgeSize = sceneHalfEdgeSize / depthDivisor;
+			int depthDivisor = 1 << (child.depth);
+			glm::vec3 childHalfEdgeSize = sceneHalfEdgeSize / glm::vec3(depthDivisor);
 			glm::vec3 childCenter = child.center;
 			// decrement remaining ptr on stack
 			remainingChildrenStack[stackDepthPtr] -= 1;
@@ -306,7 +311,7 @@ __global__ void computeIntersectionsOctree(
 			// try to intersect the bounding box of this octree node
 			float octT = aabbIntersectionTest(childCenter, childHalfEdgeSize, pathSegment.ray, temp_intersect, temp_normal, outside);
 			
-			if (octT > 0.0f && t_min > octT) {
+			if (octT > 0.0f) {// && t_min > octT) {
 				// push info to stack, set current to child
 				stackDepthPtr++;
 				current = child;
