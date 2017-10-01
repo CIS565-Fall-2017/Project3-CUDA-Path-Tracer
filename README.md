@@ -89,7 +89,7 @@ This optimization sorts the pixels based on the materials the current ray inters
 
 The naive and cached graphs are overlayed because caching the first bounce does nothing to performance. In addition, when antialiasing is used, the first ray is not the same, so caching does not accelerate later iterations. 
 
-![](img/perf.png = 250x)
+![](img/perf.png)
 
 ### Controls
 
