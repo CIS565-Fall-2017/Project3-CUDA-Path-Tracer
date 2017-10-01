@@ -2,6 +2,20 @@
 
 #include "intersections.h"
 
+#define SHADOW_OFFSET 0.0001f
+
+__host__ __device__
+glm::vec3 calculateRandomDirection(
+    glm::vec3 normal, thrust::default_random_engine &rng) {
+  thrust::uniform_real_distribution<float> u01(0, 1);
+
+  glm::vec3 dir(u01(rng), u01(rng), u01(rng));
+  dir = glm::normalize(dir);
+  if (glm::dot(normal, dir) < 0.0f) {
+    dir *= -1.0f;
+  }
+  return dir;
+}
 // CHECKITOUT
 /**
  * Computes a cosine-weighted random direction in a hemisphere.
@@ -9,10 +23,11 @@
  */
 __host__ __device__
 glm::vec3 calculateRandomDirectionInHemisphere(
-        glm::vec3 normal, thrust::default_random_engine &rng) {
+        glm::vec3 normal, thrust::default_random_engine &rng, float &pdf) {
     thrust::uniform_real_distribution<float> u01(0, 1);
 
     float up = sqrt(u01(rng)); // cos(theta)
+    pdf = up;
     float over = sqrt(1 - up * up); // sin(theta)
     float around = u01(rng) * TWO_PI;
 
@@ -39,6 +54,11 @@ glm::vec3 calculateRandomDirectionInHemisphere(
     return up * normal
         + cos(around) * over * perpendicularDirection1
         + sin(around) * over * perpendicularDirection2;
+}
+
+__host__ __device__ float clamp(float val, float min, float max) {
+  return val < min ? min :
+         val > max ? max : val;
 }
 
 /**
@@ -76,4 +96,27 @@ void scatterRay(
     // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
+  if (m.hasReflective > 0.0f) {
+    // Specular
+    pathSegment.ray.origin = intersect + normal * SHADOW_OFFSET;
+    pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
+    pathSegment.color *= m.specular.color;
+  }
+  else if (0 && m.hasRefractive > 0.0f) {
+
+  } 
+  else {
+    // Diffuse
+    pathSegment.ray.origin = intersect + normal * SHADOW_OFFSET; // shadow acne
+    float pdf = -1.0f;
+    pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng, pdf);
+    if (pdf <= 0.0f || pdf >= 1.0f || isnan(pdf)) {
+      pdf == 1.0f;
+    }
+    else {
+      pdf = clamp(pdf * 1.001f, 0.0f, 1.0f);
+    }
+    float d = clamp(glm::dot(normal, pathSegment.ray.direction), 0.0f, 1.0f);
+    pathSegment.color *= m.color;// *d / pdf;
+  }
 }

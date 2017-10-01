@@ -22,5 +22,7 @@ public:
 
     std::vector<Geom> geoms;
     std::vector<Material> materials;
+    std::vector<Triangle> tris;
+    std::vector<Mesh> meshes;
     RenderState state;
 };

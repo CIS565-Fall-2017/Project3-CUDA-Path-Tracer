@@ -142,3 +142,84 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
 
     return glm::length(r.origin - intersectionPoint);
 }
+
+__host__ __device__ float triangleIntersectionTest(Triangle tri, Geom geomMesh, Ray r,
+  glm::vec3 &intersectionPoint, glm::vec3 &normal) {
+  glm::vec3 bary;
+#if 0
+  if (abs(tri.verts[0].pos.x - 0) > 0.0001f) {
+    cout << "x " << endl;
+  }
+  if (abs(tri.verts[0].pos.y - 2) > 0.0001f) {
+    cout << "y " << endl;
+  }
+  if (abs(tri.verts[0].pos.z - 2) > 0.0001f) {
+    cout << "z " << endl;
+  }
+#endif
+  glm::vec3 v0 = tri.verts[0].pos;
+  glm::vec3 v1 = tri.verts[1].pos;
+  glm::vec3 v2 = tri.verts[2].pos;
+  glm::vec3 fk = glm::vec3(geomMesh.transform * glm::vec4(0, 2, 2, 1));
+#if 0
+  if (abs(v0.x - fk.x) > 0.0001f) {
+    cout << "XX " << endl;
+  }
+  if (abs(v0.y - fk.y) > 0.0001f) {
+    cout << "YY " << endl;
+  }
+  if (abs(v0.z - fk.z) > 0.0001f) {
+    cout << "ZZ " << endl;
+  }
+#endif
+  if (glm::intersectRayTriangle(r.origin, r.direction, v0, v1, v2, bary) || glm::intersectRayTriangle(r.origin, r.direction, v2, v1, v0, bary)) {
+#if 0
+                                glm::vec3(geomMesh.transform * glm::vec4(0, 2, 2, 1)),
+                                glm::vec3(geomMesh.transform * glm::vec4(0, 0, 2, 1)),
+                                glm::vec3(geomMesh.transform * glm::vec4(2, 0, 2, 1)), bary)) {
+#endif
+    float t = bary.z;
+    intersectionPoint = getPointOnRay(r, t);
+    normal = tri.verts[0].nor;
+    if (glm::dot(normal, r.direction) > 0.0f) {
+      normal *= -1.0f;
+    }
+    return t;
+  }
+  else {
+    return -1.0f;
+  }
+}
+
+__host__ __device__ float meshIntersectionTest(Geom meshGeom, Ray r, Mesh *meshes, Triangle *tris,
+  glm::vec3 &intersectionPoint, glm::vec3 &normal) {
+  // bbox test
+  Mesh mesh = meshes[meshGeom.meshIdx];
+  glm::vec3 tmp_intersect;
+  glm::vec3 tmp_normal;
+  bool outside = true;
+
+  Geom bbox;
+  bbox.transform = mesh.bboxTransform;//glm::mat4(100.0f);
+  bbox.transform[3][3] = 1.0f;
+  bbox.inverseTransform = mesh.bboxInverseTransform; //glm::mat4(0.01f);
+  bbox.inverseTransform[3][3] = 1.0f;
+  if (boxIntersectionTest(bbox, r, tmp_intersect, tmp_normal, outside) < 0.0f) {
+    return -1;
+  }
+
+  // passed bbox test, check each tri
+  float t_min = FLT_MAX;
+
+  
+  for (int i = mesh.triangleStartIdx; i < mesh.triangleEndIdx; i++) {
+    Triangle tri = tris[i + 1];
+    float t = triangleIntersectionTest(tri, meshGeom, r, tmp_intersect, tmp_normal);
+    if (t >= 0.0f && t < t_min) {
+      t_min = t;
+      intersectionPoint = tmp_intersect;
+      normal = tmp_normal;
+    }
+  }
+  return (t_min == FLT_MAX) ? -1.0f : t_min;
+}
