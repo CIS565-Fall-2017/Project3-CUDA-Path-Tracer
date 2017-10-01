@@ -111,6 +111,6 @@ Because the direct Lighting Integration Scheme stops after the first bounce it r
 
 ## Bloopers
 
-![](img/everything_is_ specular.png)
+![](img/EverythingIsSpecular.png)
 
 _Everything was a specular surface. whoops_
