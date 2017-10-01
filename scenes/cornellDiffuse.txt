@@ -86,7 +86,7 @@ ROUGHNESSMAP
 CAMERA
 RES         800 800
 FOVY        45
-ITERATIONS  100
+ITERATIONS  5000
 DEPTH       20
 FILE        cornell
 EYE         0.0 5 10.5
@@ -146,7 +146,7 @@ SCALE       10 10 0.1
 
 OBJECT 6
 sphere
-material 4
+material 1
 TRANS       -1 4 -1
 ROTAT       0 0 0
 SCALE       3 3 3

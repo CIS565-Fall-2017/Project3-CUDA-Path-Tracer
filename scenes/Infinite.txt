@@ -7,6 +7,10 @@ REFL        0
 REFR        0
 REFRIOR     0
 EMITTANCE   5
+DIFFUSEMAP
+SPECULAMAP
+NORMALMAP
+ROUGHNESSMAP
 
 // Diffuse white
 MATERIAL 1
@@ -17,6 +21,10 @@ REFL        0
 REFR        0
 REFRIOR     0
 EMITTANCE   0
+DIFFUSEMAP  
+SPECULAMAP
+NORMALMAP
+ROUGHNESSMAP
 
 // Diffuse red
 MATERIAL 2
@@ -27,6 +35,10 @@ REFL        0
 REFR        0
 REFRIOR     0
 EMITTANCE   0
+DIFFUSEMAP  
+SPECULAMAP
+NORMALMAP
+ROUGHNESSMAP
 
 // Diffuse green
 MATERIAL 3
@@ -37,6 +49,10 @@ REFL        0
 REFR        0
 REFRIOR     0
 EMITTANCE   0
+DIFFUSEMAP  
+SPECULAMAP
+NORMALMAP
+ROUGHNESSMAP
 
 // Specular white
 MATERIAL 4
@@ -47,71 +63,42 @@ REFL        1
 REFR        0
 REFRIOR     0
 EMITTANCE   0
+DIFFUSEMAP
+SPECULAMAP
+NORMALMAP
+ROUGHNESSMAP
+
+// Diffuse blue
+MATERIAL 5
+RGB         .35 .35 .85
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+DIFFUSEMAP
+SPECULAMAP
+NORMALMAP
+ROUGHNESSMAP
 
 // Camera
 CAMERA
-RES         20 20
+RES         800 800
 FOVY        45
-ITERATIONS  5000
-DEPTH       8
+ITERATIONS  100
+DEPTH       20
 FILE        cornell
 EYE         0.0 5 10.5
 LOOKAT      0 5 0
 UP          0 1 0
+FOCALDST    0
+LENSRADIOUS 0
+ENVMAP      \texture\InnerSpace.tga
 
-
-// Ceiling light
 OBJECT 0
-cube
-material 0
-TRANS       0 10 0
-ROTAT       0 0 0
-SCALE       3 .3 3
-
-// Floor
-OBJECT 1
-cube
-material 1
-TRANS       0 0 0
-ROTAT       0 0 0
-SCALE       10 .01 10
-
-// Ceiling
-OBJECT 2
-cube
-material 1
-TRANS       0 10 0
-ROTAT       0 0 90
-SCALE       .01 10 10
-
-// Back wall
-OBJECT 3
-cube
-material 1
-TRANS       0 5 -5
-ROTAT       0 90 0
-SCALE       .01 10 10
-
-// Left wall
-OBJECT 4
-cube
-material 2
-TRANS       -5 5 0
-ROTAT       0 0 0
-SCALE       .01 10 10
-
-// Right wall
-OBJECT 5
-cube
-material 3
-TRANS       5 5 0
-ROTAT       0 0 0
-SCALE       .01 10 10
-
-// Sphere
-OBJECT 6
 sphere
-material 1
-TRANS       -1 4 -1
+material 4
+TRANS       0 4 0
 ROTAT       0 0 0
-SCALE       3 3 3
+SCALE       6 6 6
