@@ -66,8 +66,6 @@ Antialiasing is a simple feature that provides great image improvement without a
 
 ### Optimizations
 
-![](img/perf.png)
-
 * Ray Termination
 
 On the CPU, path tracing is a recursive algorithm. However, this is not possible on the GPU, so instead path tracing must be iterative. To terminate rays, the array of rays is stream compacted and only active rays are analyzed in the next iteration. This optimization provides benefits for large depths and for open scenes. For closed scenes, rays are only terminated when they hit the light, which is less common than escaping the scene, so less rays are terminated for each depth (see graph below). The open scene is darker because more rays escape before hitting the light whereas in the open scene, the rays are trapped and bounce between walls until they hit the light. 
@@ -90,6 +88,8 @@ This optimization sorts the pixels based on the materials the current ray inters
 * Cache first bounce intersection
 
 The naive and cached graphs are overlayed because caching the first bounce does nothing to performance. In addition, when antialiasing is used, the first ray is not the same, so caching does not accelerate later iterations. 
+
+![](img/perf.png = 250x)
 
 ### Controls
 
