@@ -25,7 +25,7 @@
 #define USE_OCTREE 0
 
 
-#define DEBUG_NORMAL 1
+#define DEBUG_NORMAL 0
 #define DEBUG_UV 0
 #define DEBUG_ROUGHNESS 0
 

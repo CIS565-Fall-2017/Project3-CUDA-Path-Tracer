@@ -118,7 +118,7 @@ When the user sets the material's REFR value to a number over 0.0, refraction ma
 
 ![](img/Refraction.png)
 
-<The difference of refraction along the roughness>
+< The difference of refraction along the roughness >
 
 - Scene file : Trans.txt
 - Resolution : 800 x800
@@ -143,7 +143,7 @@ For scaattering the sample on the lens, I use uniform disk distribution with len
 
 ![](img/dof03.png)
 
-<The difference of depth of field along the focal distance>
+< The difference of depth of field along the focal distance >
 
 - Scene file : DOF.txt
 - Resolution : 800 x800
@@ -157,11 +157,11 @@ When the user sets SRT_SPP (in pathtrace.cu) value to a digit over 1, Anti-alias
 
 ![](img/1x.png)
 
-<x1 original image>
+< X1 original image >
 
 ![](img/16x.png)
 
-<x16 anti-aliasing>
+< X16 anti-aliasing >
 
 - Scene file : cornell.txt
 - Resolution : 800 x800
@@ -218,7 +218,7 @@ If the the material's REFL value is placed between 0.0 and 1.0, BRDF (cook-torra
 
 ![](img/PBR.png)
 
-<The difference along the roughness>
+< The difference along the roughness >
 
 - Test scene file : PBR.txt
 - Resolution : 800 x800
