@@ -232,20 +232,20 @@ void scatterRay(
 		    if (randomResult >= 0.5)
 		    {
 		        newRayDir = glm::reflect(pathSegment.ray.direction, normal);
-		        finalColor = m.color * lastColor * m.specular.color*Evaluate(cosThetaI, etaI, etaT);
+		        finalColor = m.color * lastColor * Evaluate(cosThetaI, etaI, etaT);
 		    }
 		    else
 		    {
 				//refraction 
 		        if (Refract(lastRayDir, normal, etaI / etaT, &newRayDir))
 		        {
-		            finalColor = m.color *lastColor*m.specular.color*(glm::vec3(1.f) - Evaluate(cosThetaI, etaI, etaT));				
+		            finalColor = m.specular.color *lastColor*(glm::vec3(1.f) - Evaluate(cosThetaI, etaI, etaT));				
 		        }
 				//total reflection 
 				else
 				{
 					newRayDir = glm::reflect(pathSegment.ray.direction, normal);
-					finalColor = m.color * lastColor * m.specular.color*(glm::vec3(1.f) - Evaluate(cosThetaI, etaI, etaT));
+					finalColor = m.specular.color * lastColor*(glm::vec3(1.f) - Evaluate(cosThetaI, etaI, etaT));
 				}
 		    }
 		}

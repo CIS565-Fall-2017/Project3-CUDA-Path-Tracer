@@ -744,14 +744,14 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	
 
 	//TODO material compactio
-	MaterialKey << <blocksPerGrid1d, blockSize1d >> >(dev_intersections, materialKey, num_paths);
-	cudaMemcpy(materialKey1, materialKey, num_paths*sizeof(int),cudaMemcpyDeviceToDevice);
-	thrust::device_ptr<int> dev_thrust_keys1(materialKey);
-	thrust::device_ptr<int> dev_thrust_keys2(materialKey1);
-	thrust::device_ptr<ShadeableIntersection> dev_thrust_valuesInt(dev_intersections);
-	thrust::device_ptr<PathSegment> dev_thrust_valueSeg(dev_paths);
-	thrust::sort_by_key(dev_thrust_keys1, dev_thrust_keys1 + pixelcount, dev_thrust_valuesInt);
-	thrust::sort_by_key(dev_thrust_keys2, dev_thrust_keys2 + pixelcount, dev_thrust_valueSeg);
+	//MaterialKey << <blocksPerGrid1d, blockSize1d >> >(dev_intersections, materialKey, num_paths);
+	//cudaMemcpy(materialKey1, materialKey, num_paths*sizeof(int),cudaMemcpyDeviceToDevice);
+	//thrust::device_ptr<int> dev_thrust_keys1(materialKey);
+	//thrust::device_ptr<int> dev_thrust_keys2(materialKey1);
+	//thrust::device_ptr<ShadeableIntersection> dev_thrust_valuesInt(dev_intersections);
+	//thrust::device_ptr<PathSegment> dev_thrust_valueSeg(dev_paths);
+	//thrust::sort_by_key(dev_thrust_keys1, dev_thrust_keys1 + pixelcount, dev_thrust_valuesInt);
+	//thrust::sort_by_key(dev_thrust_keys2, dev_thrust_keys2 + pixelcount, dev_thrust_valueSeg);
 
 
 	// TODO:
