@@ -131,6 +131,18 @@ int Scene::loadFilm() {
 	return 1;
 }
 
+TextureDescriptor Scene::loadTexture(string path)
+{
+	Texture * tex = new Texture(path, 1.f);
+	this->textures.push_back(tex);
+
+	TextureDescriptor desc;
+	desc.index = textures.size() - 1;
+	desc.width = tex->GetWidth();
+	desc.height = tex->GetHeight();
+	return desc;
+}
+
 void Scene::initialize()
 {
 	Film & film = state.film;
@@ -148,8 +160,10 @@ int Scene::loadCamera() {
 	Film &film = state.film;
     float fovy;
 
+	camera.aperture = 0.f;
+
     //load static properties
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 8; i++) {
         string line;
         utilityCore::safeGetline(fp_in, line);
         vector<string> tokens = utilityCore::tokenizeString(line);
@@ -164,7 +178,13 @@ int Scene::loadCamera() {
             state.traceDepth = atoi(tokens[1].c_str());
         } else if (strcmp(tokens[0].c_str(), "FILE") == 0) {
             state.imageName = tokens[1];
-        }
+        } else if (strcmp(tokens[0].c_str(), "APERTURE") == 0) {
+			state.camera.aperture = atof(tokens[1].c_str());
+		} else if (strcmp(tokens[0].c_str(), "DISTANCE") == 0) {
+			state.camera.focalDistance = atof(tokens[1].c_str());
+		} else if (strcmp(tokens[0].c_str(), "BOKEH") == 0) {
+			state.camera.bokehTexture = loadTexture(tokens[1]);
+		}
     }
 
     string line;

@@ -4,6 +4,7 @@
 #include <vector>
 #include <cuda_runtime.h>
 #include "glm/glm.hpp"
+#include "image.h"
 
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
 
@@ -45,6 +46,15 @@ struct Material
     float emittance;
 };
 
+struct TextureDescriptor
+{
+	int index;
+	int width;
+	int height;
+	glm::vec2 repeat;
+	TextureDescriptor() : index(-1), width(0), height(0), repeat(glm::vec2(1.f)) {};
+};
+
 struct Camera 
 {
     glm::ivec2 resolution;
@@ -55,6 +65,9 @@ struct Camera
     glm::vec3 right;
     glm::vec2 fov;
     glm::vec2 pixelLength;
+	float aperture;
+	float focalDistance;
+	TextureDescriptor bokehTexture;
 };
 
 struct Film 

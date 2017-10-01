@@ -48,6 +48,12 @@ REFR        0
 REFRIOR     0
 EMITTANCE   0
 
+// Film
+FILM
+GAMMA			2.2
+FILTER_RADIUS	1.5
+FILTER_ALPHA	4.0
+
 // Camera
 CAMERA
 RES         800 800
@@ -55,10 +61,12 @@ FOVY        45
 ITERATIONS  1000
 DEPTH       8
 FILE        cornell
+APERTURE    0.25
+DISTANCE	4.0
+BOKEH       ../scenes/resources/bokeh/star.png
 EYE         2.5 7.3 10.5
 LOOKAT      -1 5 0
 UP          0 1 0
-
 
 // Ceiling light
 OBJECT 0

@@ -87,7 +87,7 @@ void saveImage()
     float samples = iteration;
 
     // output image file
-    image img(width, height);
+    Texture img(width, height);
 
     for (int x = 0; x < width; x++) {
         for (int y = 0; y < height; y++) {

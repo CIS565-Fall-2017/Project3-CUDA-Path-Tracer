@@ -7,6 +7,7 @@
 #include "glm/glm.hpp"
 #include "utilities.h"
 #include "sceneStructs.h"
+#include "image.h"
 
 using namespace std;
 
@@ -18,6 +19,8 @@ private:
     int loadCamera();
 	int loadFilm();
 
+	TextureDescriptor loadTexture(string path);
+
 	void initialize();
 
 public:
@@ -26,5 +29,6 @@ public:
 
     std::vector<Geom> geoms;
     std::vector<Material> materials;
+	std::vector<Texture*> textures;
     RenderState state;
 };
