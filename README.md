@@ -29,7 +29,47 @@ CUDA Path Tracer
   ![Performance Analysis Cache First Intersections Maximum Depth = 4](/img/performance.cacheFirstIntersection.depth4.PNG)
   <p align="center"><b>Performance Analysis Cache First Intersections Maximum Depth = 4</b></p>
   
-  From the charts above, I can observe that cache first intersections for paths will slightly increase the path tracing speed for all iterations except the first iteration where the cache has not been created yet. Changing the path maximum depth does not seem to affect the performance improvement in my current implementation.
+  All performance analysis were running on fresnel.txt scene. From the charts above, I can observe that cache first intersections for paths will slightly increase the path tracing speed for all iterations except the first iteration where the cache has not been created yet. Changing the path maximum depth does not seem to affect the performance improvement in my current implementation.
+  
+  * Sort path segments by material
+  ![Performance Analysis Sort Path By Material](/img/performance.sortByMaterial.pathTracing.depth8.PNG)
+  <p align="center"><b>Performance Analysis Sort Path By Material</b></p>
+  
+  ![Performance Analysis Shading Kernal Runtime With/Without Sort By Material](/img/performance.sortByMaterial.shadingKernal.depth1.PNG)
+  <p align="center"><b>Performance Analysis Shading Kernal Runtime With/Without Sort By Material</b></p>
+  
+  ![Performance Analysis Thrust Sort Timing](/img/performance.thrustSort.640000.PNG)
+  <p align="center"><b>Performance Analysis Thrust Sort Timing</b></p>
+  
+  From first plot above I observe that the performance is worse with the sorting by material, which is out of expectation because it is reasonable to think that putting path segments and intersections with same material in contiguous memory will ensure that threads in the same warp all enter the same if condition in scatterRay. So I plotted the second graph, which shows the shading kernal execution time with/without the sort, and it can be shown that although runtime without sort is less stable than runtime with sort, the runtime difference is within 1 millisecond. In the third plot above, it shows the time it takes to run thrust::sort methods over 640000 path segments and intersections, which is over 40 ms, and that is far more than the runtime advantage of shading kernal with sort. I think the advantage of sort will not show until the number of materials in the scene is big enough. Now there are only three different conditions in my shading kernal, the maximum time it takes for a warp with different material to execute will be the sum of three if condition runtime. When the number of materials and number of conditions in shading kernal increase, the maximum time it takes for a warp with different materials will increase, and the advantage of sort will start to show.
+  
+  * Stream Compaction Analysis
+  ![Stream Compaction Remaining Paths Of open scene fresnell.txt](/img/performance.streamCompactionOpenScene.PNG)
+  <p align="center"><b>Stream Compaction Remaining Paths Of open scene fresnell.txt</b></p> 
+  I can observe that in an open scene, more than 70% of path has been removed from stream compaction after 8 bounces. The reduction of path number is more in the first few bounces comparing to later bounces.
+  
+  ![Stream Compaction Performance of open scene fresnell.txt](/img/performance.streamCompactionOpenScene.Performance.PNG)
+  <p align="center"><b>Stream Compaction Performance Of open scene fresnell.txt</b></p> 
+  The total time it takes to complete the kernal runs of one bounce also reduces as less paths are still being traced after stream compaction. Therefore stream compaction does help to increase the performance.
+  
+  ![Stream Compaction Remaining Paths Comparason between Open Scene and Closed Scene](/img/performance.streamCompactionClosedScene.PNG)
+  <p align="center"><b>Stream Compaction Remaining Paths Comparason between Open Scene and Closed Scene</b></p> 
+  As we can see, in a closed scene where light cannot escape, every bounce paths will hit some objects, and only those paths that hit light sources will be removed from stream compaction. Comparing to an open scene, there will be less paths trimmed off at each depth.
+  
+  ![Stream Compaction Performance of Closed Scene](/img/performance.streamCompactionClosedScene.Performance.PNG)
+  <p align="center"><b>Stream Compaction Performance of Closed Scene</b></p>
+  Similar to open scene, as less paths remaining for further depth, the time it takes to complete a path tracing reduces.
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
   
   
   
