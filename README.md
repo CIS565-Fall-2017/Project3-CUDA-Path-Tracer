@@ -111,9 +111,9 @@ Bouding Volume Intersection Culling termiates the intersection test of this obje
 Basically, a small object or a object far from camera will get benifit from this feature.
 
 Bounding Volume Intersection Culling Test:
-| Object | Materials | Iterations | Effects | Other Optimize |
-| ----- | ----- | ----- | ----- | ----- |
-| lowpolytree.obj | Diffuse | 5000 | N/A | N/A |
+| Object | Materials | Iterations | Effects | Other Optimize | 
+| ----- | ----- | ----- | ----- | ----- | 
+| lowpolytree.obj | Diffuse | 5000 | N/A | N/A | 
 
 Result:
 ![culling](img/culling.png)
@@ -121,15 +121,31 @@ Result:
 #### Path Continuation/Termination Using Stream Compaction
 
 Stream Compaction Performance Comparision:
-| Object | Materials | Iterations | Effects | Other Optimize |
-| ----- | ----- | ----- | ----- | ----- |
-| lowpolytree.obj | Diffuse | 5000 | N/A | Stream Compaction vs N/A |
+Object | Materials | Iterations | Effects | Other Optimize
+ ----- | ----- | ----- | ----- | ----- 
+lowpolytree.obj | Diffuse | 5000 | N/A | Stream Compaction vs N/A
 
 ![sc](img/sc.png)
 
 Stream Compaction Performance Comparision of Open/Closed Scene:
-| Object | Materials | Iterations | Effects | Other Optimize |
-| ----- | ----- | ----- | ----- | ----- |
-| lowpolytree.obj | Diffuse | 5000 | N/A | Stream Compaction |
+Object | Materials | Iterations | Effects | Other Optimize
+ ----- | ----- | ----- | ----- | -----
+lowpolytree.obj | Diffuse | 5000 | N/A | Stream Compaction
 
 ![sc](img/sc1.png)
+
+#### Sort Rays/PathSegments/Intersections Contiguous in Memory by Material Type
+
+Based on benchmark, it seems no different for a *complex scene*(1). However, there are some performance lost in the *simple scene*(2) test. The reason of that could be the sorting kernel occupies too much computation in each iteration. But for a complex scene, that could be trivial compare to computate a huge amount of ray interation. 
+
+![sc](img/sort.PNG)
+
+#### Cache first bounce
+
+Based on benchmark, a complex scene can get some benifits from caching. But for a simple one, the performance boost is trivial.
+
+![sc](img/cache.PNG)
+
+
+(1) *complex scene* : approx. 300-400 triangles with 3 materials
+(2) *simple scene*  : 8 spheres with 6 materials

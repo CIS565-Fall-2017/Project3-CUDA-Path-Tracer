@@ -23,10 +23,10 @@
 #define ANIMATION 0
 #define MOTIONBLUR 0
 #define BOUNDING_VOLUME_CULLING 0
-#define STREAMCOMPACTION 1
+#define STREAMCOMPACTION 0
 #define AA 0
 #define DOF 0
-#define SORTMATERIALS 0
+#define SORTMATERIALS 1
 #define CACHE 0
 
 #define COMPACT 0
