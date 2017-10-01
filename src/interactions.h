@@ -1,7 +1,7 @@
 #pragma once
 
 #include "intersections.h"
-
+#include <glm/gtx/rotate_vector.hpp>
 // CHECKITOUT
 /**
  * Computes a cosine-weighted random direction in a hemisphere.
@@ -66,14 +66,82 @@ glm::vec3 calculateRandomDirectionInHemisphere(
  *
  * You may need to change the parameter list for your purposes!
  */
+#define FRESNEL
+//refract
+__host__ __device__ float FrDielectric(float cosThetaI, float etaI, float etaT)
+{
+	cosThetaI = glm::clamp(cosThetaI, -1.0f, 1.0f);
+	bool entering = cosThetaI > 0.f;
+	//Potentially swap indices of refraction
+	if (!entering)
+	{
+		float e = etaI;
+		etaI = etaT;
+		etaT = e;
+		cosThetaI = std::abs(cosThetaI);
+	}
+	//Compute cosThetaT using Snell's law
+	float sinThetaI = glm::sqrt(glm::max(0.0f, 1 - cosThetaI * cosThetaI));
+	float sinThetaT = etaI / etaT * sinThetaI;
+	if (sinThetaT >= 1)
+		return 1.0f;
+	float cosThetaT = glm::sqrt(glm::max(0.0f, 1 - sinThetaT * sinThetaT));
+	float Rparl = ((etaT * cosThetaI) - (etaI * cosThetaT)) /
+		((etaT * cosThetaI) + (etaI * cosThetaT));
+	float Rperp = ((etaI * cosThetaI) - (etaT * cosThetaT)) /
+		((etaI * cosThetaI) + (etaT * cosThetaT));
+	return (Rparl * Rparl + Rperp * Rperp) / 2;
+}
+//refraction end
+
 __host__ __device__
 void scatterRay(
 		PathSegment & pathSegment,
-        glm::vec3 intersect,
-        glm::vec3 normal,
+		glm::vec3 intersect,
+		glm::vec3 normal,
+		float intersect_t,
         const Material &m,
         thrust::default_random_engine &rng) {
     // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
+	const Ray &ray = pathSegment.ray;
+	Ray newRay = pathSegment.ray;
+	thrust::uniform_real_distribution<float> u01(0, 1);
+
+	if (((m.hasReflective > 0.f) && (m.hasRefractive <= 0))) {
+		newRay.direction = glm::reflect(pathSegment.ray.direction, normal);
+	}
+	else if ((m.hasRefractive > 0.f) && (m.hasReflective <= 0.f)) {
+		// refraction
+		newRay.direction = glm::refract(glm::normalize(pathSegment.ray.direction), normal,m.indexOfRefraction);
+	}
+	else if (m.hasReflective > 0.f && m.hasRefractive > 0.f) {
+		//Fresnel
+		thrust::uniform_real_distribution<float> u_sample(0, m.hasReflective + m.hasRefractive);
+		float flag = u_sample(rng);
+		if (flag < m.hasReflective) {
+			//Reflection
+			newRay.direction = glm::reflect(pathSegment.ray.direction, normal);
+			float cosThetaI = glm::dot(glm::normalize(newRay.direction), normal);
+			float fr = FrDielectric(cosThetaI, 1.0f, m.indexOfRefraction);
+			pathSegment.color *= fr * m.specular.color / glm::dot(glm::normalize(newRay.direction), normal);
+			pathSegment.color = glm::clamp(pathSegment.color, 0.0f, 1.0f);
+		}
+		else {
+			//Refraction
+			newRay.direction = glm::refract(glm::normalize(pathSegment.ray.direction), normal, m.indexOfRefraction);
+			float cosThetaI = glm::dot(glm::normalize(newRay.direction), normal);
+			float fr = FrDielectric(cosThetaI, 1.0f, m.indexOfRefraction);
+			pathSegment.color *=  (1 - fr) * m.specular.color / glm::dot(glm::normalize(newRay.direction), normal);
+		}
+	}
+	else {
+		// lambert reflection
+		newRay.direction = calculateRandomDirectionInHemisphere( normal, rng);
+		pathSegment.color *= glm::dot(glm::normalize(normal), glm::normalize(newRay.direction));
+	}
+
+	newRay.origin = ray.origin + ray.direction * intersect_t + newRay.direction * 1e-3f;
+	pathSegment.ray = newRay;
 }

@@ -3,11 +3,33 @@ CUDA Path Tracer
 
 **University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 3**
 
-* (TODO) YOUR NAME HERE
-* Tested on: (TODO) Windows 22, i7-2222 @ 2.22GHz 22GB, GTX 222 222MB (Moore 2222 Lab)
+* Name: Jiahao Liu
+* Tested on: Windows 10, i7-3920XM CPU @ 2.90GHz 3.10 GHz 16GB, GTX 980m SLI 8192MB (personal computer)
 
-### (TODO: Your README)
+Project Description and features implemented
+======================
 
-*DO NOT* leave the README to the last minute! It is a crucial part of the
-project, and we will not be able to grade you without a good README.
+### Project Description
 
+This project is tend to compare running performance difference in computing prefix sum between CPU scan, naive GPU scan, efficient GPU scan and thrust scan.
+
+### Features implemented
+
+![](build/1. Naive with Fresnel.png)
+
+* Naive Path Tracing with Fresnel
+
+![](build/2. Direct Light.png)
+
+* Simple direct light with fake Sample_Li.
+
+![](build/3. Realistic Camera.png)
+
+* Realistic Camera. Focal distance is set on the backwall so the sphere between camera and backwall is blured.
+
+![](build/4. Trace.gif)
+
+* Motion Blur.
+
+Performance Analysis
+======================
