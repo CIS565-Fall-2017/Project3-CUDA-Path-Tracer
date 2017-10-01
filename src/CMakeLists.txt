@@ -6,6 +6,7 @@ set(SOURCE_FILES
     "sampling.h"
     "lambert.h"
     "specular.h"
+    "subsurface.h"
     "materialInteractions.h"
     "lightInteractions.h"
     "intersections.h"

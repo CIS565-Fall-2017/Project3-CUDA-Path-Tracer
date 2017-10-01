@@ -109,8 +109,12 @@ Because the direct Lighting Integration Scheme stops after the first bounce it r
 * Q (+ve change) and W (-ve change) adjust the radius of the camera lens by 0.1 units
 * E (+ve change) and R (-ve change) adjust the focal distance by 0.5 units
 
-## Bloopers
+## References
 
 ![](img/EverythingIsSpecular.png)
 
 _Everything was a specular surface. whoops_
+
+## Bloopers
+
+Physically Based Rendering, Third Edition: From Theory to Implementation 3rd Edition. Pharr, Matt and Humphreys, Greg. 2010.
