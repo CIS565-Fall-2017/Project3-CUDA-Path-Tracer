@@ -41,7 +41,7 @@ int main(int argc, char** argv) {
     const char *sceneFile = argv[1];
 
     // Load scene file
-    scene = new Scene(sceneFile);
+    scene = new Scene(sceneFile); 
 
     // Set up camera stuff from loaded path tracer settings
     iteration = 0;

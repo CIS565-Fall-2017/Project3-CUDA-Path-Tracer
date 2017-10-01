@@ -1,16 +1,16 @@
-#include <cuda.h>
-#include <cuda_runtime.h>
+//#include <cuda.h>
+//#include <cuda_runtime.h>
 #include "common.h"
 #include "efficient.h"
 
 namespace StreamCompaction {
     namespace Efficient {
-        using StreamCompaction::Common::PerformanceTimer;
-        PerformanceTimer& timer()
-        {
-            static PerformanceTimer timer;
-            return timer;
-        }
+        //using StreamCompaction::Common::PerformanceTimer;
+        //PerformanceTimer& timer()
+        //{
+        //    static PerformanceTimer timer;
+        //    return timer;
+        //}
 		
 		void __global__ kernScanUpSweep (const int N, const int powerv1, const int powerv2, int *dev_oDataArray) {
 			
@@ -93,13 +93,13 @@ namespace StreamCompaction {
 			// For the extra space in the padded array fill it with 0
 			kernPaddArrayWithZero <<<fullBlocksPerGrid, threadsPerBlock>>> (n, paddedArrayLength, dev_oDataArray);
 
-            timer().startGpuTimer();
+            //timer().startGpuTimer();
 			
 			// TODO
 			scanExcusivePrefixSum(paddedArrayLength, dimension, fullBlocksPerGrid, threadsPerBlock, dev_oDataArray);
 			checkCUDAError("scanExcusivePrefixSum failed!");
 
-			timer().endGpuTimer();
+			//timer().endGpuTimer();
 
 			//Copying array buffers (Device to Host)
 			cudaMemcpy(odata, dev_oDataArray, size, cudaMemcpyDeviceToHost);
@@ -149,10 +149,17 @@ namespace StreamCompaction {
 			cudaMalloc((void**)&dev_boolIndexArray, size);
 			checkCUDAError("cudaMalloc for dev_boolIndexArray failed!");
 
-			// Copying array buffers idata to dev_iData (Host to Device)
+			//// Copying array buffers idata to dev_iData (Host to Device)
+			//cudaMemcpy(dev_iData, idata, size, cudaMemcpyHostToDevice);
+			//checkCUDAError("cudaMemcpy into dev_iData failed!");
+
+			/** Added for Path Compaction in the Path Tracer
+			*	The data sent to this finction is stored on Device
+			*   Copying array buffers idata to dev_iData (Device To Device)
+			*/
 			cudaMemcpy(dev_iData, idata, size, cudaMemcpyHostToDevice);
 			checkCUDAError("cudaMemcpy into dev_iData failed!");
-			
+
 			// Initialize the bool array: For each index fill 1 in dev_boolIndexArray[index] if corrosponding value in dev_iData is non-zero otherwise fill 0 
 			StreamCompaction::Common::kernMapToBoolean <<<fullBlocksPerGrid, threadsPerBlock>>> (n, dev_boolIndexArray, dev_iData);
 			checkCUDAError("kernMapToBoolean failed!");
@@ -165,7 +172,7 @@ namespace StreamCompaction {
 			kernPaddArrayWithZero << <fullBlocksPerGridPadded, threadsPerBlock >> > (n, paddedArrayLength, dev_oScanDataArray);
 			checkCUDAError("kernPaddArrayWithZero failed!");
 
-			timer().startGpuTimer();
+			//timer().startGpuTimer();
 			
 			// TODO
 			scanExcusivePrefixSum(paddedArrayLength, dimension, fullBlocksPerGridPadded, threadsPerBlock, dev_oScanDataArray);
@@ -173,10 +180,18 @@ namespace StreamCompaction {
 			StreamCompaction::Common::kernScatter << <fullBlocksPerGrid, threadsPerBlock >> > (n, dev_oData, dev_iData, dev_boolIndexArray, dev_oScanDataArray);
 			checkCUDAError("kernScatter failed!");
 
-			timer().endGpuTimer();
+			//timer().endGpuTimer();
             
-			// Copying the data from dev_oData to odata (Device To Host)
-			cudaMemcpy(odata, dev_oData, size, cudaMemcpyDeviceToHost);
+			//// Copying the data from dev_oData to odata (Device To Host)
+			//cudaMemcpy(odata, dev_oData, size, cudaMemcpyDeviceToHost);
+			//checkCUDAError("cudaMemcpy into odata failed!");
+
+
+			/** Added for Path Compaction in the Path Tracer
+			*	The data sent to this finction is stored on Device
+			*   Copying the data from dev_oData to oData (Device To Device)
+			*/
+			cudaMemcpy(odata, dev_oData, size, cudaMemcpyDeviceToDevice);
 			checkCUDAError("cudaMemcpy into odata failed!");
 
 			// Getting the size of the number of elements that were filled (Device To Host)

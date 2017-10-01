@@ -5,12 +5,12 @@
 
 namespace StreamCompaction {
     namespace CPU {
-        using StreamCompaction::Common::PerformanceTimer;
-        PerformanceTimer& timer()
+        //using StreamCompaction::Common::PerformanceTimer;
+ /*       PerformanceTimer& timer()
         {
 	        static PerformanceTimer timer;
 	        return timer;
-        }
+        }*/
 
         /**
          * CPU scan (prefix sum).
@@ -20,11 +20,11 @@ namespace StreamCompaction {
         
 		void scan(int n, int *odata, const int *idata) {
 	        
-			timer().startCpuTimer();
+			//timer().startCpuTimer();
             // TODO
 			// Exclusive scan, first element is 0
 			scanExclusivePrefixSum(n, odata, idata);
-	        timer().endCpuTimer();
+	        //timer().endCpuTimer();
         
 		}
 
@@ -46,7 +46,7 @@ namespace StreamCompaction {
         
 		int compactWithoutScan(int n, int *odata, const int *idata) {
 	    
-			timer().startCpuTimer();
+			//timer().startCpuTimer();
             // TODO
 			int count = 0;
 			for (int i = 0; i < n; ++i) {
@@ -55,7 +55,7 @@ namespace StreamCompaction {
 					count++;
 				}
 			}
-	        timer().endCpuTimer();
+	        //timer().endCpuTimer();
             return count;
         
 		}
@@ -68,7 +68,7 @@ namespace StreamCompaction {
         
 		int compactWithScan(int n, int *odata, const int *idata) {
 	    
-			timer().startCpuTimer();
+			//timer().startCpuTimer();
 	        // TODO
 			int count = 0;
 			int *mappedArray = new int[n];
@@ -83,7 +83,7 @@ namespace StreamCompaction {
 			// Scatter
 			count = scatter(n, mappedArray, scannedArray, idata, odata);
 	        
-			timer().endCpuTimer();
+			//timer().endCpuTimer();
             return count;
  
 		}

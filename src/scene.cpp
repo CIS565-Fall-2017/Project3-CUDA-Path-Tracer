@@ -85,6 +85,9 @@ int Scene::loadGeom(string objectid) {
         newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
 
         geoms.push_back(newGeom);
+		if (materials[newGeom.materialid].emittance != 0.0f) {
+			lightGeometryIndex.push_back(geoms.size() - 1);
+		}
         return 1;
     }
 }
