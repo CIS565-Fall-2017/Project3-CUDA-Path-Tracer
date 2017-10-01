@@ -15,7 +15,7 @@
 #include "interactions.h"
 
 #define ERRORCHECK 1
-#define SORTING 0
+#define SORTING 1
 #define CACHING 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
