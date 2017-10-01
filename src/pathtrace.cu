@@ -28,7 +28,7 @@
 #define MATERIAL_SORTING 0
 #define INACTIVE_RAY_CULLING 0 //Stream Compaction of rays
 #define DEPTH_OF_FIELD 0
-#define ANTI_ALIASING 0 // if you use first bounce caching, antialiasing will not work --> can make it work with 
+#define ANTI_ALIASING 1 // if you use first bounce caching, antialiasing will not work --> can make it work with 
 						// a more deterministic Supersampling approach to AA but requires more memory for 
 						// caching more intersections
 //Naive Integration is the default if nothing else is toggled
@@ -453,8 +453,6 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 	int activeRays = num_paths;
 	while (!iterationComplete) 
 	{
-		timeStartCpu = std::chrono::high_resolution_clock::now();
-
 		dim3 numblocksPathSegmentTracing = (activeRays + blockSize1d - 1) / blockSize1d;
 
 		// clean shading chunks
@@ -536,11 +534,6 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 		{
 			iterationComplete = true;
 		}
-
-		timeEndCpu = std::chrono::high_resolution_clock::now();
-		std::chrono::duration<double, std::milli> duration = timeEndCpu - timeStartCpu;
-		prevElapsedTime = static_cast<decltype(prevElapsedTime)>(duration.count());
-		printTimerDetails(iter, depth, prevElapsedTime);
 	}
 
 	// Assemble this iteration and apply it to the image

@@ -55,7 +55,7 @@ int main(int argc, char** argv)
     height = cam.resolution.y;
 
 	cam_lensRadius = 0.1f;
-	cam_focalDistance = 5.0f;
+	cam_focalDistance = 15.0f;
 
     glm::vec3 view = cam.view;
     glm::vec3 up = cam.up;
@@ -197,12 +197,12 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 				break;
 			case GLFW_KEY_R:
 				camchanged = true;
-				cam_focalDistance += 0.1f;
+				cam_focalDistance += 0.5f;
 				printf("focal Distance: %f\n", cam.focalDistance);
 				break;
 			case GLFW_KEY_E:
 				camchanged = true;
-				cam_focalDistance = cam_focalDistance > 0.1f ? cam_focalDistance - 0.1f : 0.0f;
+				cam_focalDistance = cam_focalDistance > 0.5f ? cam_focalDistance - 0.5f : 0.0f;
 				printf("focal Distance: %f\n", cam.focalDistance);
 				break;
 		}

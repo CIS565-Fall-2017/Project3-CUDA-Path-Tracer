@@ -62,8 +62,8 @@ SPECULAR_BRDF     1
 CAMERA
 RES             800 800
 FOVY            45
-ITERATIONS      1
-DEPTH           64
+ITERATIONS      5000
+DEPTH           15
 FILE            cornell
 EYE             0.0 5 10.5
 LOOKAT          0 5 0

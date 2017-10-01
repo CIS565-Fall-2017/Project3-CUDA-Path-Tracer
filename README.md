@@ -10,7 +10,9 @@ CUDA Path Tracer
 
 In this project, I implemented a simple CUDA Monte Carlo path tracer. Although path tracers are typically implemented on the CPU, path tracing itself is a highly parallel algorithm if you think about it. For every pixel on the image, we cast a ray into the scene and track its movements until it reaches a light source, yielding a color on our screen. Each ray is dispatched as its own thread, for which intersections and material contributions are processed on the GPU.
 
-_More Feature filled Path Tracer I made but on the CPU can be found [here](https://github.com/Aman-Sachan-asach/Monte-Carlo-Path-Tracer)._
+#### _This simple path tracer runs at about 19 ms/sample._
+
+#### _More Feature filled Path Tracer I made but on the CPU can be found [here](https://github.com/Aman-Sachan-asach/Monte-Carlo-Path-Tracer)._
 
 ![](img/StreamCompactionDepthTest.png)
 
@@ -29,7 +31,8 @@ Due to its accuracy and unbiased nature, path tracing is used to generate refere
 
 ### Naive Integration Scheme
 
-A Naive brute force approach to path tracing. This integrator takes a long time and a large number of samples per pixel to converge upon an image. There are things that can be done to improve speed at which the image converges such as Multiple Important Sampling but these add biases to the image. Usually these biases are very good approximations of how the brute force approach would result. I talk more about Multiple Important Sampling [here](https://github.com/Aman-Sachan-asach/Monte-Carlo-Path-Tracer).
+A Naive brute force approach to path tracing. This integrator takes a long time and a large number of samples per pixel to converge upon an image. There are things that can be done to improve speed at which the image converges such as Multiple Important Sampling but these add biases to the image. Usually these biases are very good approximations of how the brute force approach would result. 
+#### I talk more about Multiple Important Sampling [here](https://github.com/Aman-Sachan-asach/Monte-Carlo-Path-Tracer).
 
 ### Stream Compactionfor Inactive Ray Culling
 
@@ -72,3 +75,14 @@ Because the direct Lighting Integration Scheme stops after the first bounce it r
 
 ## Controls
 
+* Esc to save an image and exit.
+* S to save an image. Watch the console for the output filename.
+* Space to re-center the camera at the original scene lookAt point
+* left mouse button to rotate the camera
+* right mouse button on the vertical axis to zoom in/out
+* middle mouse button to move the LOOKAT point in the scene's X/Z plane
+
+### Depth of Field Controls 
+
+* Q (+ve change) and W (-ve change) adjust the radius of the camera lens by 0.1 units
+* E (+ve change) and R (-ve change) adjust the focal distance by 0.5 units
