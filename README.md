@@ -7,6 +7,15 @@ CUDA Path Tracer
 * Tested on: Windows 10, i7-6700HQ @ 2.60GHz 8GB, GTX 960M 4096MB (Personal Laptop)
 
 ### Yuxin Hu
+## Code Change
+* Project3-CUDA-Path-Tracer/CMakeList.txt: uncomment the stream compaction
+* Added stream compaction codes to stream_compaction directory from Project2
+* Added testing_helpers.hpp under src/. This file was copied from Project2 for CUDA timer prints
+* pathtracer parameter change:
+  pathtracer(uchar4* pbo_dptr, int frameNumber, int iteration, bool cacheFirstIntersection, bool enableDepthOfField, float focalPlaneZ, float lenseRadius, bool sortPathByMaterial)
+* Added void savePerformanceAnalysis() function in main.cpp to save performance analysis data
+* Please look for comments //============= START CUDA Timer==========// and //==================END CUDA Timer===========// to enable to right timer for performance analysis
+
 ## Basic Path Tracer
 ![Cornell Box 5000 samples](/img/cornell.basic.5000samp.png)
   <p align="center"><b>Cornell Box 5000 samples</b></p>

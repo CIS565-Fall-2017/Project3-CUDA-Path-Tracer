@@ -112,6 +112,7 @@ void savePerformanceAnalysis() {
 	outputFile.close();
 }
 
+
 void runCuda() {
     if (camchanged) {
         iteration = 0;
@@ -148,17 +149,18 @@ void runCuda() {
 
         // execute the kernel
         int frame = 0;
-		//Additional parameter:
-		//4th bool: cache first intersection
 		//printDesc("1 iteration of path tracing");
-        PathTracer::pathtrace(pbo_dptr, frame, iteration, true, false, -5, 0.1, false);
-		//printElapsedTime(PathTracer::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
-		pathTraceTimer.push_back(pair<int, float>(iteration-1, PathTracer::timer().getGpuElapsedTimeForPreviousOperation()));
+		//PARAMETER EXPLAIN
+		//pathtracer(uchar4* pbo_dptr, int frameNumber, int iteration, bool cacheFirstIntersection, bool enableDepthOfField, float focalPlaneZ, float lenseRadius, bool sortPathByMaterial)
+        PathTracer::pathtrace(pbo_dptr, frame, iteration, false, false, -5, 0.1, false);
+		//===============Uncomment to store performance analysis data of each iteration==============//
+		//pathTraceTimer.push_back(pair<int, float>(iteration-1, PathTracer::timer().getGpuElapsedTimeForPreviousOperation()));
         // unmap buffer object
         cudaGLUnmapBufferObject(pbo);
     } else {
         saveImage();
-		savePerformanceAnalysis();
+		//===============Uncomment to save performance analysis data==============//
+		//savePerformanceAnalysis();
         PathTracer::pathtraceFree();
         cudaDeviceReset();
         exit(EXIT_SUCCESS);
@@ -170,12 +172,14 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
       switch (key) {
       case GLFW_KEY_ESCAPE:
         saveImage();
-		savePerformanceAnalysis();
+		//===============Uncomment to save performance analysis data==============//
+		//savePerformanceAnalysis();
         glfwSetWindowShouldClose(window, GL_TRUE);
         break;
       case GLFW_KEY_S:
         saveImage();
-		savePerformanceAnalysis();
+		//===============Uncomment to save performance analysis data==============//
+		//savePerformanceAnalysis();
         break;
       case GLFW_KEY_SPACE:
         camchanged = true;
