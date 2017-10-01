@@ -26,9 +26,13 @@
 #define AA	0
 #define DOF	0
 #define PATHCOMPACTION	0
-#define NAIVEDIRECTLIGHTING	0
+#define NAIVEDIRECTLIGHTING	0			// This implementation performs DL on the first Bounce and continues to the next iteration
 #define LASTBOUNCEDIRECTLIGHTING  0
 #define CACHEFIRSTBOUNCE 0
+#define SORTPATHSBYMATERIAL 0
+
+// Enums used for Material Sorting
+enum MaterialType { NO, DIFFUSE, REFLECTIVE, REFRACTIVE, LIGHT };
 
 //#define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 //#define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -95,6 +99,13 @@ static int* dev_indixes = NULL;
 static int* dev_light_indixes = NULL;
 static int no_of_lights;
 
+// Array used to cache first bounce
+static ShadeableIntersection * dev_intersectionsCache = NULL;
+
+// Array used for sorting the path and the intersection arrays by the material
+static int* dev_MaterialSortPath = NULL;
+static int* dev_MaterialSortIntersections = NULL;
+
 void pathtraceInit(Scene *scene) {
     hst_scene = scene;
     const Camera &cam = hst_scene->state.camera;
@@ -121,6 +132,18 @@ void pathtraceInit(Scene *scene) {
 	cudaMalloc(&dev_light_indixes, scene->lightGeometryIndex.size() * sizeof(int));
 	cudaMemcpy(dev_light_indixes, scene->lightGeometryIndex.data(), scene->lightGeometryIndex.size() * sizeof(int), cudaMemcpyHostToDevice);
 
+#if CACHEFIRSTBOUNCE
+	cudaMalloc(&dev_intersectionsCache, pixelcount * sizeof(ShadeableIntersection));
+	cudaMemset(dev_intersectionsCache, 0, pixelcount * sizeof(ShadeableIntersection));
+#endif
+
+#if SORTPATHSBYMATERIAL
+	cudaMalloc(&dev_MaterialSortPath, pixelcount * sizeof(int));
+	cudaMemset(dev_MaterialSortPath, -1, pixelcount * sizeof(int));
+	cudaMalloc(&dev_MaterialSortIntersections, pixelcount * sizeof(int));
+	cudaMemset(dev_MaterialSortIntersections, -1, pixelcount * sizeof(int));
+#endif
+
 	// Initializing the number of lights variable
 	no_of_lights = scene->lightGeometryIndex.size();
 
@@ -136,6 +159,9 @@ void pathtraceFree() {
     // TODO: clean up any extra device memory you created
 	cudaFree(dev_indixes);
 	cudaFree(dev_light_indixes);
+#if CACHEFIRSTBOUNCE
+	cudaFree(dev_intersectionsCache);
+#endif
 
     checkCUDAError("pathtraceFree");
 }
@@ -200,12 +226,14 @@ __global__ void computeIntersections(
 	, PathSegment * pathSegments
 	, Geom * geoms
 	, int geoms_size
-	, ShadeableIntersection * intersections,
-	int* indixes
+	, ShadeableIntersection * intersections
+	, int* indixes
+	, int* sortMaterialPaths
+	, int* sortmaterialIntersections
+	, Material * materials
 	)
 {
 	int path_index = blockIdx.x * blockDim.x + threadIdx.x;
-
 	if (path_index < num_paths)
 	{
 		int temp_idx = path_index;
@@ -255,6 +283,11 @@ __global__ void computeIntersections(
 		if (hit_geom_index == -1)
 		{
 			intersections[path_index].t = -1.0f;
+
+#if SORTBYMATERIAL
+			sortMaterialPaths[path_index] = NO;
+			sortmaterialIntersections[path_index] = NO;
+#endif
 		}
 		else
 		{
@@ -263,6 +296,26 @@ __global__ void computeIntersections(
 			intersections[path_index].materialId = geoms[hit_geom_index].materialid;
 			intersections[path_index].surfaceNormal = normal;
 			intersections[path_index].outside = outside;
+
+#if SORTPATHSBYMATERIAL
+			Material material = materials[geoms[hit_geom_index].materialid];
+			if (material.hasReflective) {
+				sortMaterialPaths[path_index] = REFLECTIVE;
+				sortmaterialIntersections[path_index] = REFLECTIVE;
+			}
+			else if (material.hasRefractive) {
+				sortMaterialPaths[path_index] = REFRACTIVE;
+				sortmaterialIntersections[path_index] = REFRACTIVE;
+			}
+			else if (material.emittance > 0.f) {
+				sortMaterialPaths[path_index] = LIGHT;
+				sortmaterialIntersections[path_index] = LIGHT;
+			}
+			else {
+				sortMaterialPaths[path_index] = DIFFUSE;
+				sortmaterialIntersections[path_index] = DIFFUSE;
+			}
+#endif
 		}
 	}
 }
@@ -552,20 +605,37 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
 		// clean shading chunks
 		cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
-
-		// tracing
 		dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
-		computeIntersections <<<numblocksPathSegmentTracing, blockSize1d>>> (
-			depth
-			, num_paths
-			, dev_paths
-			, dev_geoms
-			, hst_scene->geoms.size()
-			, dev_intersections
-			, dev_indixes
-			);
-		checkCUDAError("trace one bounce");
-		cudaDeviceSynchronize();
+
+		if (CACHEFIRSTBOUNCE && iter > 1 && depth == traceDepth) {
+			cudaMemcpy(dev_intersections, dev_intersectionsCache, pixelcount * sizeof(ShadeableIntersection), cudaMemcpyDeviceToDevice);
+		}
+		else {
+			// tracing
+			computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
+				depth
+				, num_paths
+				, dev_paths
+				, dev_geoms
+				, hst_scene->geoms.size()
+				, dev_intersections
+				, dev_indixes
+				, dev_MaterialSortPath
+				, dev_MaterialSortIntersections
+				, dev_materials
+				);
+			checkCUDAError("trace one bounce");
+			cudaDeviceSynchronize();
+
+			if (CACHEFIRSTBOUNCE && iter == 1 && depth == traceDepth) {
+				cudaMemcpy(dev_intersectionsCache, dev_intersections, pixelcount * sizeof(ShadeableIntersection), cudaMemcpyDeviceToDevice);
+			}
+		}
+
+#if SORTPATHSBYMATERIAL
+		thrust::sort_by_key(thrust::device, dev_MaterialSortPath, dev_MaterialSortPath + num_paths, dev_paths);
+		thrust::sort_by_key(thrust::device, dev_MaterialSortIntersections, dev_MaterialSortIntersections + num_paths, dev_intersections);
+#endif
 
 		// TODO:
 		// --- Shading Stage ---
