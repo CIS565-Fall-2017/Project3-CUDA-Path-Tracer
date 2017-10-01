@@ -19,5 +19,31 @@ The features included in this project are:
  - Stream compaction for terminating rays and free-ing up threads
  - Depth of Field
  - Naive Anti-Aliasing
+ - Material Sorting (to avoid divergence)
 
 Performance Analysis and more implementational details to come!
+
+**Naive Path Tracing**
+
+**BVH Acceleration**
+
+![](img/bvh_table.png)
+![](img/bvh_graph_construct.png)
+![](img/bvh_graph_iteration.png)
+
+![](img/bvh_example.png)\
+1000 samples per pixel, ~20,000 triangles, BVH Depth 14
+
+**Stream Compaction for Terminating Rays**
+
+![](img/compact_table.png)
+![](img/compact_graph.png)
+
+**Anti-Aliasing**
+
+![](img/aa_1.png)
+![](img/aa_2.png)
+
+**Material Sorting**
+
+![](img/matsort_table.png)

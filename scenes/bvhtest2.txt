@@ -30,7 +30,7 @@ EMITTANCE   0
 
 // Diffuse green
 MATERIAL 3
-RGB         0.98 .83 .59
+RGB         0.55 .73 .98
 SPECEX      0
 SPECRGB     0 0 0
 REFL        0
@@ -113,7 +113,7 @@ SCALE       .01 10 10
 OBJECT 6
 obj
 ..\scenes\loris_combine_unwrap.obj
-material 1
+material 4
 TRANS       0 6.5 0
 ROTAT       0 0 0
 SCALE       1 1 1

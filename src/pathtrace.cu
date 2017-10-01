@@ -4,6 +4,7 @@
 #include <thrust/execution_policy.h>
 #include <thrust/random.h>
 #include <thrust/remove.h>
+#include <thrust/device_vector.h>
 
 #include "sceneStructs.h"
 #include "scene.h"
@@ -13,6 +14,7 @@
 #include "pathtrace.h"
 #include "intersections.h"
 #include "interactions.h"
+#include "timer.h"
 
 #include "../stream_compaction/common.h"
 #include "bvh.h"
@@ -21,9 +23,11 @@
 
 #define ERRORCHECK 1
 
-#define CACHE_CAMERA_RAYS false
-#define AA_JITTER false
-#define BVH_DEPTH 13 /*
+#define COMPACT 1
+#define MATSORT 1
+#define CACHE_CAMERA_RAYS 0
+#define AA_JITTER 1
+#define BVH_DEPTH 16 /*
 		0
 	  /   \
 	1		1
@@ -97,6 +101,13 @@ static BVHNode * dev_BVHnodes = NULL;
 static int * dev_geomBVHIndices = NULL;
 static int * dev_BVHstart = NULL;
 static int * dev_BVHend = NULL;
+static int * dev_matIndicesI = NULL;
+static int * dev_matIndicesP = NULL;
+
+thrust::device_ptr<int> dev_thrust_matIndicesI;
+thrust::device_ptr<int> dev_thrust_matIndicesP;
+thrust::device_ptr<ShadeableIntersection> dev_thrust_intersections;
+thrust::device_ptr<PathSegment> dev_thrust_paths;
 // TODO: static variables for device memory, any extra info you need, etc
 // ...
 
@@ -245,18 +256,29 @@ void pathtraceInit(Scene *scene) {
 	cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
 	cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
-	int num_BVHnodes = (1 << (BVH_DEPTH + 1)) - 1;
-	int num_BVHleafnodes = 1 << (BVH_DEPTH-1);
+#if MATSORT
+	cudaMalloc(&dev_matIndicesI, pixelcount * sizeof(int));
+	cudaMalloc(&dev_matIndicesP, pixelcount * sizeof(int));
+#endif
 
-	cudaMalloc(&dev_BVHnodes, num_BVHnodes * sizeof(BVHNode));
-	cudaMalloc(&dev_BVHstart, num_BVHnodes * sizeof(int));
-	cudaMalloc(&dev_BVHend, num_BVHnodes * sizeof(int));
-	cudaMalloc(&dev_geomBVHIndices, scene->geoms.size() * sizeof(int));
-	// TODO: initialize any extra device memeory you need
+#if BVH
+		int num_BVHnodes = (1 << (BVH_DEPTH + 1)) - 1;
+		int num_BVHleafnodes = 1 << (BVH_DEPTH - 1);
 
-	createGeomBounds();
-	constructBVHTree();
+		cudaMalloc(&dev_BVHnodes, num_BVHnodes * sizeof(BVHNode));
+		cudaMalloc(&dev_BVHstart, num_BVHnodes * sizeof(int));
+		cudaMalloc(&dev_BVHend, num_BVHnodes * sizeof(int));
+		cudaMalloc(&dev_geomBVHIndices, scene->geoms.size() * sizeof(int));
+		// TODO: initialize any extra device memeory you need
 
+		printf("BVH depth: %i", BVH_DEPTH);
+		startCpuTimer();
+		createGeomBounds();
+		constructBVHTree();
+		endCpuTimer();
+		printf("BVH construction time:");
+		printTime();
+#endif
 	checkCUDAError("pathtraceInit");
 }
 
@@ -267,6 +289,7 @@ void pathtraceFree() {
 	cudaFree(dev_geoms);
 	cudaFree(dev_materials);
 	cudaFree(dev_intersections);
+	cudaFree(dev_BVHnodes);
 	// TODO: clean up any extra device memory you created
 
 	checkCUDAError("pathtraceFree");
@@ -572,6 +595,15 @@ __global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterati
 	}
 }
 
+__global__ void kernSetMatIDArr(int n, ShadeableIntersection *intersections, int *matIndicesI, int *matIndicesP) {
+	int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+
+	if (index < n)
+	{
+		matIndicesI[index] = intersections[index].materialId;
+		matIndicesP[index] = intersections[index].materialId;
+	}
+}
 
 struct has_bounces {
 	__host__ __device__ bool operator() (const PathSegment& pathSegment) {
@@ -634,9 +666,9 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	PathSegment* dev_path_end = dev_paths + pixelcount;
 	int num_paths = dev_path_end - dev_paths;
 
+	startCpuTimer();
 	// --- PathSegment Tracing Stage ---
 	// Shoot ray into scene, bounce between objects, push shading chunks
-
 	bool iterationComplete = false;
 	while (!iterationComplete) {
 
@@ -646,7 +678,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		// tracing
 		dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
 
-		if (BVH) {
+#if BVH
 			int num_BVHnodes = (1 << (BVH_DEPTH + 1)) - 1;
 			computeBVHIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
 				depth
@@ -657,8 +689,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 				num_BVHnodes
 				, dev_geoms
 				);
-		}
-		else {
+#else
 			computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
 				depth
 				, num_paths
@@ -667,12 +698,30 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 				, hst_scene->geoms.size()
 				, dev_intersections
 				);
-		}
+#endif
 		checkCUDAError("trace one bounce");
 		cudaDeviceSynchronize();
 		depth++;
 
+#if MATSORT
+		kernSetMatIDArr << <numblocksPathSegmentTracing, blockSize1d >> > (
+			num_paths,
+			dev_intersections,
+			dev_matIndicesI,
+			dev_matIndicesP
+			);
 
+		dev_thrust_matIndicesI = thrust::device_ptr<int>(dev_matIndicesI);
+		dev_thrust_intersections = thrust::device_ptr<ShadeableIntersection>(dev_intersections);
+
+		dev_thrust_matIndicesP = thrust::device_ptr<int>(dev_matIndicesP);
+		dev_thrust_paths = thrust::device_ptr<PathSegment>(dev_paths);
+
+		// Wrap device vectors in thrust iterators for use with thrust.
+		thrust::sort_by_key(dev_thrust_matIndicesI, dev_thrust_matIndicesI + num_paths, dev_thrust_intersections);
+		thrust::sort_by_key(dev_thrust_matIndicesP, dev_thrust_matIndicesP + num_paths, dev_thrust_paths);
+
+#endif
 		// TODO:
 		// --- Shading Stage ---
 		// Shade path segments based on intersections and generate new rays by
@@ -681,7 +730,15 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		// materials you have in the scenefile.
 		// TODO: compare between directly shading the path segments and shading
 		// path segments that have been reshuffled to be contiguous in memory.
-		if (!BVHDEBUG) {
+
+#if BVHDEBUG
+			shadeDebugMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
+				iter,
+				num_paths,
+				dev_intersections,
+				dev_paths
+				);
+#else
 			shadeAnyMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
 				iter,
 				num_paths,
@@ -689,23 +746,21 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 				dev_paths,
 				dev_materials
 				);
-		}
-		else {
-			shadeDebugMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
-				iter,
-				num_paths,
-				dev_intersections,
-				dev_paths
-				);
-		}
+#endif
+
+#if COMPACT
 		PathSegment* compacted = thrust::partition(thrust::device, dev_paths, dev_paths + num_paths, has_bounces());
 		num_paths = compacted - dev_paths;
+#endif
 		//printf("num paths: %i , depth: %i \n", num_paths, depth);
-		if (num_paths == 0 || BVHDEBUG){
+		if (num_paths == 0 || depth > traceDepth){
 			iterationComplete = true; // TODO: should be based off stream compaction results.
 		}
 	}
 	num_paths = dev_path_end - dev_paths;
+	printf("Iteration Done\n");
+	endCpuTimer();
+	printTime();
 	// Assemble this iteration and apply it to the image
 	dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
 	finalGather << <numBlocksPixels, blockSize1d >> >(num_paths, dev_image, dev_paths);

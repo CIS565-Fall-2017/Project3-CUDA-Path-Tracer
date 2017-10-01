@@ -14,6 +14,7 @@ set(SOURCE_FILES
     "sceneStructs.h"
     "preview.h"
     "preview.cpp"
+    "timer.h"
     "tiny_obj_loader.h"
     "tiny_obj_loader.cc"
     "utilities.cpp"
