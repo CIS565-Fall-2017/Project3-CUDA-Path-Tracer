@@ -169,24 +169,30 @@ bool init() {
 }
 
 void mainLoop() {
-	double timebase = 0;
+
+	//**********************Performance Analysis*****************
+	/*double timebase = 0.0;
 	FILE * pFile;
 	pFile = fopen("Analysis.txt", "w");
-	double timeGoes;
+	double timeGoes;*/
+	//**********************End*****************
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
 
-		double time = glfwGetTime();
-
+		//**********************Performance Analysis*****************
+		//double time = glfwGetTime();
+		//**********************End*****************
 
         runCuda();
 
-		if (time - timebase > 1.0) {
+		//**********************Performance Analysis*****************
+		/*if (time - timebase > 1.0) {
 			timeGoes = time - timebase;
 			fprintf(pFile, "%d\n", timeGoes);
 
 			timebase = time;
-		}
+		}*/
+		//**********************End*****************
 
         string title = "CIS565 Path Tracer | " + utilityCore::convertIntToString(iteration) + " Iterations";
         glfwSetWindowTitle(window, title.c_str());
@@ -200,7 +206,9 @@ void mainLoop() {
         glDrawElements(GL_TRIANGLES, 6,  GL_UNSIGNED_SHORT, 0);
         glfwSwapBuffers(window);
     }
-	fclose(pFile);
+	//**********************Performance Analysis*****************
+	//fclose(pFile);
+	//**********************End*****************
     glfwDestroyWindow(window);
     glfwTerminate();
 }

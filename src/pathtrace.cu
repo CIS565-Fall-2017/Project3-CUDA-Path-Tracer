@@ -536,6 +536,8 @@ __global__ void DirectLightingIntegrator(
 
 		thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, remainBounce);
 		thrust::uniform_real_distribution<float> u01(0, 1);
+		thrust::uniform_real_distribution<float> u02(0, 1);
+		thrust::uniform_real_distribution<float> u03(0, 1);
 
 		//hit something
 		if (intersection.t > 0.f)
@@ -548,34 +550,45 @@ __global__ void DirectLightingIntegrator(
 			//other situations 
 			else
 			{
-				ShadeableIntersection shadowIntersection = ShadeableIntersection();
-				glm::vec3 lastIntersectionPoint = pathSegments[idx].ray.origin;
-				glm::vec3 lastIntersectionDir = pathSegments[idx].ray.direction;
-				glm::vec3 intersectionPoint = lastIntersectionPoint + lastIntersectionDir*intersection.t;
+				ShadeableIntersection shadowIntersection;
+				glm::vec3 lastRayOrigin = pathSegments[idx].ray.origin;
+				glm::vec3 lastRayDir = pathSegments[idx].ray.direction;
+				glm::vec3 intersectionPoint = lastRayOrigin + glm::normalize(lastRayDir)*intersection.t;
+				
 				PathSegment shadowSegment;
 				PathSegment lastSegment = pathSegments[idx];
 
-				scatterRay(lastSegment, intersectionPoint, intersection.surfaceNormal, materialIsc, rng);
-				shadowSegment.ray.origin = lastSegment.ray.origin;
-				shadowSegment.ray.direction = lastSegment.ray.direction;
+				float sampleX = (u01(rng)-0.5)*2.f;
+				float sampleY = (u02(rng)-0.5)*2.f;
+				float sampleZ = (u03(rng)-0.5)*2.f;
+
+				glm::vec3 lightPoint = geoms[0].translation + glm::vec3(sampleX*geoms[0].scale.x*0.5, sampleY*geoms[0].scale.y*0.5, sampleZ*geoms[0].scale.z*0.5);
+				shadowSegment.ray.origin = intersectionPoint;
+				shadowSegment.ray.direction = glm::normalize(lightPoint - intersectionPoint);
+				shadowSegment.ray.origin += intersection.surfaceNormal*0.013f;
 				shadowSegment.pixelIndex = lastSegment.pixelIndex;
 				shadowSegment.color = lastSegment.color;
 
+				if (glm::dot(shadowSegment.ray.direction, intersection.surfaceNormal) < 0.f)
+				{
+					pathSegments[idx].color = glm::vec3(0.f);
+					return;
+				}
+
 				DirectShadowIntersection(shadowSegment, geoms, geoSize, shadowIntersection);
 				Material shadowMaterial = materials[shadowIntersection.materialId];
-				float emit = shadowMaterial.emittance;
+				//float emit = shadowMaterial.emittance;
 
 				if (shadowIntersection.t > 0.f)
 				{
 					if (shadowMaterial.emittance>0.f)
 					{
-						pathSegments[idx].color = materialIsc.color * lastSegment.color;
-						
+						pathSegments[idx].color = materialIsc.color*shadowMaterial.color;
 					}
+					//inside shadow 
 					else
 					{
-						pathSegments[idx].color = glm::vec3(0.f);
-						
+						pathSegments[idx].color *= glm::vec3(0.f);
 					}
 				}
 				else
@@ -725,14 +738,13 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
 	
 
-	//TODO material compaction
-	//MaterialKey << <blocksPerGrid1d, blockSize1d >> >(dev_intersections, materialKey, pixelCount);
-	//thrust::device_ptr<int> dev_thrust_keys(materialKey);
-	//thrust::device_ptr<PathSegment> dev_thrust_valuesSeg(dev_paths);
-	//thrust::device_ptr<ShadeableIntersection> dev_thrust_valuesInt(dev_intersections);
-
-	//thrust::sort_by_key(dev_thrust_keys, dev_thrust_keys + pixelcount, dev_thrust_valuesSeg);
-	//thrust::sort_by_key(dev_thrust_keys, dev_thrust_keys + pixelcount, dev_intersections);
+	//TODO material compactio
+	MaterialKey << <blocksPerGrid1d, blockSize1d >> >(dev_intersections, materialKey, num_paths);
+	thrust::device_ptr<int> dev_thrust_keys(materialKey);
+	thrust::device_ptr<ShadeableIntersection> dev_thrust_valuesInt(dev_intersections);
+	thrust::device_ptr<PathSegment> dev_thrust_valueSeg(dev_paths);
+	thrust::sort_by_key(dev_thrust_keys, dev_thrust_keys + pixelcount, dev_thrust_valuesInt);
+	thrust::sort_by_key(dev_thrust_keys, dev_thrust_keys + pixelcount, dev_thrust_valueSeg);
 
 	// TODO:
 	// --- Shading Stage ---
