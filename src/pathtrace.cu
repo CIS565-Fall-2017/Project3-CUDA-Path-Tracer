@@ -412,6 +412,17 @@ namespace PathTracer {
 		}
 	}
 
+	void saveStreamCompactionAnalysis(vector<pair<int, int>> streamCompactionResult, vector<pair<int, float>> kernalRunTime) {
+		std::ofstream outputFile;
+		std::string performanceFileName = "streamCompactionAnalysis.csv";
+		outputFile.open(performanceFileName, std::ofstream::out);
+		for (int index = 0; index < streamCompactionResult.size(); index++) {
+			outputFile << streamCompactionResult[index].first << "," << streamCompactionResult[index].second << "," << kernalRunTime[index].second << std::endl;
+		}
+		outputFile.close();
+	}
+
+
 	/**
 	 * Wrapper for the __global__ call that sets up the kernel calls and does a ton
 	 * of memory management
@@ -472,8 +483,12 @@ namespace PathTracer {
 		bool iterationComplete = false;
 		cudaMemset(dev_paths_finished, 0, pixelcount * sizeof(PathSegment));
 
-		//***********************************Start current iteration path tracing timer***********************************//
-		timer().startGpuTimer();
+		//*****************************************************START current iteration path tracing*****************************************************//
+		//================Uncomment below two lines to enable the container storing the performance analysis of 1 iteration================//
+		//vector<pair<int, int>> streamCompactionResult = vector<pair<int, int>>();
+		//vector<pair<int, float>> kernalRunTime = vector<pair<int, float>>();
+		//===========START CUDA Timer For 1 Iteration===================//
+		//timer().startGpuTimer();
 		while (!iterationComplete) {
 			//Set the default trace flag to true
 			bool traceRayIntersection = true;
@@ -486,7 +501,8 @@ namespace PathTracer {
 			// tracing
 			dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
 			
-			
+			//===========START CUDA Timer For Stream compaction analysis of 1 depth===================//
+			//timer().startGpuTimer();
 			//copy the first intersection cache is the flag is true and it is the first path for subsequent iterations
 			if (cacheFirstIntersect) {
 				if (iter > 1 && depth == 0) {
@@ -520,6 +536,12 @@ namespace PathTracer {
 
 			depth++;
 
+
+			// TODO: compare between directly shading the path segments and shading
+			// path segments that have been reshuffled to be contiguous in memory.
+
+			//===========START CUDA Timer For thrust::sort()===================//
+			//timer().startGpuTimer();
 			if (sort) {
 				// Copy the intersection material Id into dev_material_id
 				kernCopyIntersectMaterialId << <numblocksPathSegmentTracing, blockSize1d >> > (num_paths, dev_material_id, dev_intersections);
@@ -530,10 +552,16 @@ namespace PathTracer {
 				thrust::device_ptr<ShadeableIntersection> intersectValue(dev_intersections);
 				thrust::sort_by_key(keys, keys + num_paths, thrust::make_zip_iterator(thrust::make_tuple(pathSegmentValue, intersectValue)));
 			}
+			//===========END CUDA Timer For thrust::sort()===================//
+			//timer().endGpuTimer();
 
 
 			// Shade path segments based on intersections and generate new rays by evaluating the BSDF
-			
+			//***************Performance Analysis For Shader Kernal with/without sorting of pathsegment by Material ID*******************//
+			//***************Please make sure there is no other timer().startGpuTimer() and timer().endGpuTimer() enabled***************//
+			//***************Please make sure path termination condition changed to depth==1***************//
+			//===========START CUDA Timer For Shader Kernal===================//
+			//timer().startGpuTimer();
 			kernBsdfShader << <numblocksPathSegmentTracing, blockSize1d >> > (
 				iter,
 				num_paths,
@@ -543,9 +571,10 @@ namespace PathTracer {
 				dev_materials
 				);
 			cudaDeviceSynchronize();
+			//===========END CUDA Timer For Shader Kernal===================//
+			//timer().endGpuTimer();			
+			//***************Performance Analysis For Shader Kernal with/without sorting of pathsegment by Material ID*******************//
 			
-			// TODO: compare between directly shading the path segments and shading
-			// path segments that have been reshuffled to be contiguous in memory.
 
 			/*shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>> (
 				iter,
@@ -560,7 +589,7 @@ namespace PathTracer {
 			cudaDeviceSynchronize();
 			//****************Copy current path Segment status to dev_paths_finished************//
 
-			//****************Stream Compaction, remove the terminated ray***********************//
+			//************************START Stream Compaction, remove the terminated ray*******************************//
 			cudaMemset(dev_bool, num_paths, 0);
 			cudaMemset(dev_indices, num_paths, 0);
 			bool isPowerOfTwo = (num_paths != 0) && ((num_paths & (num_paths - 1)) == 0);
@@ -571,12 +600,12 @@ namespace PathTracer {
 			kernMapRayToBoolean << <numblocksPathSegmentTracing, blockSize1d >> > (num_paths, dev_bool, dev_paths);
 			cudaDeviceSynchronize();
 
-			//****************Stream Compaction Thrust******************//
+			//****************Stream Compaction Thrust (Not used for this project)******************//
 			/*thrust::device_ptr<bool> boolFlag(dev_bool);
 			thrust::device_ptr<PathSegment> path(dev_paths);
 			thrust::remove_if(path, path + num_paths, boolFlag, thrust::logical_not<bool>());
 			num_paths = thrust::count_if(boolFlag, boolFlag + num_paths, thrust::identity<bool>());*/
-			//****************Stream Compaction Thrust******************//
+			//****************Stream Compaction Thrust (Not used for this project)******************//
 
 			cudaMemcpy(dev_indices, dev_bool, num_paths * sizeof(int), cudaMemcpyDeviceToDevice);
 			//Perform an exclusive sum scan on ibools to get the final indices array
@@ -593,22 +622,34 @@ namespace PathTracer {
 			delete indices;
 			num_paths = compactResult;
 			cudaMemset(dev_paths, 0, pixelcount * sizeof(PathSegment));
-			cudaMemcpy(dev_paths, dev_paths_helper, compactResult * sizeof(PathSegment), cudaMemcpyDeviceToDevice);
-			//****************Stream Compaction, remove the terminated ray***********************//		
+			cudaMemcpy(dev_paths, dev_paths_helper, compactResult * sizeof(PathSegment), cudaMemcpyDeviceToDevice);			
+			//===========END CUDA Timer For Stream compaction analysis of 1 depth===================//
+			//timer().endGpuTimer();
+			
+			//==============Uncomment to store remaining paths after stream compaction performance analysis data for 1 depth=============//
+			//streamCompactionResult.push_back(pair<int, int>(depth, compactResult));
+			//==============Uncomment to store kernalruntime after stream compaction performance analysis data for 1 depth=============//
+			//kernalRunTime.push_back(pair<int, float>(depth, timer().getGpuElapsedTimeForPreviousOperation()));
+			
+			//************************END Stream Compaction, remove the terminated ray************************//		
 
 			//If after stream compaction, no rays left in the pool, then set iterationComplete to true 
 			// TODO: should be based off stream compaction results.
 			if (num_paths < 1) {
 				//Debug Purpose
-				//if(depth==2){
+			//if(depth==1){
 					//Copy back the result from dev_paths_finished to dev_paths
 				cudaMemcpy(dev_paths, dev_paths_finished, pixelcount * sizeof(PathSegment), cudaMemcpyDeviceToDevice);
 				iterationComplete = true;
 			}
 		}
-
-		timer().endGpuTimer();
-		//***********************************end current iteration path tracing timer***********************************//
+		//===========END CUDA Timer For 1 Iteration===================//
+		//timer().endGpuTimer();
+		
+		//==============Uncomment to save stream compaction analysis data of both remaining paths and kernal run time for all depths in 1 iteration=============//
+		//saveStreamCompactionAnalysis(streamCompactionResult, kernalRunTime);
+		
+		//*****************************************************END current iteration path tracing*****************************************************//
 
 		// Assemble this iteration and apply it to the image
 		dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
