@@ -35,7 +35,6 @@ The Cornell box are Lambert material, and the sphere at the center is a mixture 
 ### 2) Realistic Camera Effect
 
 Uncomment
-
    
 
     thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
@@ -57,8 +56,14 @@ At the last of **generateRayFromCamera** kernel function, and rebuild the projec
 
 ### 3) Fresnel Dielectric
 To test Fresnel effect, please use the **glass.txt** in scene files. 
-This scene is basically the same as the Cornell box scene, however, the sphere at the center is a glass ball, which has reflection and refraction. The Fresnel implementation here is quite naive, it simply add up Fresnel specular 
+This scene is basically the same as the Cornell box scene, however, the sphere at the center is a glass ball, which has reflection and refraction. The Fresnel implementation here is quite naive, it simply add up Fresnel refraction and Fresnel reflection and multiply those color with their Frescel weight. Then we will have the result:
+
+**glass.txt** after 500 iterations:
+
 
 
 
 ## 3. Performance Analysis 
+Here is the comparison between naive integrator and also direct lighting integrator. Also the result with material memory compaction and without material memory compaction are compared, the analysis graph of the processing time per iteration can be illustrated here:
+
+
