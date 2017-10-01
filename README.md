@@ -22,6 +22,7 @@ A Moving sphere.
 <p align="center">
   <img src="img/motion.gif">
 </p>
+
 ## 3. Refraction with Frensel effects
 Refer to PBRT. For a material mixed having both BTDF and BRDF, just randomly choose a BxDF.
 But there are some white spots in the scene, and the interior of the sphere looks dark.
@@ -31,6 +32,7 @@ But there are some white spots in the scene, and the interior of the sphere look
 <p align="center">
   <img src="img/refract2.png">
 </p>
+
 ## 4. Physically-based depth-of-field
 Added a virtual lens with focalDistance 15.5, lensRadius 20.0.
 Nearclip is set to 0.1, and farclip is set to 100.
