@@ -56,8 +56,8 @@ The following measurements were made in a scene called `cornellMirrors.txt`, whi
 
 Furthermore, the measurements were taken by rendering images with 5000 samples and a maximum path depth of 8.
 
-![](cornell-base.png);
+![](img/cornell-base.png)
 
 The graph belows shows the time required to render this scene with different optimizations enabled:
 
-![](graph-base.png)
+![](img/graph-base.png)
