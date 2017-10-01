@@ -168,12 +168,16 @@ bool init() {
     return true;
 }
 
-void mainLoop() {
+void mainLoop(PerformanceTimer& timer)
+{
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
-        runCuda();
+		
+		//timer.startCpuTimer();
+        runCuda(timer);
+		//timer.endCpuTimer();
 
-        string title = "CIS565 Path Tracer | " + utilityCore::convertIntToString(iteration) + " Iterations";
+        string title = "GPU Path Tracer | " + utilityCore::convertIntToString(iteration) + " Iterations";
         glfwSetWindowTitle(window, title.c_str());
 
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
