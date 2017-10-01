@@ -74,7 +74,7 @@ FOCAL_DISTANCE  13.0f
 // Ceiling light
 LIGHT 0
 arealight
-sphere
+cube
 material 0
 TRANS       0 10 0
 ROTAT       0 0 0

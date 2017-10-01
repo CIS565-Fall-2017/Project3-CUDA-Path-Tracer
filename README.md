@@ -14,7 +14,7 @@ In this project, I implemented a simple CUDA Monte Carlo path tracer. Although p
 
 #### _More Feature filled Path Tracer I made but on the CPU can be found [here](https://github.com/Aman-Sachan-asach/Monte-Carlo-Path-Tracer)._
 
-![](img/StreamCompactionDepthTest.png)
+[![](img/StreamCompactionDepthTest.png)](https://vimeo.com/235422890)
 
 ### Introduction to Monte Carlo Path Tracing
 
@@ -30,6 +30,10 @@ Due to its accuracy and unbiased nature, path tracing is used to generate refere
 ![](img/GPUPathTracer_featureComparison.png)
 
 ### Naive Integration Scheme
+
+![](img/cornell.Naive.5000samples.png)
+
+_Anti-Aliased render of a cornell box scene using the naive integration scheme_
 
 A Naive brute force approach to path tracing. This integrator takes a long time and a large number of samples per pixel to converge upon an image. There are things that can be done to improve speed at which the image converges such as Multiple Important Sampling but these add biases to the image. Usually these biases are very good approximations of how the brute force approach would result. 
 #### I talk more about Multiple Important Sampling [here](https://github.com/Aman-Sachan-asach/Monte-Carlo-Path-Tracer).
@@ -59,15 +63,33 @@ There is a way to avoid losing the benefits of anti-aliasing while doing this so
 
 ### Anti-Aliasing
 
+![](img/antialiasing-example.jpg)
+
 Anti-Aliasing is a really cool feature that costs us almost nothing (infact, our average timing over 500 samples came out to be a sliver of a hair faster than without it). Antialiasing can be implemented by jittering the initial ray cast from the camera between samples. We do this by generating a random x and y offset for a ray within the context of a single pixel. This allows us to generate rays that don't always hit the same initial intersection, which can cause jagged edges in our renders. With an added random jitter, we can see smoother results, noteably on the edges of the sphere and the corners of the Cornell Box.
 
 ### Depth of Field
+
+![](img/cornell.DOFexaggerated.5000samples.png)
+
+_Depth of Field Exaggerated_
+
+![](img/cornell.DOFsubtle.5000samples.png)
+
+_Subtle Depth Of Field_
 
 Another easy feature that can yield interesting visual results is depth of field. This allows us to model the camera as if it had a lens with a specific radius and focal distance. We assume the lens to be infinitely thin and specify a distance that we want to be in focus. With this information, we generate a random sample on a disk of the same radius as the lens and use it as an offset from the original ray towards the focal point. The technique I implemented is just an approximation for the actual math. At a high level the origin of the ray is shifted to from a sampled point on the camera lens, and the ray direction is changed depending upon the focal distance and thickness of the lens.
 
 Depth of field barely costs us anything in terms of run time.
 
 ### Direct Lighting Integration Scheme
+
+![](img/cornell.DirectLighting.SpereLight.5000samples.png)
+
+_cornell box with a sphere light using the direct light integration scheme_
+
+![](img/cornell.SpereLight.5000samples.png)
+
+_cornell box with a sphere light using the naive integration scheme for reference_
 
 The Direct Lighting Integration scheme has no Global Illumination because it simply ignores secondary bounces of the ray once it hits something in the scene. It is essentially Light Important Sampling. It is an interesting feature because it lays the ground work for a full lighting integration scheme, which uses a variety of importance sampling techniques (through Multiple Importance Sampling) to produce beautiful renders after a small number of samples per pixel. 
 
