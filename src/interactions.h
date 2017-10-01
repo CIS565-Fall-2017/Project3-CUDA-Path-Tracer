@@ -2,6 +2,11 @@
 
 #include "intersections.h"
 
+
+// =============================================================================
+//							SHAPE SAMPLE FUNCTIONS
+// =============================================================================
+
 // CHECKITOUT
 /**
  * Computes a cosine-weighted random direction in a hemisphere.
@@ -42,8 +47,66 @@ glm::vec3 calculateRandomDirectionInHemisphere(glm::vec3 normal, thrust::default
 }
 
 
+__host__ __device__
+glm::vec3 squareToDiskConocentric(const glm::vec2 &sample)
+{
+	glm::vec3 output(0.0f);
+	glm::vec2 uOffset = 2.0f * sample - glm::vec2(1.0f);
 
-//SINCE THESE DONT WORK IN UTILITY FUNCTIONS, PUTTING IT HERE
+	if (uOffset.x == 0.0f + RAY_EPSILON && uOffset.y == 0.0f + RAY_EPSILON)
+	{
+		return glm::vec3(0.0f);
+	}
+
+	float theta = 0.0f;
+	float r = 0.0f;
+
+	if (std::fabs(uOffset.x) > std::fabs(uOffset.y))
+	{
+		r = uOffset.x;
+		theta = (PI / 4.0f) *  (uOffset.y / uOffset.x);
+	}
+
+	else
+	{
+		r = uOffset.y;
+		theta = (PI / 2.0f) - (PI / 4.0f) * (uOffset.x / uOffset.y);
+	}
+
+	output = r * glm::vec3(cos(theta), sin(theta), 0.0f);
+	return output;
+}
+
+
+__host__ __device__
+glm::vec3 sampleCube(const glm::vec3 &sample, const Geom &cube)
+{
+	//Local cube is centered at origin with radius 1
+	glm::vec4 localSpacePt = glm::vec4(sample[0] - 0.5f, sample[1] - 0.5f, sample[2] - 0.5f, 1.0f);
+	glm::vec4 worldSpacePt = glm::vec4(cube.transform * localSpacePt);
+	return glm::vec3(worldSpacePt);
+
+	//normal = glm::normalize(glm::vec3(cube.invTranspose * glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)));
+}
+
+
+__host__ __device__
+glm::vec3 sampleSphere(const glm::vec2 &sample, const Geom &sphere)
+{
+	float z = 1.0f - (2.0f * sample[0]);
+	float r = glm::sqrt(glm::max(0.0f, 1.0f - (z * z)));
+	float phi = 2.0f * PI * sample[1];
+	glm::vec4 localSpacePt = glm::vec4(r * glm::cos(phi), r * glm::sin(phi), z, 1.0f);
+	glm::vec4 worldSpacePt = glm::vec4(sphere.transform * localSpacePt);
+	return glm::vec3(worldSpacePt);
+
+	//normal = glm::normalize(glm::vec3(sphere.invTranspose * localSpacePt));
+}
+
+
+// =============================================================================
+//							MATERIAL UTILITY FUNCTIONS
+// =============================================================================
 
 __host__ __device__ 
 float AbsDot(const glm::vec3 &a, const glm::vec3 &b)
@@ -126,7 +189,20 @@ bool SameHemisphere(const glm::vec3 &w, const glm::vec3 &wp)
 //}
 
 
+__host__ __device__
+Ray spawnRay(const glm::vec3 &isectPt, const glm::vec3 &isectNormal, const glm::vec3 &dir)
+{
+	Ray outputRay;
+	glm::vec3 originOffset = isectNormal * EPSILON;
+	originOffset = (glm::dot(dir, isectNormal) > 0) ? originOffset : -originOffset;
+	outputRay.origin = isectPt + originOffset;
+	outputRay.direction = dir;
+	return outputRay;
+}
 
+// =============================================================================
+//									SCATTERRAY
+// =============================================================================
 
 /**
  * Scatter a ray with some probabilities according to the material properties.
@@ -153,7 +229,6 @@ bool SameHemisphere(const glm::vec3 &w, const glm::vec3 &wp)
  *
  * You may need to change the parameter list for your purposes!
  */
-
 
  // =============================================================================
  //							SCATTERRAY WITHOUT SAMPLE_F
@@ -189,8 +264,7 @@ void scatterRay(
 		//If refractive
 		else if (m.hasRefractive > 0)
 		{
-			//OH UTILITY CORE WORKS NOW?!
-			//glm::vec3 refractResult = utilityCore::Refract(wo, normal, 1.0f);
+
 		}
 		//If both reflective and refractive
 		else
@@ -209,21 +283,22 @@ void scatterRay(
 	}
 
 	//Spawn a new ray
-	glm::vec3 offset = normal * EPSILON;
-	offset = (glm::dot(wi, normal) > 0) ? offset : -offset;
-	pathSegment.ray.origin = intersect + offset;
-	pathSegment.ray.direction = wi;
+	//glm::vec3 offset = normal * EPSILON;
+	//offset = (glm::dot(wi, normal) > 0) ? offset : -offset;
+	//pathSegment.ray.origin = intersect + offset;
+	//pathSegment.ray.direction = wi;
+	Ray newRay = spawnRay(intersect, normal, wi);
+	pathSegment.ray.origin = newRay.origin;
+	pathSegment.ray.direction = newRay.direction;
 
 	//TESTING
 	pathSegment.color *= diffuseColor * specColor;
 }//end ScatterRay function
 
 
-
 // =============================================================================
 //							SCATTERRAY WITH SAMPLE_F
 // =============================================================================
-
 
 //__host__ __device__
 //void scatterRay(

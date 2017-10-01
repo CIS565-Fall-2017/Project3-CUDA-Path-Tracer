@@ -84,7 +84,16 @@ int Scene::loadGeom(string objectid) {
         newGeom.inverseTransform = glm::inverse(newGeom.transform);
         newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
 
+		//Fill geom vector
         geoms.push_back(newGeom);
+
+		//Fill lights vector for direct lighting
+		//Since materials are already loaded in prior to objects, checking this here would work
+		if (materials[newGeom.materialid].emittance > 0.0f)
+		{
+			lights.push_back(newGeom);
+		}
+
         return 1;
     }
 }

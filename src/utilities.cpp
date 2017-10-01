@@ -113,35 +113,35 @@ std::istream& utilityCore::safeGetline(std::istream& is, std::string& t) {
 
 // --------------------- Adding my own ---------------------
 
-float utilityCore::AbsDot(const glm::vec3 &a, const glm::vec3 &b)
-{
-	return glm::abs(glm::dot(a, b));
-}
-
-float utilityCore::CosTheta(const glm::vec3 &w)
-{
-	return w.z;
-}
-
-float utilityCore::AbsCosTheta(const glm::vec3 &w)
-{
-	return std::abs(w.z);
-}
-
-bool utilityCore::SameHemisphere(const glm::vec3 &w, const glm::vec3 &wp)
-{
-	return w.z * wp.z > 0;
-}
-
-glm::vec3 utilityCore::Refract(const glm::vec3 &wi, const glm::vec3 &normal, float eta)
-{
-	//Compute cos theta using Snell's law
-	float cosThetaI = glm::dot(normal, wi);
-	float sin2ThetaI = std::max(float(0), float(1 - cosThetaI * cosThetaI));
-	float sin2ThetaT = eta * eta * sin2ThetaI;
-
-	//Handle total internal reflection for transmission
-	if (sin2ThetaT >= 1)	return glm::vec3(0.0f);
-	float cosThetaT = std::sqrt(1 - sin2ThetaT);
-	return eta * -wi + (eta * cosThetaI - cosThetaT) * normal;
-}
+//float utilityCore::AbsDot(const glm::vec3 &a, const glm::vec3 &b)
+//{
+//	return glm::abs(glm::dot(a, b));
+//}
+//
+//float utilityCore::CosTheta(const glm::vec3 &w)
+//{
+//	return w.z;
+//}
+//
+//float utilityCore::AbsCosTheta(const glm::vec3 &w)
+//{
+//	return std::abs(w.z);
+//}
+//
+//bool utilityCore::SameHemisphere(const glm::vec3 &w, const glm::vec3 &wp)
+//{
+//	return w.z * wp.z > 0;
+//}
+//
+//glm::vec3 utilityCore::Refract(const glm::vec3 &wi, const glm::vec3 &normal, float eta)
+//{
+//	//Compute cos theta using Snell's law
+//	float cosThetaI = glm::dot(normal, wi);
+//	float sin2ThetaI = std::max(float(0), float(1 - cosThetaI * cosThetaI));
+//	float sin2ThetaT = eta * eta * sin2ThetaI;
+//
+//	//Handle total internal reflection for transmission
+//	if (sin2ThetaT >= 1)	return glm::vec3(0.0f);
+//	float cosThetaT = std::sqrt(1 - sin2ThetaT);
+//	return eta * -wi + (eta * cosThetaI - cosThetaT) * normal;
+//}
