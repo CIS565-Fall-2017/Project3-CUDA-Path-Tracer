@@ -13,6 +13,10 @@
 
 using namespace std;
 
+// ----------------------------------------------------------------
+//----------------------- Toggle Here -----------------------------
+// ----------------------------------------------------------------
+
 // Uncomment to enable mesh world bound
 #define ENABLE_MESHWORLDBOUND
 
@@ -20,7 +24,8 @@ using namespace std;
 // So far, since our scene is relatively simple
 // all mesh(S) / all triangles -> one BVH tree
 #define ENABLE_BVH
-
+// ----------------------------------------------------------------
+// ----------------------------------------------------------------
 
 class Scene {
 private:
@@ -34,6 +39,10 @@ private:
 public:
     Scene(string filename);
     ~Scene();
+
+
+	std::vector<Light> lights;
+	std::vector<int> emitMaterialId;
 
     std::vector<Geom> geoms;
     std::vector<Material> materials;

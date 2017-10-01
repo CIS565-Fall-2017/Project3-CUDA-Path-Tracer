@@ -334,6 +334,7 @@ __host__ __device__ inline bool Refract(const glm::vec3 &wi, const glm::vec3 &n,
 }
 
 #ifdef ENABLE_BVH
+// Control the search depth of BVH by controlling interior nodes number need to be search 
 #define MAX_BVH_INTERIOR_LEVEL 64 // assume the maximum bvh interior node level is 64
 #endif 
 

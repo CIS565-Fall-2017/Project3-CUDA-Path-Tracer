@@ -43,6 +43,7 @@ Scene::Scene(string filename) {
 #ifdef ENABLE_BVH
 	double startTime = glfwGetTime();
 	// Max number of primitives in BVH node
+	bvh_totalNodes = 0;
 	int maxPrimsInNode = 5; // TODO : Tweak this magic number for the best performance
 	bvh_nodes = ConstructBVHAccel(bvh_totalNodes, tris, maxPrimsInNode);
 
@@ -51,6 +52,19 @@ Scene::Scene(string filename) {
 	cout << endl;
 
 #endif  
+
+//Proces lights
+	float sum_area = 0.f;
+	for (int i = 0; i < lights.size(); i++) {
+		sum_area += lights[i].SurfaceArea;
+	}
+	float accum_area = 0.f;
+	for (int i = 0; i < lights.size(); i++) {
+		accum_area += lights[i].SurfaceArea;
+		lights[i].selectedProb = accum_area / sum_area;
+	}
+
+	int pos = 1;
 
 }
 
@@ -146,6 +160,37 @@ int Scene::loadGeom(string objectid) {
 		}
 
         geoms.push_back(newGeom);
+
+		// Load Lights
+		if (find(emitMaterialId.begin(), emitMaterialId.end(), newGeom.materialid) != emitMaterialId.end()) {
+			Light newLight;
+			newLight.geom = newGeom;
+			newLight.geomIdx = id;
+			newLight.emittance = materials[newGeom.materialid].emittance * materials[newGeom.materialid].color;
+			glm::vec3 scale;
+			// Calculate surface area
+			switch (newGeom.type)
+			{
+			case SPHERE:
+				scale = newGeom.scale;
+				// assume it's a perfect spher, not Ellipsoid
+				newLight.SurfaceArea = 4.0f * PI * scale.x * scale.x;
+				break;
+			case CUBE:
+				scale = newGeom.scale;
+				newLight.SurfaceArea = 2.0f * (scale.x * scale.y + scale.x * scale.z + scale.y * scale.z);
+				break;
+			case MESH:
+				newLight.SurfaceArea = 0.f;
+				for (int i = newGeom.meshTriangleStartIdx; i < newGeom.meshTriangleEndIdx; i++) {
+					newLight.SurfaceArea += tris[i].SurfaceArea();
+				}
+				break;
+				// Add more light geom type here
+			}
+			lights.push_back(newLight);
+		}
+
         return 1;
     }
 }
@@ -241,6 +286,9 @@ int Scene::loadMaterial(string materialid) {
                 newMaterial.indexOfRefraction = atof(tokens[1].c_str());
             } else if (strcmp(tokens[0].c_str(), "EMITTANCE") == 0) {
                 newMaterial.emittance = atof(tokens[1].c_str());
+				if (newMaterial.emittance > FLT_EPSILON) {
+					emitMaterialId.push_back(id);
+				}
             }
         }
         materials.push_back(newMaterial);

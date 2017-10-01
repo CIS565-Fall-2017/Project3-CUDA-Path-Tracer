@@ -31,6 +31,49 @@ struct Geom {
 	int worldBoundIdx;
 };
 
+
+struct Light
+{
+	Geom geom;
+	int geomIdx;
+	float SurfaceArea;
+	float selectedProb; // based on surface area
+	glm::vec3 emittance;
+	__host__ __device__ glm::vec3 sample(const float& x, const float& y, float* pdf) const {
+		glm::vec3 pOnObj(0.f);
+		if (geom.type == CUBE) {
+			/*float sum = x + y;
+			if (sum < 0.33f) {
+				pOnObj = glm::vec3(x - 0.5f, y - 0.5f, 0.5001f);
+			}
+			else if (sum < 0.67f) {
+				pOnObj = glm::vec3(x - 0.5f, y - 0.5f, -0.5001f);
+
+			}
+			else if (sum < 1.0f) {
+				pOnObj = glm::vec3(x - 0.5f, 0.5001f, y - 0.5f);
+			}
+			else if (sum < 1.33f) {
+				pOnObj = glm::vec3(x - 0.5f, -0.5001f, y - 0.5f);
+			}
+			else if (sum < 1.67f) {
+				pOnObj = glm::vec3(0.5001f, x - 0.5f, y - 0.5f);
+			}
+			else if (sum < 2.0f) {
+				pOnObj = glm::vec3(-0.5001f, x - 0.5f, y - 0.5f);
+			}*/
+			// Simply regard as plane here
+			pOnObj = glm::vec3(x - 0.5f, -0.5f, y - 0.5f);
+		}
+		// Add more geom type sample methods here
+		// ......
+
+		//(*pdf) = 1.0f / SurfaceArea;
+		(*pdf) = 1.0f / 9.0f;
+		return glm::vec3(geom.transform * glm::vec4(pOnObj, 1.0f));
+	}
+};
+
 struct Material {
     glm::vec3 color;
     struct {
@@ -124,6 +167,9 @@ struct Triangle {
 
 		return Bounds3f(glm::vec3(minX, minY, minZ),
 			glm::vec3(maxX, maxY, maxZ));
+	}
+	__host__ __device__ float SurfaceArea() {
+		return glm::length(glm::cross(vertices[0] - vertices[1], vertices[2] - vertices[1])) * 0.5f;
 	}
 
 	__host__ __device__ bool Intersect(const Ray& r, ShadeableIntersection* isect) const{

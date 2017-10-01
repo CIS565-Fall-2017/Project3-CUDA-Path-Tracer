@@ -2,6 +2,18 @@
 
 #include "intersections.h"
 
+
+// ----------------------------------------------------------------
+//----------------------- Toggle Here -----------------------------
+// ----------------------------------------------------------------
+
+// Uncomment to enable direct lighting
+//#define ENABLE_DIR_LIGHTING
+
+
+// ----------------------------------------------------------------
+// ----------------------------------------------------------------
+
 // CHECKITOUT
 /**
  * Computes a cosine-weighted random direction in a hemisphere.
@@ -72,7 +84,21 @@ void scatterRay(
         glm::vec3 intersect,
         glm::vec3 normal,
         const Material &m,
-        thrust::default_random_engine &rng) {
+        thrust::default_random_engine &rng
+#ifdef	ENABLE_DIR_LIGHTING
+		,const Light* lights
+		,const int& ligtsSize
+		, Geom * geoms
+		, Triangle * tris
+		, int geomSize
+#ifdef ENABLE_MESHWORLDBOUND
+		, Bounds3f * worldBounds
+#endif
+#ifdef ENABLE_BVH
+		, LinearBVHNode * nodes
+#endif
+#endif
+) {
 
 	// get probabilty
 	thrust::uniform_real_distribution<float> u01(0, 1);
@@ -86,7 +112,10 @@ void scatterRay(
 		newDirection = glm::normalize(newDirection);
 		pathSegment.ray.direction = newDirection;
 		pathSegment.ray.origin = intersect;
+
+#ifndef ENABLE_DIR_LIGHTING
 		pathSegment.color *= m.specular.color; 
+#endif
 	}
 
 	// ----------------- Pure Specular refraction ----------------------------
@@ -112,7 +141,11 @@ void scatterRay(
 			pathSegment.ray.direction = glm::normalize(wt);
 			pathSegment.ray.origin = intersect + 0.0002f * incidentDirection + 0.0002f * Faceforward(normal, incidentDirection);
 		}
+
+#ifndef ENABLE_DIR_LIGHTING
 		pathSegment.color *= m.specular.color;  // divide the probability to counter the chance
+#endif
+
 	}
 
 	// ------------------- Glass : Specular reflection & refraction-------------------
@@ -132,7 +165,9 @@ void scatterRay(
 			newDirection = glm::normalize(newDirection);
 			pathSegment.ray.direction = newDirection;
 			pathSegment.ray.origin = intersect;
+#ifndef ENABLE_DIR_LIGHTING
 			pathSegment.color *= (frenselCoefficient * m.specular.color / reflecProb); // divide the probability to counter the chance
+#endif
 		}
 
 		// if it's specualr and not reflective
@@ -154,23 +189,125 @@ void scatterRay(
 				pathSegment.ray.direction = glm::normalize(wt);
 				pathSegment.ray.origin = intersect + 0.0002f * incidentDirection + 0.0002f * Faceforward(normal, incidentDirection);
 			}
+#ifndef ENABLE_DIR_LIGHTING
 			pathSegment.color *= ((1.f - frenselCoefficient) * m.specular.color / refractProb);  // divide the probability to counter the chance
+#endif
 		}
 	}
 
 	// ------------------- Non-specular / Diffuse Part ---------------------
 	else 
 	{
+
+#ifdef ENABLE_DIR_LIGHTING
+		if (pathSegment.remainingBounces == 0) {
+			return;
+		}
+		// Select a light based on surface area
+		int selectLightIdx = 0;
+		while (true) {
+			if (probability < lights[selectLightIdx].selectedProb) {
+				break;
+			}
+			selectLightIdx++;
+		}
+
+		// Sample a point on the light and get solid-angle related pdf
+		
+		float pdf = 0.f;
+		float random_x = u01(rng);
+		float random_y = u01(rng);
+		const Light& selectedLight = lights[selectLightIdx];
+		glm::vec3 pointOnLight = selectedLight.sample(random_x, random_y, &pdf);
+
+		float distanceSquared = glm::distance2(intersect, pointOnLight);
+		pdf *= distanceSquared / AbsDot(normal, glm::normalize(pointOnLight - intersect));
+
+		Ray shadowFeelRay;
+		shadowFeelRay.origin = intersect;
+		shadowFeelRay.direction = glm::normalize(pointOnLight - intersect);
+
+		// ----------------- Compute intersections -------------------
+		float t = 0.f;
+		float t_min = FLT_MAX;
+		glm::vec2 tmp_uv;
+		glm::vec3 tmp_normal;
+		int hit_geom_index = -1;
+		bool outside;
+		for (int i = 0; i < geomSize; i++)
+		{
+			Geom & geom = geoms[i];
+
+			if (geom.type == CUBE)
+			{
+				t = boxIntersectionTest(geom, shadowFeelRay, tmp_uv, tmp_normal, outside);
+			}
+			else if (geom.type == SPHERE)
+			{
+				t = sphereIntersectionTest(geom, shadowFeelRay, tmp_uv, tmp_normal, outside);
+			}
+			// TODO: add more intersection tests here... triangle? metaball? CSG?
+			else if (geom.type == MESH)
+			{
+#ifdef ENABLE_MESHWORLDBOUND
+#ifdef ENABLE_BVH
+				ShadeableIntersection temp_isect;
+				temp_isect.t = FLT_MAX;
+				if (IntersectBVH(shadowFeelRay, &temp_isect, nodes, tris)) {
+					t = temp_isect.t;
+					tmp_uv = temp_isect.uv;
+					tmp_normal = temp_isect.surfaceNormal;
+				}
+				else {
+					t = -1.0f;
+				}
+#else
+				// Check geom related world bound first
+				float tmp_t;
+				if (worldBounds[geom.worldBoundIdx].Intersect(shadowFeelRay, &tmp_t)) {
+					t = meshIntersectionTest(geom, tris, shadowFeelRay, tmp_uv, tmp_normal, outside);
+				}
+				else {
+					t = -1.0f;
+				}
+#endif
+#else
+				// loop through all triangles in related mesh
+				t = meshIntersectionTest(geom, tris, shadowFeelRay, tmp_uv, tmp_normal, outside);
+#endif		
+			}
+			// Compute the minimum t from the intersection tests to determine what
+			// scene geometry object was hit first.
+			if (t > 0.0f && t_min > t)
+			{
+				t_min = t;
+				hit_geom_index = i;
+			}
+		}
+		// -------------------------------------------------------------------------------
+
+		if (hit_geom_index == selectedLight.geomIdx) {
+			pathSegment.color += (((m.color / PI) * selectedLight.emittance * AbsDot(normal, pathSegment.ray.direction) / pdf) / 2.f);
+		}
+
+
+#else
 		newDirection = calculateRandomDirectionInHemisphere(normal, rng);
 		newDirection = glm::normalize(newDirection);
 		pathSegment.ray.direction = newDirection;
 		pathSegment.ray.origin = intersect;
-		// normal and newDirection should have been normalized 
-		// pathSegment.color *= (m.color * AbsDot(normal, newDirection));
-		
+
 		// Debug Normal
 		//pathSegment.color *= normal;
 
+
+
+		// calculateRandomDirectionInHemisphere generates cosine-weight rays
+		// -> not multiply AbsDot(wi, N) is OK (probe itself is what we want)
+		// Lambert pdf == 1 / Pi
+		// Lambert f == Albedo / Pi 
+		// -> f * AbsDot / pdf == Albedo(Color) So we directly multiply color here
 		pathSegment.color *= m.color;
+#endif
 	}
 }

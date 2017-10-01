@@ -23,7 +23,9 @@
 #include "bounds.h"
 
 #define ERRORCHECK 1
-
+// ----------------------------------------------------------------
+//----------------------- Toggle Here -----------------------------
+// ----------------------------------------------------------------
 
 // Uncommment to disable First bounce ray and intersections cache
 //#define NO_FIRSTBOUNCECACHE
@@ -39,6 +41,8 @@
 //#define LENPERSPECTIVECAMERA
 //#define LEN_RADIUS 3.0f
 //#define FOCAL_LENGTH 13.0f
+// ----------------------------------------------------------------
+// ----------------------------------------------------------------
 
 void checkCUDAErrorFn(const char *msg, const char *file, int line) {
 #if ERRORCHECK
@@ -118,6 +122,15 @@ static ShadeableIntersection * dev_intersections_after_sort = NULL;
 // mesh part
 static Triangle * dev_tris = NULL;
 
+static int worldBoundsSize;
+static int bvhNodesSize;
+
+
+#ifdef  ENABLE_DIR_LIGHTING
+static Light * dev_lights = NULL;
+#endif
+
+static int lightSize;
 
 #ifdef ENABLE_MESHWORLDBOUND
 static Bounds3f * dev_worldBounds = NULL;
@@ -148,14 +161,20 @@ void pathtraceInit(Scene *scene) {
 	cudaMalloc(&dev_tris, scene->tris.size() * sizeof(Triangle));
 	cudaMemcpy(dev_tris, scene->tris.data(), scene->tris.size() * sizeof(Triangle), cudaMemcpyHostToDevice);
 #ifdef ENABLE_MESHWORLDBOUND
-	// World bounds of mesh
-	cudaMalloc(&dev_worldBounds, scene->worldBounds.size() * sizeof(Bounds3f));
-	cudaMemcpy(dev_worldBounds, scene->worldBounds.data(), scene->worldBounds.size() * sizeof(Bounds3f), cudaMemcpyHostToDevice);
+	worldBoundsSize = scene->worldBounds.size();
+	if (worldBoundsSize > 0) {
+		// World bounds of mesh
+		cudaMalloc(&dev_worldBounds, worldBoundsSize * sizeof(Bounds3f));
+		cudaMemcpy(dev_worldBounds, scene->worldBounds.data(), worldBoundsSize * sizeof(Bounds3f), cudaMemcpyHostToDevice);
+	}
 #endif
 #ifdef ENABLE_BVH
-	//BVH Nodes
-	cudaMalloc(&dev_bvh_nodes, scene->bvh_totalNodes * sizeof(LinearBVHNode));
-	cudaMemcpy(dev_bvh_nodes, scene->bvh_nodes, scene->bvh_totalNodes * sizeof(LinearBVHNode), cudaMemcpyHostToDevice);
+	bvhNodesSize = scene->bvh_totalNodes;
+	if (bvhNodesSize > 0) {
+		//BVH Nodes
+		cudaMalloc(&dev_bvh_nodes, bvhNodesSize * sizeof(LinearBVHNode));
+		cudaMemcpy(dev_bvh_nodes, scene->bvh_nodes, bvhNodesSize * sizeof(LinearBVHNode), cudaMemcpyHostToDevice);
+	}
 #endif
 
 
@@ -185,7 +204,16 @@ void pathtraceInit(Scene *scene) {
 
 	NoInteresctMaterialID = hst_scene->materials.size();
 
-	//cout << "scene tris size is " << scene->tris.size() << endl;
+#ifdef  ENABLE_DIR_LIGHTING
+	lightSize = scene->lights.size();
+	if (lightSize > 0) {
+		//BVH Nodes
+		cudaMalloc(&dev_lights, lightSize * sizeof(Light));
+		cudaMemcpy(dev_lights, scene->lights.data(), lightSize * sizeof(Light), cudaMemcpyHostToDevice);
+	}
+#endif
+
+
 
 	cudaDeviceSynchronize();
 
@@ -221,10 +249,20 @@ void pathtraceFree() {
 	cudaFree(dev_tris);
 
 #ifdef ENABLE_MESHWORLDBOUND
-	cudaFree(dev_worldBounds);
+	if (worldBoundsSize > 0) {
+		cudaFree(dev_worldBounds);
+	}
 #endif
 #ifdef ENABLE_BVH
-	cudaFree(dev_bvh_nodes);
+	if (bvhNodesSize > 0) {
+		cudaFree(dev_bvh_nodes);
+	}
+#endif
+
+#ifdef  ENABLE_DIR_LIGHTING
+	if (lightSize > 0) {
+		cudaFree(dev_lights);
+	}
 #endif
 
     checkCUDAError("pathtraceFree");
@@ -267,7 +305,15 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		PathSegment & segment = pathSegments[index];
 		glm::vec3 pos = cam.position;
 		glm::vec3 dir;
+
+#ifdef ENABLE_DIR_LIGHTING
+		// Direct lighting or MIS need to accumulated color
+		segment.color = glm::vec3(0.0f, 0.0f, 0.0f);
+#else
 		segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
+#endif 
+
+		
 
 
 #ifdef AA_STOCHASTIC
@@ -375,7 +421,6 @@ __global__ void computeIntersections(
 				else {
 					t = -1.0f;
 				}
-
 #else
 				// Check geom related world bound first
 				float tmp_t;
@@ -479,12 +524,25 @@ __global__ void shadeFakeMaterial (
 
 // First Version of Shade function
 __global__ void shadeMaterialNaive(
-	int iter
+	  int iter
 	, int num_paths
 	, int depth 
 	, ShadeableIntersection * shadeableIntersections
 	, PathSegment * pathSegments
 	, Material * materials
+#ifdef ENABLE_DIR_LIGHTING
+	, Light * lights
+	, int lightSize
+	, Geom * geoms
+	, Triangle * tris
+	, int geomSize
+#ifdef ENABLE_MESHWORLDBOUND
+	, Bounds3f * worldBounds
+#endif
+#ifdef ENABLE_BVH
+	, LinearBVHNode * nodes
+#endif
+#endif 
 )
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -506,7 +564,11 @@ __global__ void shadeMaterialNaive(
 
 			// If the material indicates that the object was a light, "light" the ray
 			if (material.emittance > 0.0f) {
+#ifdef	ENABLE_DIR_LIGHTING
+				pathSegment.color += (materialColor * material.emittance);
+#else
 				pathSegment.color *= (materialColor * material.emittance);
+#endif
 				// Terminate the ray if it hist a light
 				pathSegment.remainingBounces = 0;
 			}
@@ -516,7 +578,21 @@ __global__ void shadeMaterialNaive(
 						   getPointOnRay(pathSegment.ray, intersection.t),
 						   intersection.surfaceNormal,
 					       material,
-						   rng);
+						   rng
+#ifdef	ENABLE_DIR_LIGHTING
+						  , lights
+						  , lightSize
+						  , geoms
+						  , tris
+						  , geomSize
+#ifdef ENABLE_MESHWORLDBOUND
+						  , worldBounds
+#endif
+#ifdef ENABLE_BVH
+						  , nodes
+#endif
+#endif				
+				);
 
 				pathSegment.remainingBounces--;
 			}	
@@ -871,6 +947,19 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 			dev_intersections,
 			dev_paths,
 			dev_materials
+#ifdef ENABLE_DIR_LIGHTING
+			, dev_lights
+			, lightSize
+			, dev_geoms
+			, dev_tris
+			, hst_scene->geoms.size()
+#ifdef ENABLE_MESHWORLDBOUND
+			, dev_worldBounds
+#endif
+#ifdef ENABLE_BVH
+			, dev_bvh_nodes
+#endif
+#endif 
 		);
 		
 		
