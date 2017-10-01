@@ -22,8 +22,11 @@ public:
     Scene(string filename);
     ~Scene();
 
+	std::vector<unsigned int> lights_indices;
     std::vector<Geom> geoms;
 	std::vector<Vertex> vertices;
     std::vector<Material> materials;
     RenderState state;
+
+	int Smooth_Normals();
 };

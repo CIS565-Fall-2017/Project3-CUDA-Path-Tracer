@@ -102,6 +102,9 @@ int Scene::loadGeom(string objectid) {
         newGeom.inverseTransform = glm::inverse(newGeom.transform);
         newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
 
+		if (materials[newGeom.materialid].emittance > 0.0f) {
+			lights_indices.push_back(geoms.size());
+		}
         geoms.push_back(newGeom);
         return 1;
     }
@@ -265,4 +268,22 @@ int Scene::loadMesh(std::string Path, Geom &geom) {
 	geom.bbox_min = glm::vec3(min_x, min_y, min_z);
 	geom.vertices_Num = vertices.size() - geom.start_Index;
 	return 1;
+}
+
+int Scene::Smooth_Normals() {
+	for (int i = 0; i < vertices.size(); i++) {
+		std::vector<int> nor_i_indices;
+		nor_i_indices.push_back(i);
+		glm::vec3 sum;
+		for (int j = 0; j < vertices.size(); j++) {
+			if (vertices[j].position == vertices[i].position) {
+				sum += vertices[j].normal;
+				nor_i_indices.push_back(j);
+			}
+		}
+		sum /= (nor_i_indices.size());
+		for (int j = 0; j < nor_i_indices.size(); j++) {
+			vertices[j].normal = sum;
+		}
+	}
 }

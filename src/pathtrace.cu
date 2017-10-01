@@ -22,6 +22,9 @@
 #include "radix.h"
 #include <fstream>
 
+//Toggles Defines
+#include "Setting_defines.h"
+
 //Results file
 extern FILE *fp;
 
@@ -31,11 +34,6 @@ extern FILE *fp;
 
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
 
-#define Caching_Toggle 1
-#define Sorting_Toggle 0
-#define AntiAliasing_Toggle 1
-#define MotionBlur_Toggle 0
-#define Depth_Of_Field_Toggle 0
 
 void checkCUDAErrorFn(const char *msg, const char *file, int line) {
 #if ERRORCHECK
@@ -98,6 +96,8 @@ static ShadeableIntersection * dev_cache_intersections = NULL;
 static int * dev_flag_array = NULL;
 
 static Vertex * dev_vertices = NULL;
+static int * dev_lights_indices = NULL;
+
 // ...
 
 void pathtraceInit(Scene *scene) {
@@ -128,8 +128,14 @@ void pathtraceInit(Scene *scene) {
 
 	cudaMalloc(&dev_flag_array, pixelcount * sizeof(int));
 
+	//Smooth Normals:
+	//hst_scene->Smooth_Normals();
+
 	cudaMalloc(&dev_vertices, hst_scene->vertices.size() * sizeof(Vertex));
 	cudaMemcpy(dev_vertices, hst_scene->vertices.data(), hst_scene->vertices.size() * sizeof(Vertex), cudaMemcpyHostToDevice);
+
+	cudaMalloc(&dev_lights_indices, hst_scene->lights_indices.size() * sizeof(int));
+	cudaMemcpy(dev_lights_indices, hst_scene->lights_indices.data(), hst_scene->lights_indices.size() * sizeof(int), cudaMemcpyHostToDevice);
     checkCUDAError("pathtraceInit");
 }
 
@@ -143,6 +149,7 @@ void pathtraceFree() {
 	cudaFree(dev_cache_paths);
 	cudaFree(dev_cache_intersections);
 	cudaFree(dev_flag_array);
+	cudaFree(dev_lights_indices);
     checkCUDAError("pathtraceFree");
 }
 
@@ -400,6 +407,7 @@ __global__ void shadeRealMaterial(
 	{
 		ShadeableIntersection intersection = shadeableIntersections[idx];
 		PathSegment &this_Path = pathSegments[idx];
+
 		if (intersection.t > 0.0f) { // if the intersection exists...
 									 // Set up the RNG
 									 // LOOK: this is how you use thrust's RNG! Please look at
@@ -410,13 +418,128 @@ __global__ void shadeRealMaterial(
 			Material material = materials[intersection.materialId];
 			glm::vec3 materialColor = material.color;
 
-			if (pathSegments[idx].remainingBounces) {
+			if (this_Path.remainingBounces) {
 				flag_array[idx] = 1;
 				scatterRay(this_Path, intersection.t * this_Path.ray.direction + this_Path.ray.origin, intersection.surfaceNormal, material, rng, intersection.outside);
 			}
 			else {
 				flag_array[idx] = 0;
-				if(pathSegments[idx].is_terminated)
+				if(this_Path.is_terminated)
+					image[this_Path.pixelIndex] += this_Path.color;
+			}
+		}
+		else {
+			flag_array[idx] = 0;
+		}
+	}
+}
+
+__global__ void shadeRealMaterial_Direct(
+	int iter
+	, int num_paths
+	, ShadeableIntersection * shadeableIntersections
+	, PathSegment * pathSegments
+	, Material * materials
+	, glm::vec3 * image
+	, int *flag_array
+	, int *lights_indices
+	, int num_lights
+	, Geom * geoms
+	, int geoms_size
+	, Vertex *vertices
+)
+{
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (idx < num_paths)
+	{
+		ShadeableIntersection intersection = shadeableIntersections[idx];
+		PathSegment &this_Path = pathSegments[idx];
+		thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
+		thrust::uniform_real_distribution<float> u01(0, 1);
+
+		//Direct Light
+		if (this_Path.remainingBounces == 1) {
+			int lights_hits = 0;
+			glm::vec3 color;	
+			for (int i = 0; i < num_lights; i++) {
+				int light_id = lights_indices[i];
+
+				Geom &geom_light = geoms[light_id];
+				this_Path.ray.direction = glm::normalize(geom_light.translation - this_Path.ray.origin);
+				
+				float t;
+				glm::vec3 intersect_point;
+				glm::vec3 normal;
+				float t_min = FLT_MAX;
+				int hit_geom_index = -1;
+
+				glm::vec3 tmp_intersect;
+				glm::vec3 tmp_normal;
+				bool outside = true;
+
+
+				//compute intersection and t
+				for (int j = 0; j < geoms_size; j++) {
+					Geom & geom = geoms[j];
+#if MotionBlur_Toggle
+					glm::vec3 blur_pos = glm::clamp((1 - pathSegment.rand_time) * geom.translation + pathSegment.rand_time * geom.translation_end, geom.translation, geom.translation_end);
+					geom.transform = buildTransformationMatrix(blur_pos, geom.rotation, geom.scale);
+					geom.inverseTransform = glm::inverse(geom.transform);
+					geom.invTranspose = glm::inverseTranspose(geom.transform);
+#endif
+					if (geom.type == CUBE)
+					{
+						t = boxIntersectionTest(geom, this_Path.ray, tmp_intersect, tmp_normal, outside);
+					}
+					else if (geom.type == SPHERE)
+					{
+						t = sphereIntersectionTest(geom, this_Path.ray, tmp_intersect, tmp_normal, outside);
+					}
+					else if (geom.type == MESH) {
+						t = meshIntersectionTest(geom, this_Path.ray, tmp_intersect, tmp_normal, outside, vertices);
+					}
+
+					// scene geometry object was hit first.
+					if (t > 0.0f && t_min > t)
+					{
+						t_min = t;
+						hit_geom_index = j;
+						intersect_point = tmp_intersect;
+						normal = tmp_normal;
+					}
+				}
+
+				if (hit_geom_index == lights_indices[i]) {
+					lights_hits++;
+					Material m = materials[geoms[hit_geom_index].materialid];
+					color += this_Path.color * (m.color * m.emittance);
+				}
+
+			}
+			if (lights_hits) {
+				color = color / float(lights_hits);
+				image[this_Path.pixelIndex] += color;
+			}
+			flag_array[idx] = 0;
+			this_Path.remainingBounces--;
+		}
+
+		if (intersection.t > 0.0f) { // if the intersection exists...
+									 // Set up the RNG
+									 // LOOK: this is how you use thrust's RNG! Please look at
+									 // makeSeededRandomEngine as well.
+			
+
+			Material material = materials[intersection.materialId];
+			glm::vec3 materialColor = material.color;
+
+			if (this_Path.remainingBounces) {
+				flag_array[idx] = 1;
+				scatterRay(this_Path, intersection.t * this_Path.ray.direction + this_Path.ray.origin, intersection.surfaceNormal, material, rng, intersection.outside);
+			}
+			else {
+				flag_array[idx] = 0;
+				if (this_Path.is_terminated)
 					image[this_Path.pixelIndex] += this_Path.color;
 			}
 		}
@@ -688,6 +811,23 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 #if Sorting_Toggle
 		sortByMaterialId(num_paths, dev_paths, dev_intersections);
 #endif
+
+#if Direct_Light_Toggle
+		shadeRealMaterial_Direct << <numblocksPathSegmentTracing, blockSize1d >> >(
+			iter,
+			num_paths,
+			dev_intersections,
+			dev_paths,
+			dev_materials,
+			dev_image,
+			dev_flag_array,
+			dev_lights_indices,
+			hst_scene->lights_indices.size(),
+			dev_geoms,
+			hst_scene->geoms.size(),
+			dev_vertices
+		);
+#else
 		shadeRealMaterial << <numblocksPathSegmentTracing, blockSize1d >> >(
 			iter, 
 			num_paths, 
@@ -697,6 +837,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 			dev_image, 
 			dev_flag_array
 			);
+#endif
 		//get new paths and new flag_array
 // ----------------- Stream Compaction ----------------
 		num_paths = compact_Paths(num_paths);
@@ -713,7 +854,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
 	StreamCompaction::Efficient::timer().endGpuTimer();
 	//std::cout << "	elapsed time: " << StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation() << " ms\n";
-	//fprintf(fp, "%lf\n", StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation());
+	fprintf(fp, "%lf\n", StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation());
 
 	// Send results to OpenGL buffer for rendering
 	sendImageToPBO << <blocksPerGrid2d, blockSize2d >> >(pbo, cam.resolution, iter, dev_image);
