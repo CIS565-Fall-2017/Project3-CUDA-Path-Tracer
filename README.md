@@ -25,11 +25,12 @@ On cpu, we will use multiple threads to deal with multiple pixels at the same ti
 The rays in a closed scene will probably bonuce more times than the rays in the open scene, since in the closed scene, the rays are less likely to hit nothing. Also, since almost each ray will return a meaningful value instead of 0, the overall illumination will be. 
 
 Here are the plots showing the changes of the number of rays in the pool and the time cost for each depth in a open scene and a closed scene.
-
-![](./img/RayNum_Open_vs_Close.png)
         
-![](./img/timecost_Open_vs_Close.png) 
-
+![](./img/RayNum_Open_vs_Close.png)         
+        
+         
+![](./img/timecost_Open_vs_Close.png)    
+          
 As the plot shows, in the open scene, the number of rays in the pool will decrease dramatically, while in the closed scene, the changes is not very obvious. That makes sense because in the closed scene, the rays have less possibility to hit nothing and most of them will keep bouncing untill the depth reaches the limitation.
 
 Open Scene     
@@ -82,5 +83,5 @@ Depth field camera
 
 * **BVH Tree**
 
-Still updating......
+Still updating......       
 Materials related to the bvh structure on GPU, click [here](https://devblogs.nvidia.com/parallelforall/thinking-parallel-part-ii-tree-traversal-gpu/)
