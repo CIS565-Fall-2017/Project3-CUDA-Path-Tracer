@@ -26,7 +26,7 @@ Path Tracing Features:
 * Depth of field
 
 
-GPU Features:
+GPU Optimization Features:
 
 * Path continuation/termination using Stream Compaction 
 * Sorting rays, path segments, and intersections to be contiguous in memory by materials
@@ -37,7 +37,7 @@ GPU Features:
 
 ### Naive Lighting 
 
-![](Renders/Naive/cornell.2017-10-01_15-15-21z.5000samp.png =400x400)
+![](Renders/Naive/cornell.2017-10-01_15-15-21z.5000samp.png)
 ###### (Run with 5000 samples)
 
 
@@ -98,11 +98,37 @@ All of the following charts and graphs have been tested on one sample with varyi
 ![](Renders/Charts/sc-graph.PNG)
 
 
+In the naive implementation of the path tracer, within each iteration (aka one sample), every pixel is being calculated by accumulating its color across multiple depths (until a maximum depth is reached). A kernel is being launched for per pixel in order to complete this task. 
+
+Stream compaction allows us to remove any rays that have completed their total color accumulation, without having to wait for every thread within the allocated kernels to complete. This allows us to save threads to be used elsewhere, and thus finish rendering faster.
+
+In this code base, stream compaction has been implemented through the use of `thrust::partition`, using a predicate that distinguishes those path segments that have no more remaining bounces.
+
+In the chart, we can observe that while stream compaction does take longer than without at smaller depth values (probably due to some overhead from thrust::partition, and memory allocation), we can see that at higher depth values, stream compaction begins to perform better, as opposed to the continuously linear increase in time without it.
+
+
 ### Material Sorting
 
 ![](Renders/Charts/ms-chart.PNG)
 
 ![](Renders/Charts/ms-graph.PNG)
+
+EDIT EXPLANATION OF THIS!
+
+As compared to the charts for stream compaction above, at first it looks like material sorting just makes performance even worse! Times across depth values have doubled. So why is this considered an optimization? 
+
+First off, what are we trying to do here? We want to sort path segments/rays and intersections to be contiguous in memory by material type. 
+
+First off to explain why performance is worse. There is a lot of overheard in allocating two new device arrays to 
+
+making pathsegments and isect arrays contiguous in memory to materialID doesn't actually make time and memory any better. you're allocating 2 new device arrays to do this sorting, and every time you were reading from the pathsegments and isect arrays in global memory before, these structs just hold items that you're accessing one of every now and then and just doing simple computations on them anyways. 
+
+this contiugous memory sorting really helps when you're doing things like reading from textures and normal maps. you read them all at once, sort them, and you have access to the values contiguous in memory. so you can cache a chunk of it and do operations on that chucnk, rather than reading from global memory every time 
+
+
+difference between the structs we have and texture/normal maps
+texture maps are stored as floats, but it's 3 floats PER pixel. you need these 3 floats to do anything with this texture/normal map. in the structs we have now, you're generally just accessing one value in it (so one spot in memory VS three spots for those 3 floats)
+you read them all at once in the beginning, and 
 
 
 ### First Bounce Caching 
@@ -110,6 +136,10 @@ All of the following charts and graphs have been tested on one sample with varyi
 ![](Renders/Charts/cache-chart.PNG)
 
 ![](Renders/Charts/cache-graph.PNG)
+
+
+FINISH EXPLANATION OF THIS!
+
 
 
 ## Features to be implemented in the future
