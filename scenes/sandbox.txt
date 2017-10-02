@@ -53,8 +53,8 @@ EMITTANCE   0
 // Film
 FILM
 GAMMA			2.2
-FILTER_RADIUS	1.5
-FILTER_ALPHA	4.0
+FILTER_RADIUS	2.0
+FILTER_ALPHA	3.5
 VIGNETTE_START	0.35
 VIGNETTE_END	1.0
 
@@ -65,7 +65,7 @@ FOVY        45
 ITERATIONS  1000
 DEPTH       8
 FILE        cornell
-APERTURE    0.2
+APERTURE    0.0
 DISTANCE	2.0
 BOKEH       ../scenes/resources/bokeh/chromatic.png
 EYE         0 -1 5.5
@@ -125,6 +125,15 @@ OBJECT 6
 mesh
 FILE 		../scenes/resources/meshes/dragon.obj
 material 4
-TRANS       0 0 -3
+TRANS       0 0 0
 ROTAT       0 0 0
-SCALE       2 2 2
+SCALE       3 3 3
+
+// Mesh
+OBJECT 7
+mesh
+FILE 		../scenes/resources/meshes/dragon.obj
+material 4
+TRANS       0 3 0
+ROTAT       0 45 0
+SCALE       3 3 3

@@ -184,8 +184,8 @@ __host__ __device__ bool aabbIntersectionTest(Ray r, glm::vec3 min, glm::vec3 ma
 
 	if (tmax >= tmin && tmax > 0)
 	{
-		/*if (tmin <= 0)
-			tmin = tmax;*/
+		if (tmin <= 0)
+			tmin = 0.f;
 
 		return true;
 	}
@@ -193,12 +193,16 @@ __host__ __device__ bool aabbIntersectionTest(Ray r, glm::vec3 min, glm::vec3 ma
 	return false;
 }
 
-__host__ __device__ float meshIntersectionTest(Geom geo, Ray r, void * meshes,
+__host__ __device__ float meshIntersectionTest(Geom geo, Ray originalRay, char * meshes,
 	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside, glm::vec2& uv, glm::vec3&tangent) 
 {
 	outside = true;
 	float minDistance = -1000000.f;
 	float maxDistance = 1000000.f;
+
+	Ray r = originalRay;
+	r.origin = multiplyMV(geo.inverseTransform, glm::vec4(r.origin, 1.0f));
+	r.direction = glm::normalize(multiplyMV(geo.inverseTransform, glm::vec4(r.direction, 0.0f)));
 
 	// If we dont hit the AABB, return!
 	if (!aabbIntersectionTest(r, geo.meshData.minAABB, geo.meshData.maxAABB, minDistance, maxDistance))
@@ -213,7 +217,9 @@ __host__ __device__ float meshIntersectionTest(Geom geo, Ray r, void * meshes,
 	int triangleSize = 10;
 
 	float intersectionDistance = 1000000.f;
-	int * compactNodes = (int*)(meshes) + geo.meshData.offset;
+	int * compactNodes = (int*) (meshes + geo.meshData.offset);
+
+	glm::vec3 localNormal;
 
 	// The stack approach is very similar to pbrtv3
 	while (currentNode != -1 && stackTop < 64)
@@ -256,19 +262,10 @@ __host__ __device__ float meshIntersectionTest(Geom geo, Ray r, void * meshes,
 				if (rayT < intersectionDistance && rayT >= 0.f && u >= 0.f && v >= 0.f && u + v <= 1.f)
 				{
 					intersectionDistance = rayT;
-					//fint->elementIndex = (i * triangleSize) + currentNode + 5;
-
 					glm::vec3 n1(tri.n1x, tri.n1y, tri.n1z);
 					glm::vec3 n2(tri.n2x, tri.n2y, tri.n2z);
 					glm::vec3 n3(tri.n3x, tri.n3y, tri.n3z);
-
-					glm::vec3 localP = getPointOnRay(r, intersectionDistance);
-					glm::vec3 localNormal = glm::normalize(n1 * uv.x + n2 * uv.y + n3 * (1.f - uv.x - uv.y));
-
-					intersectionPoint = multiplyMV(geo.transform, glm::vec4(localP, 1.f));
-					normal = glm::normalize(multiplyMV(geo.invTranspose, glm::vec4(localNormal, 0.f)));
-					//tangent = glm::normalize(multiplyMV(geo.transform, glm::vec4(localTangent, 0.0f)));
-
+					localNormal = glm::normalize(n1 * uv.x + n2 * uv.y + n3 * (1.f - uv.x - uv.y));
 					hit = true;
 				}
 			}
@@ -311,7 +308,17 @@ __host__ __device__ float meshIntersectionTest(Geom geo, Ray r, void * meshes,
 	}
 
 	if (hit)
-		return intersectionDistance;
+	{
+		glm::vec3 localP = getPointOnRay(r, intersectionDistance);
+		intersectionPoint = multiplyMV(geo.transform, glm::vec4(localP, 1.f));
+		normal = glm::normalize(multiplyMV(geo.invTranspose, glm::vec4(localNormal, 0.f)));
+
+		// Make sure triangles are double sided
+		if (glm::dot(r.direction, normal) > 0.f)
+			normal *= -1.f;
+
+		return glm::distance(originalRay.origin, intersectionPoint);
+	}
 
 //	return hit;
 //}

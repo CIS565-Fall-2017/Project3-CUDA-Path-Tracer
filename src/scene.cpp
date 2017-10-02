@@ -369,16 +369,24 @@ int Scene::loadMaterial(string materialid) {
         return 1;
     }
 }
-//
-//AABB GetTriangleBounds(Triangle& t)
-//{
-//	glm::vec3 min = glm::min(this->points[0], glm::min(this->points[1], this->points[2]));
-//	glm::vec3 max = glm::max(this->points[0], glm::max(this->points[1], this->points[2]));
-//	return AABB(min - Vector3f(glm::epsilon<float>()), max - Vector3f(glm::epsilon<float>()));
-//}
 
 MeshDescriptor Scene::loadMesh(string & filename)
 {
+	if (meshMap.find(filename) != meshMap.end())
+	{
+		Mesh * mesh = meshMap[filename];
+
+		MeshDescriptor desc;
+		desc.offset = -1;
+
+		for (int i = 0; i < meshes.size(); i++)
+			if (meshes[i] == mesh)
+				desc.offset = i;
+
+		cout << "Reusing mesh " + filename << endl;
+		return desc;
+	}
+
 	std::vector<tinyobj::shape_t> shapes; std::vector<tinyobj::material_t> materials;
 	std::string errors = tinyobj::LoadObj(shapes, materials, filename.c_str());
 	std::cout << errors << std::endl;
@@ -444,13 +452,13 @@ MeshDescriptor Scene::loadMesh(string & filename)
 
 	Mesh * mesh = new Mesh(15, 2, triangles);
 	this->meshes.push_back(mesh);
+	meshMap[filename] = mesh;
 
 	// Needs to be transformed later
 	MeshDescriptor desc;
 	desc.offset = this->meshes.size() - 1;
-	desc.triangleCount = triangles.size();
 
-	cout << "Loaded mesh with " << desc.triangleCount << " triangles" << endl;
+	cout << "Loaded mesh with " << triangles.size() << " triangles" << endl;
 	return desc;
 }
 
@@ -687,19 +695,11 @@ AABB Mesh::CalculateAABB()
 	return bounds;
 }
 
-void Mesh::Build(glm::mat4x4 transform)
+void Mesh::Build()
 {
 	for (int i = 0; i < triangles.size(); i++)
 	{
 		Triangle * t = triangles[i];
-		t->p1 = glm::vec3(transform * glm::vec4(t->p1, 1.f));
-		t->p2 = glm::vec3(transform * glm::vec4(t->p2, 1.f));
-		t->p3 = glm::vec3(transform * glm::vec4(t->p3, 1.f));
-
-		t->n1 = glm::vec3(transform * glm::vec4(t->n1, 0.f));
-		t->n2 = glm::vec3(transform * glm::vec4(t->n2, 0.f));
-		t->n3 = glm::vec3(transform * glm::vec4(t->n3, 0.f));
-
 		glm::vec3 min = glm::min(t->p1, glm::min(t->p2, t->p3));
 		glm::vec3 max = glm::max(t->p1, glm::max(t->p2, t->p3));
 		t->bounds = AABB(min - glm::vec3(glm::epsilon<float>()), max + glm::vec3(glm::epsilon<float>()));

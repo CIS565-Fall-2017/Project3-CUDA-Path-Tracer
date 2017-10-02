@@ -133,7 +133,7 @@ public:
 	Mesh(int maxDepth, int maxLeafSize, std::vector<Triangle*>& triangles);
 	~Mesh();
 
-	void Build(glm::mat4x4 transform);
+	void Build();
 
 	int maxDepth;
 	AABB meshBounds;
@@ -152,10 +152,9 @@ protected:
 struct MeshDescriptor
 {
 	int offset;
-	int triangleCount;
 	glm::vec3 minAABB;
 	glm::vec3 maxAABB;
-	MeshDescriptor() : offset(-1), triangleCount(0) {};
+	MeshDescriptor() : offset(-1) {};
 };
 
 struct Geom 

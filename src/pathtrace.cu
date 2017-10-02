@@ -120,7 +120,7 @@ static Scene * hst_scene = NULL;
 static glm::vec3 * dev_textures = NULL;
 static glm::vec4 * dev_image = NULL;
 static glm::vec4 * dev_tonemapped_image = NULL;
-static void * dev_meshes = NULL;
+static char * dev_meshes = NULL;
 
 static Geom * dev_geoms = NULL;
 static Material * dev_materials = NULL;
@@ -269,7 +269,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 // Generating new rays is handled in your shader(s).
 // Feel free to modify the code below.
 __global__ void computeIntersections(int depth, int num_paths, PathSegment * pathSegments, Geom * geoms, 
-	int geoms_size, ShadeableIntersection * intersections, void * dev_meshes)
+	int geoms_size, ShadeableIntersection * intersections, char * dev_meshes)
 {
 	int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -337,13 +337,14 @@ __forceinline__
 __host__ __device__ glm::vec3 BxDF_Diffuse(glm::vec3 & normal, glm::vec2 & uv, glm::vec3 wo, glm::vec4 sample, glm::vec3 & wi, float & pdf, Material material, glm::vec3 * textureArray)
 {
 	wi = calculateRandomDirectionInHemisphere(normal, glm::vec2(sample.x, sample.y));
-	float cosTheta = glm::max(0.0f, glm::dot(normal, wi));
+	
+	// There's a chance to go through the object
+	if (sample.z < material.translucence && sample.w > .5f)
+		wi = glm::normalize(-wo - wi * .1f); // Some small randomness
+
+	float cosTheta = glm::abs(glm::dot(normal, wi));
 	pdf = cosTheta / glm::pi<float>();
 
-	// There's a chance to go through the object
-	if (sample.z < material.translucence)
-		wi *= sample.w > .5f ? 1.f : -1.f;
-	
 	glm::vec3 result = material.color;
 
 	if (material.diffuseTexture.valid == 1)
@@ -586,7 +587,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		computeIntersections <<<numblocksPathSegmentTracing, blockSize1d>>> (
 			depth, nonTerminatedPathCount, dev_paths, dev_geoms, hst_scene->geoms.size(), dev_intersections, dev_meshes);
 
-		checkCUDAError("trace one bounce");
+		checkCUDAError("Intersection testing");
 		cudaDeviceSynchronize();
 		depth++;
 
@@ -687,11 +688,8 @@ void initializeDeviceTextures(Scene * scene)
 void initializeMeshes(Scene * scene)
 {
 	// Build kd trees and compact memory
-	for (int i = 0; i < scene->geoms.size(); i++)
-	{
-		if (scene->geoms[i].type == MESH)
-			scene->meshes[scene->geoms[i].meshData.offset]->Build(scene->geoms[i].transform);
-	}
+	for (int i = 0; i < scene->meshes.size(); i++)
+		scene->meshes[i]->Build();
 
 	// Allocate
 	int totalMemory = 0;
@@ -699,6 +697,7 @@ void initializeMeshes(Scene * scene)
 		totalMemory += scene->meshes[i]->compactDataSize;
 
 	cudaMalloc(&dev_meshes, totalMemory);
+	checkCUDAError("Allocate mesh memory");
 
 	int offset = 0;
 	std::vector<int> offsetList;
@@ -710,8 +709,7 @@ void initializeMeshes(Scene * scene)
 		Mesh * mesh = scene->meshes[i];
 		int size = mesh->compactDataSize;
 		int * compactData = mesh->compactNodes;
-
-		cudaMemcpy((void*) ((int*)dev_meshes + offset), compactData, size, cudaMemcpyHostToDevice);
+		cudaMemcpy((void*) ((char*)dev_meshes + offset), compactData, size, cudaMemcpyHostToDevice);
 		offset += size;
 	}
 
