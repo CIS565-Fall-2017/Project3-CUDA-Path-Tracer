@@ -17,8 +17,9 @@
 
 #define ERRORCHECK 1
 
-#define ANTIALIAS 1
-#define CACHE_FIRST_BOUNCE 0 // Only works if ANTIALIAS is 0
+#define CACHE_FIRST_BOUNCE 0
+#define ANTIALIAS 1 // Not compatible with CACH_FIRST_BOUNCE
+#define DOF 0 // compatible with ANTIALIAS
 #define SORT_MATERIALS 0
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
@@ -158,66 +159,72 @@ void pathtraceFree() {
 * motion blur - jitter rays "in time"
 * lens effect - jitter ray origin positions based on a lens
 */
-__global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, PathSegment* pathSegments)
-{
-	int x = (blockIdx.x * blockDim.x) + threadIdx.x;
-	int y = (blockIdx.y * blockDim.y) + threadIdx.y;
+__global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, PathSegment* pathSegments) {
+  int x = (blockIdx.x * blockDim.x) + threadIdx.x;
+  int y = (blockIdx.y * blockDim.y) + threadIdx.y;
 
-	if (x < cam.resolution.x && y < cam.resolution.y) {
-		int index = x + (y * cam.resolution.x);
-		PathSegment & segment = pathSegments[index];
+  if (x < cam.resolution.x && y < cam.resolution.y) {
+  int index = x + (y * cam.resolution.x);
+    PathSegment & segment = pathSegments[index];
 
     thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
     thrust::uniform_real_distribution<float> u5(-0.5, 0.5);
+    thrust::uniform_real_distribution<float> u01(0, 1);
 
-		segment.ray.origin = cam.position;
+    segment.ray.origin = cam.position;
     segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
-		// TODO: implement antialiasing by jittering the ray
+    // TODO: implement antialiasing by jittering the ray
 #if ANTIALIAS
-		segment.ray.direction = glm::normalize(cam.view
-			- cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f + u5(rng))
-			- cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f + u5(rng))
-			);
+    segment.ray.direction = glm::normalize(cam.view
+        - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f + u5(rng))
+        - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f + u5(rng)));
 #else
-		segment.ray.direction = glm::normalize(cam.view
-			- cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
-			- cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
-			);
+    segment.ray.direction = glm::normalize(cam.view
+        - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
+        - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f));
+#endif
+#if DOF
+    glm::vec3 focal_point = getPointOnRay(segment.ray, cam.focalLength);
+    float t = u01(rng);
+    float s = u01(rng);
+    segment.origin = segment.origin + cam.right*sqrt(t)*cos(2*PI*s) * cam.lensDiameter +
+                                      cam.up   *sqrt(t)*sin(2*PI*s) * cam.lensDiameter;
+    segment.direction = glm::normalize(focal_point - segment.origin);
 #endif
 
-		segment.pixelIndex = index;
-		segment.remainingBounces = traceDepth;
-	}
+    segment.pixelIndex = index;
+    segment.remainingBounces = traceDepth;
+  }
 }
 
 __device__ void FindNearestIntersection(
     int geoms_size, Ray &pathSegRay, float& t_min, Geom *s_geoms,
     int &hit_geom_index, glm::vec3 &normal) {
-	for (int i = 0; i < geoms_size; i++) {
-	  float t;
-	  glm::vec3 tmp_intersect;
-	  glm::vec3 tmp_normal;
-		Geom & geom = s_geoms[i];
-
-		if (geom.type == CUBE) {
-			t = boxIntersectionTest(geom, /*pathSegment.ray*/ pathSegRay, tmp_intersect, tmp_normal/*,
-                              outside*/);
-		} else if (geom.type == SPHERE) {
-			t = sphereIntersectionTest(geom, /*pathSegment.ray*/ pathSegRay, tmp_intersect, tmp_normal/*,
-                                 outside*/);
-		}
-		// TODO: add more intersection tests here... triangle? metaball? CSG?
-
-		// Compute the minimum t from the intersection tests to determine what
-		// scene geometry object was hit first.
-		if (t > 0.0f && t_min > t) {
-			t_min = t;
-			hit_geom_index = i;
-			//intersect_point = tmp_intersect;
-			normal = tmp_normal;
-		}
-	}
+  for (int i = 0; i < geoms_size; i++) {
+    float t;
+    glm::vec3 tmp_intersect;
+    glm::vec3 tmp_normal;
+    Geom & geom = s_geoms[i];
+    
+    if (geom.type == CUBE) {
+      t = boxIntersectionTest(geom, /*pathSegment.ray*/ pathSegRay, tmp_intersect, tmp_normal/*,
+                    outside*/);
+    } else if (geom.type == SPHERE) {
+      t = sphereIntersectionTest(geom, /*pathSegment.ray*/ pathSegRay, tmp_intersect, tmp_normal/*,
+                       outside*/);
+    }
+    // TODO: add more intersection tests here... triangle? metaball? CSG?
+    
+    // Compute the minimum t from the intersection tests to determine what
+    // scene geometry object was hit first.
+    if (t > 0.0f && t_min > t) {
+      t_min = t;
+      hit_geom_index = i;
+      //intersect_point = tmp_intersect;
+      normal = tmp_normal;
+    }
+  }
 }
 
 // TODO:
