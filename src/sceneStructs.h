@@ -57,6 +57,7 @@ struct Material
 	float emittance;
 	TextureDescriptor diffuseTexture;
 	TextureDescriptor specularTexture;
+	TextureDescriptor normalTexture;
 };
 
 struct Camera 
@@ -114,7 +115,8 @@ struct SampledPath
 // 2) BSDF evaluation: generate a new ray
 struct ShadeableIntersection {
   float t;
-  glm::vec3 surfaceNormal;
-  glm::vec2 uv;
   int materialId;
+  glm::vec3 normal;
+  glm::vec3 tangent;
+  glm::vec2 uv;
 };

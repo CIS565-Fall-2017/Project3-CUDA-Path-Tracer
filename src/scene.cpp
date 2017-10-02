@@ -141,8 +141,17 @@ TextureDescriptor Scene::loadTexture(string path, bool normalize)
 	}
 	else
 	{
-		Texture * tex = new Texture(path, 1.f, normalize);
-		this->textures.push_back(tex);
+		Texture * tex = nullptr;
+		
+		if (textureMap.find(path) == textureMap.end())
+		{
+			tex = new Texture(path, 1.f, normalize);
+			this->textures.push_back(tex);
+		}
+		else
+		{
+			tex = textureMap[path];
+		}
 
 		desc.type = 0;
 		desc.index = textures.size() - 1;
@@ -286,6 +295,10 @@ int Scene::loadMaterial(string materialid) {
 			else if (strcmp(tokens[0].c_str(), "TEX_SPECULAR") == 0) 
 			{
 				newMaterial.specularTexture = loadTexture(tokens[1], false);
+			}
+			else if (strcmp(tokens[0].c_str(), "TEX_NORMAL") == 0)
+			{
+				newMaterial.normalTexture = loadTexture(tokens[1], false);
 			}
 
 			utilityCore::safeGetline(fp_in, line);

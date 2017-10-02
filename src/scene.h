@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <unordered_map>
 #include <sstream>
 #include <fstream>
 #include <iostream>
@@ -30,5 +31,6 @@ public:
     std::vector<Geom> geoms;
     std::vector<Material> materials;
 	std::vector<Texture*> textures;
+	std::unordered_map<string, Texture*> textureMap;
     RenderState state;
 };

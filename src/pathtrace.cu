@@ -189,7 +189,7 @@ __host__ __device__ glm::vec3 sampleTexture(glm::vec3 * dev_textures, glm::vec2 
 		}
 		
 		float sn = float(steps) - log2(log2(dot(z, z))) + 4.0f; // http://iquilezles.org/www/articles/mset_smooth/mset_smooth.htm
-		sn = glm::clamp(sn, 0.f, 1.f);
+		sn = glm::clamp(sn, 0.1f, 1.f);
 		return glm::vec3(sn);
 	}
 }
@@ -266,6 +266,7 @@ __global__ void computeIntersections(int depth, int num_paths, PathSegment * pat
 		float t;
 		glm::vec3 intersect_point;
 		glm::vec3 normal;
+		glm::vec3 tangent;
 		glm::vec2 uv;
 		float t_min = FLT_MAX;
 		int hit_geom_index = -1;
@@ -282,11 +283,11 @@ __global__ void computeIntersections(int depth, int num_paths, PathSegment * pat
 
 			if (geom.type == CUBE)
 			{
-				t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, uv);
+				t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, uv, tangent);
 			}
 			else if (geom.type == SPHERE)
 			{
-				t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, uv);
+				t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, uv, tangent);
 			}
 			// TODO: add more intersection tests here... triangle? metaball? CSG?
 
@@ -310,7 +311,8 @@ __global__ void computeIntersections(int depth, int num_paths, PathSegment * pat
 			//The ray hits something
 			intersections[path_index].t = t_min;
 			intersections[path_index].materialId = geoms[hit_geom_index].materialid;
-			intersections[path_index].surfaceNormal = normal;
+			intersections[path_index].normal = normal;
+			intersections[path_index].tangent = tangent;
 			intersections[path_index].uv = uv;
 		}
 	}
@@ -341,7 +343,16 @@ __global__ void shadeKernel(int iter, int num_paths, ShadeableIntersection * sha
 			}
 			else if(pathSegments[idx].remainingBounces > 1)
 			{
-				glm::vec3 n = intersection.surfaceNormal;
+				glm::vec3 n = intersection.normal;
+
+				if (material.normalTexture.valid == 1)
+				{
+					glm::vec3 tangent = intersection.tangent;
+					glm::vec3 bitangent = glm::normalize(glm::cross(n, tangent));
+
+					glm::vec3 texData = sampleTexture(textureArray, intersection.uv, material.normalTexture);
+					n = glm::normalize(tangent * texData.r + bitangent * texData.g + n * texData.b);
+				}
 
 				if (material.hasReflective > 0.f)
 				{
@@ -628,6 +639,9 @@ void initializeDeviceTextures(Scene * scene)
 
 		if (m.specularTexture.index >= 0)
 			m.specularTexture.index = offsetList[m.specularTexture.index];
+
+		if (m.normalTexture.index >= 0)
+			m.normalTexture.index = offsetList[m.normalTexture.index];
 	}
 
 	checkCUDAError("initializeDeviceTextures");

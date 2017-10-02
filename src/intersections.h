@@ -46,7 +46,7 @@ __host__ __device__ glm::vec3 multiplyMV(glm::mat4 m, glm::vec4 v) {
  * @return                   Ray parameter `t` value. -1 if no intersection.
  */
 __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
-	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside, glm::vec2 &uv) {
+	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside, glm::vec2 &uv, glm::vec3 & tangent) {
 	Ray q;
 	q.origin = multiplyMV(box.inverseTransform, glm::vec4(r.origin, 1.0f));
 	q.direction = glm::normalize(multiplyMV(box.inverseTransform, glm::vec4(r.direction, 0.0f)));
@@ -91,9 +91,20 @@ __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
 
 		// [-.5,.5] -> [0,1]
 		uv += glm::vec2(.5f);
-		
+
+		glm::vec3 localTangent;
+		if (abs(tmin_n.x) < SQRT_OF_ONE_THIRD)
+			localTangent = glm::vec3(1, 0, 0);
+		else if (abs(tmin_n.y) < SQRT_OF_ONE_THIRD)
+			localTangent = glm::vec3(0, 1, 0);
+		else 
+			localTangent = glm::vec3(0, 0, 1);
+
+		localTangent = glm::normalize(glm::cross(tmin_n, localTangent));
+
 		intersectionPoint = multiplyMV(box.transform, glm::vec4(getPointOnRay(q, tmin), 1.0f));
 		normal = glm::normalize(multiplyMV(box.transform, glm::vec4(tmin_n, 0.0f)));
+		tangent = glm::normalize(multiplyMV(box.transform, glm::vec4(localTangent, 0.0f)));
 		return glm::length(r.origin - intersectionPoint);
 	}
 	return -1;
@@ -110,7 +121,7 @@ __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
  * @return                   Ray parameter `t` value. -1 if no intersection.
  */
 __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
-	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside, glm::vec2& uv) {
+	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside, glm::vec2& uv, glm::vec3&tangent) {
 	float radius = .5;
 
 	glm::vec3 ro = multiplyMV(sphere.inverseTransform, glm::vec4(r.origin, 1.0f));
@@ -146,9 +157,19 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
 
 	glm::vec3 localP = getPointOnRay(rt, t);
 
+	glm::vec3 localTangent;
+	if (abs(localP.x) < SQRT_OF_ONE_THIRD)
+		localTangent = glm::vec3(1, 0, 0);
+	else if (abs(localP.y) < SQRT_OF_ONE_THIRD)
+		localTangent = glm::vec3(0, 1, 0);
+	else
+		localTangent = glm::vec3(0, 0, 1);
+
+	localTangent = glm::normalize(glm::cross(localP, localTangent));
+
 	intersectionPoint = multiplyMV(sphere.transform, glm::vec4(localP, 1.f));
 	normal = glm::normalize(multiplyMV(sphere.invTranspose, glm::vec4(localP, 0.f)));
-
+	tangent = glm::normalize(multiplyMV(sphere.transform, glm::vec4(localTangent, 0.0f)));
 
 	float phi = glm::atan(localP.z, localP.x);
 	if (phi < 0)
