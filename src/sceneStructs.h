@@ -64,6 +64,8 @@ struct PathSegment {
 	glm::vec3 color;
 	int pixelIndex;
 	int remainingBounces;
+
+	bool isinglass;// if the ray is currently in glass
 };
 
 // Use with a corresponding PathSegment to do:
@@ -73,4 +75,7 @@ struct ShadeableIntersection {
   float t;
   glm::vec3 surfaceNormal;
   int materialId;
+  glm::vec3 intersect_point;
+
+  bool isend; // if the ray ends or not
 };
