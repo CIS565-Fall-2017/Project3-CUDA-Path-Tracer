@@ -55,6 +55,7 @@ struct Material
 	float hasRefractive;
 	float indexOfRefraction;
 	float emittance;
+	float translucence;
 	TextureDescriptor diffuseTexture;
 	TextureDescriptor specularTexture;
 	TextureDescriptor normalTexture;

@@ -46,11 +46,10 @@ MATERIAL 4
 RGB         .98 .98 .98
 SPECEX      0
 SPECRGB     .98 .98 .98
-REFL        0
-REFR        0
+REFL        1
+REFR        1
 REFRIOR     1.33
 EMITTANCE   0
-TRANSLUSCENCE .75
 
 // Film
 FILM
@@ -67,7 +66,7 @@ FOVY        45
 ITERATIONS  1000
 DEPTH       8
 FILE        cornell
-APERTURE    0.0
+APERTURE    0.2
 DISTANCE	4.0
 BOKEH       ../scenes/resources/bokeh/chromatic.png
 EYE         2.5 7.3 10.5
@@ -124,8 +123,8 @@ SCALE       .01 10 10
 
 // Sphere
 OBJECT 6
-cube
+sphere
 material 4
-TRANS       -1 2 -1
+TRANS       -1 4 -1
 ROTAT       0 0 0
-SCALE       8 .1 8
+SCALE       3 3 3

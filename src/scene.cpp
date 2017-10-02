@@ -274,36 +274,42 @@ int Scene::loadMaterial(string materialid) {
     } else {
         cout << "Loading Material " << id << "..." << endl;
         Material newMaterial;
-		
-        //load static properties
-        for (int i = 0; i < 7; i++) {
-            string line;
-            utilityCore::safeGetline(fp_in, line);
+
+		string line;
+		utilityCore::safeGetline(fp_in, line);
+		while (!line.empty() && fp_in.good()) 
+		{
+
             vector<string> tokens = utilityCore::tokenizeString(line);
             if (strcmp(tokens[0].c_str(), "RGB") == 0) {
                 glm::vec3 color( atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()) );
                 newMaterial.color = color;
-            } else if (strcmp(tokens[0].c_str(), "SPECEX") == 0) {
+            } 
+			else if (strcmp(tokens[0].c_str(), "SPECEX") == 0) 
+			{
                 newMaterial.specular.exponent = atof(tokens[1].c_str());
-            } else if (strcmp(tokens[0].c_str(), "SPECRGB") == 0) {
+            } 
+			else if (strcmp(tokens[0].c_str(), "SPECRGB") == 0)
+			{
                 glm::vec3 specColor(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
                 newMaterial.specular.color = specColor;
-            } else if (strcmp(tokens[0].c_str(), "REFL") == 0) {
+            } 
+			else if (strcmp(tokens[0].c_str(), "REFL") == 0)
+			{
                 newMaterial.hasReflective = atof(tokens[1].c_str());
-            } else if (strcmp(tokens[0].c_str(), "REFR") == 0) {
+            } 
+			else if (strcmp(tokens[0].c_str(), "REFR") == 0)
+			{
                 newMaterial.hasRefractive = atof(tokens[1].c_str());
-            } else if (strcmp(tokens[0].c_str(), "REFRIOR") == 0) {
+            } 
+			else if (strcmp(tokens[0].c_str(), "REFRIOR") == 0)
+			{
                 newMaterial.indexOfRefraction = atof(tokens[1].c_str());
-            } else if (strcmp(tokens[0].c_str(), "EMITTANCE") == 0) {
+            } 
+			else if (strcmp(tokens[0].c_str(), "EMITTANCE") == 0) 
+			{
                 newMaterial.emittance = atof(tokens[1].c_str());
-            }
-        }
-
-		string line;
-		utilityCore::safeGetline(fp_in, line);
-		while (!line.empty() && fp_in.good()) {
-			vector<string> tokens = utilityCore::tokenizeString(line);
-			if (strcmp(tokens[0].c_str(), "TEX_DIFFUSE") == 0) 
+            } else if (strcmp(tokens[0].c_str(), "TEX_DIFFUSE") == 0) 
 			{
 				newMaterial.diffuseTexture = loadTexture(tokens[1], false);
 			}
@@ -315,6 +321,11 @@ int Scene::loadMaterial(string materialid) {
 			{
 				newMaterial.normalTexture = loadTexture(tokens[1], false);
 			}
+			else if (strcmp(tokens[0].c_str(), "TRANSLUCENCE") == 0)
+			{
+				newMaterial.translucence = atof(tokens[1].c_str());
+			}
+
 
 			utilityCore::safeGetline(fp_in, line);
 		}

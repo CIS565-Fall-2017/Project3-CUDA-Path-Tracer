@@ -332,11 +332,15 @@ __global__ void computeIntersections(int depth, int num_paths, PathSegment * pat
 }
 
 __forceinline__
-__host__ __device__ glm::vec3 BxDF_Diffuse(glm::vec3 & normal, glm::vec2 & uv, glm::vec3 wo, glm::vec2 sample, glm::vec3 & wi, float & pdf, Material material, glm::vec3 * textureArray)
+__host__ __device__ glm::vec3 BxDF_Diffuse(glm::vec3 & normal, glm::vec2 & uv, glm::vec3 wo, glm::vec4 sample, glm::vec3 & wi, float & pdf, Material material, glm::vec3 * textureArray)
 {
-	wi = calculateRandomDirectionInHemisphere(normal, sample);
+	wi = calculateRandomDirectionInHemisphere(normal, glm::vec2(sample.x, sample.y));
 	float cosTheta = glm::max(0.0f, glm::dot(normal, wi));
 	pdf = cosTheta / glm::pi<float>();
+
+	// There's a chance to go through the object
+	if (sample.z < material.translucence)
+		wi *= sample.w > .5f ? 1.f : -1.f;
 	
 	glm::vec3 result = material.color;
 
@@ -354,7 +358,7 @@ __host__ __device__ float FresnelSchlick(float eI, float eT, float HdotV)
 }
 
 __forceinline__
-__host__ __device__ glm::vec3 BxDF_Perfect_Specular_Reflection(glm::vec3 &normal, glm::vec2 &uv, glm::vec3& wo, glm::vec2& sample, glm::vec3 & wi, float & pdf, Material &material, glm::vec3 * textureArray)
+__host__ __device__ glm::vec3 BxDF_Perfect_Specular_Reflection(glm::vec3 &normal, glm::vec2 &uv, glm::vec3& wo, glm::vec4& sample, glm::vec3 & wi, float & pdf, Material &material, glm::vec3 * textureArray)
 {
 	wi = glm::reflect(-wo, normal);
 	pdf = 1.f;
@@ -368,7 +372,7 @@ __host__ __device__ glm::vec3 BxDF_Perfect_Specular_Reflection(glm::vec3 &normal
 }
 
 //__forceinline__
-__host__ __device__ glm::vec3 BxDF_Perfect_Specular_Refraction(glm::vec3 &normal, glm::vec2 &uv, glm::vec3& wo, glm::vec2& sample, glm::vec3 & wi, float & pdf, Material &material, glm::vec3 * textureArray)
+__host__ __device__ glm::vec3 BxDF_Perfect_Specular_Refraction(glm::vec3 &normal, glm::vec2 &uv, glm::vec3& wo, glm::vec4& sample, glm::vec3 & wi, float & pdf, Material &material, glm::vec3 * textureArray)
 {
 	float VdotN = glm::dot(wo, normal);
 	bool leaving = VdotN < 0.f;
@@ -390,7 +394,7 @@ __host__ __device__ glm::vec3 BxDF_Perfect_Specular_Refraction(glm::vec3 &normal
 }
 
 __forceinline__
-__host__ __device__ glm::vec3 BxDF_Glass(glm::vec3 &normal, glm::vec2 &uv, glm::vec3& wo, glm::vec2& sample, glm::vec3 & wi, float & pdf, Material &material, glm::vec3 * textureArray)
+__host__ __device__ glm::vec3 BxDF_Glass(glm::vec3 &normal, glm::vec2 &uv, glm::vec3& wo, glm::vec4& sample, glm::vec3 & wi, float & pdf, Material &material, glm::vec3 * textureArray)
 {
 	float VdotN = glm::dot(wo, normal);
 	bool leaving = VdotN < 0.f;
@@ -400,7 +404,7 @@ __host__ __device__ glm::vec3 BxDF_Glass(glm::vec3 &normal, glm::vec2 &uv, glm::
 	float HdotV = glm::abs(glm::dot(normal, wo));
 	float fresnel = FresnelSchlick(eI, eT, HdotV);
 
-	if (sample.x > 0.5f)
+	if (sample.z > 0.5f)
 		return BxDF_Perfect_Specular_Reflection(normal, uv, wo, sample, wi, pdf, material, textureArray) * fresnel;
 	else
 		return BxDF_Perfect_Specular_Refraction(normal, uv, wo, sample, wi, pdf, material, textureArray) * (1.f - fresnel);
@@ -429,7 +433,7 @@ __global__ void shadeKernel(int iter, int num_paths, ShadeableIntersection * sha
 			thrust::uniform_real_distribution<float> u01(0, 1);
 
 			Material material = materials[intersection.materialId];
-			glm::vec2 sample = glm::vec2(u01(rng), u01(rng));
+			glm::vec4 sample = glm::vec4(u01(rng), u01(rng), u01(rng), u01(rng));
 			
 			// If the material indicates that the object was a light, "light" the ray
 			if (material.emittance > 0.0f) 
