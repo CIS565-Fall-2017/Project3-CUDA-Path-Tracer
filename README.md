@@ -7,11 +7,18 @@ CUDA Path Tracer
 * Tested on: Windows 10, i7-6700HQ @ 2.60GHz 15.89GB (Personal labtop)
 
 
+### Representive Scene
+
 ![](img/Chronormu.png)
 
 - Scene file : Chromie.txt
 - Resolution : 1024 x 1024
 - Iteration : 5000
+
+* Phsically-based BRDF shading
+* Texture mapping
+* Infinite area light
+* Depth of field
 
 
 ### Complete requirements
@@ -60,17 +67,9 @@ When the user sets the material's REFL value to 1.0, mirrored material is render
 
 
 
-# Path continuation/termination and Cache for the first bounce intersections
+# Path continuation/termination and 
 
 When the user sets USE_STREAM_COMPACTION (in pathtrace.cu) value to 1, it makes decision whether pathes keep going or terminating with using scan.
-When the user sets USE_CACHE_PATH (in pathtrace.cu) value to 1, it makes cache the first bounce intersections.
-
-![](img/sc.png)
-
-|               |  Normal  |  Cache   | Stream Compaction    | Cache + Stream Compaction   |
-| ------------  | :------- | :------: | :------: | -------: |
-| ms	        |    13583 |    13511 |     8203 |     8034 |
-
 
 ![](img/scd.png)
 
@@ -91,7 +90,23 @@ When the user sets USE_CACHE_PATH (in pathtrace.cu) value to 1, it makes cache t
 - Resolution : 800 x800
 - Iteration : 100
 
-As expected, cache and stream compaction increase the perfomance.
+
+
+# Cache for the first bounce intersections
+
+When the user sets USE_CACHE_PATH (in pathtrace.cu) value to 1, it makes cache the first bounce intersections.
+
+![](img/sc.png)
+
+|               |  Normal  |  Cache   | Stream Compaction    | Cache + Stream Compaction   |
+| ------------  | :------- | :------: | :------: | -------: |
+| ms	        |    13583 |    13511 |     8203 |     8034 |
+
+- Test scene file : Cornell.txt
+- Resolution : 800 x800
+- Iteration : 100
+
+As expected, cache and stream compaction make increase the perfomance.
 An interesting point is when cache is activate while  stream compaction is also activate, it makes synergy to boost the performance.
 It seems, when the number of alive rays decrease, cache's efficient also increases.
 
