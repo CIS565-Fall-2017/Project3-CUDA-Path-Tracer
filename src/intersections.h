@@ -142,3 +142,30 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
 
     return glm::length(r.origin - intersectionPoint);
 }
+
+__host__ __device__ float planeIntersectionTest(Geom plane, Ray r,
+    glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside)
+{
+    glm::vec3 ro = multiplyMV(plane.inverseTransform, glm::vec4(r.origin, 1.0f));
+    glm::vec3 rd = glm::normalize(multiplyMV(plane.inverseTransform, glm::vec4(r.direction, 0.0f)));
+
+    Ray rt;
+    rt.origin = ro;
+    rt.direction = rd;
+
+    float t = glm::dot(glm::vec3(0, 0, 1), (glm::vec3(0.5f, 0.5f, 0) - rt.origin)) / glm::dot(glm::vec3(0, 0, 1), rt.direction);
+    glm::vec3 objspaceIntersection = getPointOnRay(rt, t);
+
+    if (t > 0.f && objspaceIntersection.x >= -0.5f && objspaceIntersection.x <= 0.5f && objspaceIntersection.y >= -0.5f && objspaceIntersection.y <= 0.5f)
+    {
+        intersectionPoint = multiplyMV(plane.transform, glm::vec4(objspaceIntersection, 1.f));
+        normal = glm::normalize(multiplyMV(plane.invTranspose, glm::vec4(0.f, 0.f, 1.f, 0.f)));
+        outside = true;
+    }
+    else
+    {
+        return -1.0f;
+    }
+
+    return glm::length(r.origin - intersectionPoint);
+}

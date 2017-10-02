@@ -15,6 +15,7 @@
 #define EPSILON           0.00001f
 
 namespace utilityCore {
+    //extern inline float AbsCosTheta(const glm::vec3 &w) { return std::abs(w.z); }
     extern float clamp(float f, float min, float max);
     extern bool replaceString(std::string& str, const std::string& from, const std::string& to);
     extern glm::vec3 clampRGB(glm::vec3 color);

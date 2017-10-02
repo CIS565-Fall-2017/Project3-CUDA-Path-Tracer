@@ -4,7 +4,7 @@
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtx/string_cast.hpp>
 
-Scene::Scene(string filename) {
+Scene::Scene(string filename) : numLights(0) {
     cout << "Reading scene from " << filename << " ..." << endl;
     cout << " " << endl;
     char* fname = (char*)filename.c_str();
@@ -48,9 +48,37 @@ int Scene::loadGeom(string objectid) {
             if (strcmp(line.c_str(), "sphere") == 0) {
                 cout << "Creating new sphere..." << endl;
                 newGeom.type = SPHERE;
-            } else if (strcmp(line.c_str(), "cube") == 0) {
+            }
+            else if (strcmp(line.c_str(), "cube") == 0) {
                 cout << "Creating new cube..." << endl;
                 newGeom.type = CUBE;
+            }
+            else if (strcmp(line.c_str(), "plane") == 0) {
+                cout << "Creating new plane..." << endl;
+                newGeom.type = PLANE;
+            }
+            else if (strcmp(line.c_str(), "IMPLICITBOUNDINGVOLUME") == 0) {
+                cout << "Creating new implicit bounding volume..." << endl;
+                newGeom.type = IMPLICITBOUNDINGVOLUME;
+            }
+        }
+        //cout << "successful1" << endl;
+        //load implicit surface type
+        utilityCore::safeGetline(fp_in, line);
+        if (!line.empty() && fp_in.good()) {
+            cout << "reading implicit stuff" << endl;
+            cout << line.c_str() << endl;
+            if (strcmp(line.c_str(), "none") == 0) {
+                cout << "Setting implicit type to none..." << endl;
+                newGeom.implicitType = NONE;
+            }
+            else if (strcmp(line.c_str(), "mandelbulb") == 0) {
+                cout << "Setting implicit type to mandelbulb..." << endl;
+                newGeom.implicitType = MANDELBULB;
+            }
+            else if (strcmp(line.c_str(), "sphere") == 0) {
+                cout << "Setting implicit type to sphere..." << endl;
+                newGeom.implicitType = SPHERE_IMPLICIT;
             }
         }
 
@@ -61,7 +89,7 @@ int Scene::loadGeom(string objectid) {
             newGeom.materialid = atoi(tokens[1].c_str());
             cout << "Connecting Geom " << objectid << " to Material " << newGeom.materialid << "..." << endl;
         }
-
+        //cout << "successful3" << endl;
         //load transformations
         utilityCore::safeGetline(fp_in, line);
         while (!line.empty() && fp_in.good()) {
@@ -70,15 +98,17 @@ int Scene::loadGeom(string objectid) {
             //load tranformations
             if (strcmp(tokens[0].c_str(), "TRANS") == 0) {
                 newGeom.translation = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
-            } else if (strcmp(tokens[0].c_str(), "ROTAT") == 0) {
+            }
+            else if (strcmp(tokens[0].c_str(), "ROTAT") == 0) {
                 newGeom.rotation = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
-            } else if (strcmp(tokens[0].c_str(), "SCALE") == 0) {
+            }
+            else if (strcmp(tokens[0].c_str(), "SCALE") == 0) {
                 newGeom.scale = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
             }
 
             utilityCore::safeGetline(fp_in, line);
         }
-
+        //cout << "successful4" << endl;
         newGeom.transform = utilityCore::buildTransformationMatrix(
                 newGeom.translation, newGeom.rotation, newGeom.scale);
         newGeom.inverseTransform = glm::inverse(newGeom.transform);
@@ -160,7 +190,7 @@ int Scene::loadMaterial(string materialid) {
         Material newMaterial;
 
         //load static properties
-        for (int i = 0; i < 7; i++) {
+        for (int i = 0; i < 8; i++) {
             string line;
             utilityCore::safeGetline(fp_in, line);
             vector<string> tokens = utilityCore::tokenizeString(line);
@@ -180,6 +210,13 @@ int Scene::loadMaterial(string materialid) {
                 newMaterial.indexOfRefraction = atof(tokens[1].c_str());
             } else if (strcmp(tokens[0].c_str(), "EMITTANCE") == 0) {
                 newMaterial.emittance = atof(tokens[1].c_str());
+            } else if (strcmp(tokens[0].c_str(), "BXDF") == 0) {
+                newMaterial.bxdf = (BxDFType) atoi(tokens[1].c_str());
+                if (newMaterial.bxdf == EMISSIVE)
+                {
+                    numLights++; // count the number of lights in the scene. This is need for light importance sampling.
+                    // The light count is a static global int stored in sceneStructs.h.
+                }
             }
         }
         materials.push_back(newMaterial);
