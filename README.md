@@ -42,7 +42,7 @@ Open scene with motion blur
 
 ![](img/samples/motion2.PNG)
 
-Open scene with refraction
+Open scene with refraction (index of refraction is 1.5)
 
 ![](img/samples/refract2.png)
 
