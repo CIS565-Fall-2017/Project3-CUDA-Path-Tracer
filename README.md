@@ -43,13 +43,14 @@ Closed Scene
 
 When the rays in different threads hit the object with different material, the threads will get into different branches and the overall efficency will be decreased. To reduce the branches of the tracing process, we need to sort the ray according to their material so that the rays in one block will probably hit the same material. However, since our scene is very simple and there are not too many different materials for in a row(we scan the pixel row by row), sorting by material may not produce great difference.
 
-But we still need to talk about the way of sorting by materials, because it will be necessary when the scene become complex. There are mainly 2 ways for sorting the ray by materials. One is sorting the ray directly and the other is sorting the indices of the ray. The comparison of the efficency of 2 methods is shown below(Method 1 is sorting by indices and method 2 is sorting directly by ray). Obviously, sorting the indices will be more than 3 times faster than directly sorting the ray. That is because the `Ray` here is a struct or class obj and its size is much bigger than a simple integer.Moreover, it is saved on the global memory of GPU and accessing such a huge data will take much more time than accessing a simple integer. 
+But we still need to talk about the way of sorting by materials, because it will be necessary when the scene become complex. There are mainly 2 ways for sorting the ray by materials. One is sorting the ray directly and the other is sorting the indices of the ray. The comparison of the efficency of 2 methods is shown below(Method 1 is sorting by indices and method 2 is sorting the ray directly). Obviously, sorting the indices will be more than 3 times faster than directly sorting the ray. That is because the `Ray` here is a struct or class obj and its size is much bigger than a simple integer.Moreover, it is saved on the global memory of GPU and accessing such a huge data will take much more time than accessing a simple integer. 
 
 ![](./img/Sorting.png) 
 
 * **MIS and Direct Lighting**
 
-For the naive ray tracing method, we cannot get a very good illumination distribution since many rays will hit nothing and return 0 value. We want the rays have higher possibility to hit the light, because the light contribute most for the global illumination(which is the idea of importance sampling). For MIS, See PBRT for more info. By using MIS, we get a image with better illumination distribution in less iterations.  
+For the naive ray tracing method, we cannot get a very good illumination distribution since many rays will hit nothing and return 0 value. We want the rays have higher possibility to hit the light, because the light contribute most for the global illumination(which is the idea of importance sampling). For MIS, See PBRT Charpter 15 and 16 for more info. By using MIS, we get a image with better illumination distribution in less iterations. 
+
 
 Naive 200 iterations     
 ![](./img/cornellNaive.png) 
@@ -57,7 +58,9 @@ Naive 200 iterations
 MIS 200 iterations   
 ![](./img/cornellMIS.png) 
        
-         
+When sampling a sphere light, I use the [Jian Ru's](https://github.com/jian-ru/Project3-CUDA-Path-Tracer) code to mathematically compute the pdf on a certain direction. 
+       
+
 * **Russian roulette**
 
 Russian roulette will terminated the rays that have very little energy and directly compute the compensation for that part, which will decrease the times of iterations and improve the overall efficency. As the graph shows, Russian roulette will produce great effect when the scene is closed.
@@ -80,3 +83,4 @@ Depth field camera
 * **BVH Tree**
 
 Still updating......
+Materials related to the bvh structure on GPU, click [here](https://devblogs.nvidia.com/parallelforall/thinking-parallel-part-ii-tree-traversal-gpu/)
