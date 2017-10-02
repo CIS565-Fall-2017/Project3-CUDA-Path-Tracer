@@ -16,7 +16,9 @@
 
 #define ERRORCHECK 1
 #define SORTING 1
-#define CACHING 1
+#define CACHING 0 //turn off caching for antialiasing
+#define DOF 0
+#define TIMER 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -91,6 +93,12 @@ static ShadeableIntersection * dev_intersections = NULL;
 static ShadeableIntersection * cache = NULL;
 static PathSegment * buff = NULL;
 
+#if TIMER
+static cudaEvent_t start, stop;
+static double total;
+static long ns;
+#endif
+
 void pathtraceInit(Scene *scene) {
 	hst_scene = scene;
 	const Camera &cam = hst_scene->state.camera;
@@ -116,6 +124,13 @@ void pathtraceInit(Scene *scene) {
 
 	cudaMalloc(&buff, pixelcount * sizeof(PathSegment));
 	cudaMemset(buff, 0, pixelcount * sizeof(PathSegment));
+
+#if TIMER
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+	ns = 0;
+	total = 0;
+#endif
 
 	checkCUDAError("pathtraceInit");
 }
@@ -154,10 +169,34 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
 		// TODO: implement antialiasing by jittering the ray
+#if CACHING
 		segment.ray.direction = glm::normalize(cam.view
 			- cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
 			- cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
 		);
+#else
+		thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
+		thrust::uniform_real_distribution<float> u01(0, 1);
+
+		segment.ray.direction = glm::normalize(cam.view
+			- cam.right * cam.pixelLength.x * ((float)x + u01(rng) - (float)cam.resolution.x * 0.5f)
+			- cam.up * cam.pixelLength.y * ((float)y + u01(rng) - (float)cam.resolution.y * 0.5f)
+		);
+#endif
+#if DOF
+		thrust::default_random_engine rngx = makeSeededRandomEngine(iter, x, 0);
+		thrust::default_random_engine rngy = makeSeededRandomEngine(iter, y, 0);
+		thrust::uniform_real_distribution<float> u02(-1.0, 1.0);
+
+		float camx, camy;
+		camx = (u02(rngx)) / (80.0f);
+		camy = (u02(rngy)) / (80.0f);
+
+		float t = 2.0f;
+		glm::vec3 f = segment.ray.origin + t * segment.ray.direction;
+		segment.ray.origin += cam.right * camx + cam.up * camy;
+		segment.ray.direction = glm::normalize(f - segment.ray.origin);
+#endif
 
 		segment.pixelIndex = index;
 		segment.remainingBounces = traceDepth;
@@ -275,9 +314,6 @@ __global__ void shadeFakeMaterial(
 			// TODO: replace this! you should be able to start with basically a one-liner
 			else {
 				scatterRay(pathSegments[idx], intersection.intersect, intersection.surfaceNormal, material, rng);
-				//float lightTerm = glm::dot(intersection.surfaceNormal, glm::vec3(0.0f, 1.0f, 0.0f));
-				//pathSegments[idx].color *= (materialColor * lightTerm) * 0.3f + ((1.0f - intersection.t * 0.02f) * materialColor) * 0.7f;
-				//pathSegments[idx].color *= u01(rng); // apply some noise because why not
 			}
 			// If there was no intersection, color the ray black.
 			// Lots of renderers use 4 channel color, RGBA, where A = alpha, often
@@ -353,6 +389,10 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
 	// TODO: perform one iteration of path tracing
 
+#if TIMER
+	cudaEventRecord(start);
+#endif
+
 	generateRayFromCamera <<<blocksPerGrid2d, blockSize2d >>>(cam, iter, traceDepth, dev_paths);
 	checkCUDAError("generate camera ray");
 
@@ -422,9 +462,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
 		//Sorting
 #if SORTING
-		printf("Here1");
 		thrust::sort_by_key(thrust::device, dev_intersections, dev_intersections + num_paths, dev_paths, compmat());
-		printf("Here");
 #endif
 
 		shadeFakeMaterial <<<numblocksPathSegmentTracing, blockSize1d >>> (
@@ -443,6 +481,18 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	// Assemble this iteration and apply it to the image
 	dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
 	finalGather <<<numBlocksPixels, blockSize1d >>>(numpathtmp, dev_image, dev_paths);
+
+#if TIMER
+	cudaEventRecord(stop);
+	cudaEventSynchronize(stop);
+	float ms = 0;
+	cudaEventElapsedTime(&ms, start, stop);
+	total += ms;
+	ns++;
+	if (ns == 500) {
+		printf("Total Elapsed: %f, Average: %f\n", total, total / ns );
+	}
+#endif
 
 	///////////////////////////////////////////////////////////////////////////
 
