@@ -23,6 +23,7 @@ public:
     ~Scene();
 
     std::vector<Geom> geoms;
+	std::vector<Geom> triangles;
     std::vector<Material> materials;
     RenderState state;
 };

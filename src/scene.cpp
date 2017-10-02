@@ -162,25 +162,22 @@ int Scene::loadMesh() {
 			float maxY = std::numeric_limits<float>::min();
 			float maxZ = std::numeric_limits<float>::min();
 
-			Geom newGeom;
-			newGeom.type = BV;
+			Geom newGeom1;
+			newGeom1.type = BV;
 
-				newGeom.materialid = materialid;
-				loadTransformations(&newGeom, translate, rotate, scale);
-				newGeom.transform = utilityCore::buildTransformationMatrix(
-					newGeom.translation, newGeom.rotation, newGeom.scale);
-				newGeom.inverseTransform = glm::inverse(newGeom.transform);
-				newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
-				geoms.push_back(newGeom);
+			newGeom1.materialid = materialid;
+			loadTransformations(&newGeom1, translate, rotate, scale);
+			newGeom1.transform = utilityCore::buildTransformationMatrix(
+				newGeom1.translation, newGeom1.rotation, newGeom1.scale);
+			newGeom1.inverseTransform = glm::inverse(newGeom1.transform);
+			newGeom1.invTranspose = glm::inverseTranspose(newGeom1.transform);
 
-			geoms.push_back(newGeom);
 			int boundingIndex = geoms.size(); 
 			cout << "Bounding box geom index: " << boundingIndex << endl;
 			
 			cout << "shape" << i << endl;
 			for (size_t f = 0; f < shapes[i].mesh.indices.size() / 3; f++) {
-				newGeom;
-
+				Geom newGeom;
 				newGeom.type = TRIANGLE;
 			
 				tinyobj::index_t index = shapes[i].mesh.indices[3 * f];
@@ -212,12 +209,18 @@ int Scene::loadMesh() {
 					newGeom.translation, newGeom.rotation, newGeom.scale);
 				newGeom.inverseTransform = glm::inverse(newGeom.transform);
 				newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
-				geoms.push_back(newGeom);
+				triangles.push_back(newGeom);
 			}
-			geoms.at(boundingIndex).box.min = glm::vec3(minX, minY, minZ);
-			geoms.at(boundingIndex).box.max = glm::vec3(maxX, maxY, maxZ);
+			//newGeom1.type = BV;
+			newGeom1.box.min = glm::vec3(minX, minY, minZ);
+			newGeom1.box.max = glm::vec3(maxX, maxY, maxZ);
+			geoms.push_back(newGeom1);
+
+			cout << "geom type" << newGeom1.type << endl;
 
 		}
+		cout << triangles.size() << endl;
+		cout << geoms.size() << endl;
 	}
 	return 1;
 }

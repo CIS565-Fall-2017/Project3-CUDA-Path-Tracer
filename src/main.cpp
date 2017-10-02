@@ -75,6 +75,12 @@ int main(int argc, char** argv) {
     return 0;
 }
 
+PerformanceTimer& timer()
+{
+	static PerformanceTimer timer;
+	return timer;
+}
+
 void saveImage() {
     float samples = iteration;
     // output image file
@@ -134,7 +140,10 @@ void runCuda() {
 
         // execute the kernel
         int frame = 0;
+		timer().startCpuTimer();
         pathtrace(pbo_dptr, frame, iteration);
+		timer().endCpuTimer();
+		printElapsedTime(timer().getCpuElapsedTimeForPreviousOperation(), "(CUDA MEASURED)");
 
         // unmap buffer object
         cudaGLUnmapBufferObject(pbo);
