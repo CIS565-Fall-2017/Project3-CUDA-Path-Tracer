@@ -25,6 +25,8 @@ CUDA Path Tracer
   <p align="center"><b>Cornell Box With Depth Of Field 5000 samples</b></p>
   
 ## Specular Material with Fresnel Dielectric Material
+![Cornell Box With Glass Material 5000 samples](/img/cornell.glassDense.5000samp.png)
+  <p align="center"><b>Glass Ball fraction Index = 2.0 5000 samples</b></p>
 ![Cornell Box With Specular Material 5000 samples](/img/cornell.transmissive.labled.5000samp.png)
   <p align="center"><b>Cornell Box With Specular Material 5000 samples</b></p>
   
