@@ -84,7 +84,7 @@ A distance is sampled using `-log(rand(0, 1)) / density`. This is to approximate
 
 The newly computed ray's length is compared to this distance and if the sampled distance is less than the ray's distance to the intersection point then we offset the ray again and attenuate the color and transmission (`exp(-density * distanceTraveled)`).
 
-The only downside to this is that it takes a lot of samples to achieve a smooth surface. 
+The only downside to this is that it takes a lot of samples to achieve a smooth surface. Because of the extra loop, this would take a lot longer to render on the CPU. After reading several papers, I believe that a depth map would help with optimizing this process or even generate samples around the object itself. This way I wouldn't have to compute an intersection at each iteration of the loop. I can randomly choose a position on the object and calculate the transmissivity from there. 
 
 ![](img/cornell.2017-10-01_15-40-44z.50000samp.png)
 
