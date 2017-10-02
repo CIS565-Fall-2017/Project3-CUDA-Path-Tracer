@@ -92,7 +92,7 @@ Ju Yang
   In the sphere.txt, time spent for each iteration of stream compaction vs non stream compaction is 16:40 in ms, which is 35% time saving. This scene saved most of the time because all rays stops after the first iteration, hitting the light or travelled into the deep dark space. 
   
   
-  ### Something I want to do
+  ### A pity...
   It's a pity that I failed to implement other functions. What I had in mind was implementing optimizations between iterations. 
   
   Currently, rays are distributed euqally among pixels, but I think that's not the way we look at the world. 
@@ -100,3 +100,5 @@ Ju Yang
   Human eyes are more interested in places with higher light intensity, or where colors change rapidly. 
   
   I think I can make some changes in the ray generating function in the future, re-arrange rays according to light intensity and color shifting, to generate a similar picture with fewer iterations. 
+  
+  And besides, sorry for being late submission for 5 hours. 
