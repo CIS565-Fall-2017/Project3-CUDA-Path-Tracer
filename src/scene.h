@@ -16,11 +16,17 @@ private:
     int loadMaterial(string materialid);
     int loadGeom(string objectid);
     int loadCamera();
+	int loadMesh(std::string Path, Geom &geom);
+	std::string dir_path;
 public:
     Scene(string filename);
     ~Scene();
 
+	std::vector<unsigned int> lights_indices;
     std::vector<Geom> geoms;
+	std::vector<Vertex> vertices;
     std::vector<Material> materials;
     RenderState state;
+
+	int Smooth_Normals();
 };

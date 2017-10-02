@@ -1,0 +1,218 @@
+// Emissive material (light)
+MATERIAL 0
+RGB         1 1 1
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   6
+
+// Diffuse white
+MATERIAL 1
+RGB         .98 .98 .98
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+
+// Diffuse red
+MATERIAL 2
+RGB         .85 .35 .35
+SPECEX      0
+SPECRGB     .85 .35 .35
+REFL        1
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+
+// Diffuse green
+MATERIAL 3
+RGB         .35 .85 .35
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+
+// Refraction Yellow
+MATERIAL 4
+RGB         .98 .98 .20
+SPECEX      0
+SPECRGB     .98 .98 .98
+REFL        0
+REFR        1
+REFRIOR     1.4
+EMITTANCE   0
+
+// Specullar White
+MATERIAL 5
+RGB         .98 .98 .98
+SPECEX      0
+SPECRGB     .98 .98 .98
+REFL        1
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+
+// Diffuse Blue
+MATERIAL 6
+RGB         .50 .75 .98
+SPECEX      0
+SPECRGB     .98 .98 .98
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+
+// Camera
+CAMERA
+RES         800 800
+FOVY        45
+ITERATIONS  5000
+DEPTH       8
+FILE        test1
+EYE         0.0 5 10.5
+LOOKAT      0 5 0
+UP          0 1 0
+FOCALLEN    20
+LENSRAD     0.5
+
+// Ceiling light
+OBJECT 0
+cube
+material 0
+TRANS       0 10 0
+ROTAT       0 0 0
+SCALE       3 .3 3
+TRANS_END   0 10 0
+
+// Floor
+OBJECT 1
+cube
+material 1
+TRANS       0 0 0
+ROTAT       0 0 0
+SCALE       10 .01 10
+TRANS_END   0 0 0
+
+// Ceiling
+OBJECT 2
+cube
+material 1
+TRANS       0 10 0
+ROTAT       0 0 90
+SCALE       .01 10 10
+TRANS_END   0 10 0
+
+// Back wall
+OBJECT 3
+cube
+material 1
+TRANS       0 5 -15
+ROTAT       0 90 0
+SCALE       .01 10 10
+TRANS_END   0 5 -15
+
+// Left wall
+OBJECT 4
+cube
+material 2
+TRANS       -5 5 0
+ROTAT       0 0 0
+SCALE       .01 10 10
+TRANS_END   -5 5 0
+
+// Right wall
+OBJECT 5
+cube
+material 3
+TRANS       5 5 0
+ROTAT       0 0 0
+SCALE       .01 10 10
+TRANS_END   5 5 0
+
+// Bunny
+OBJECT 6
+mesh
+material 4
+TRANS       -1 1.0 0
+ROTAT       0 0 0
+SCALE       2 2 2
+TRANS_END   0 3 -1
+OBJ_PATH    bunny_smoothed.obj
+
+// Ceiling light
+OBJECT 7
+cube
+material 0
+TRANS       0 10 -5
+ROTAT       0 0 0
+SCALE       3 .3 3
+TRANS_END   0 10 -5
+
+// Floor
+OBJECT 8
+cube
+material 1
+TRANS       0 0 -10
+ROTAT       0 0 0
+SCALE       10 .01 10
+TRANS_END   0 0 -10
+
+// Ceiling
+OBJECT 9
+cube
+material 1
+TRANS       0 10 -10
+ROTAT       0 0 90
+SCALE       .01 10 10
+TRANS_END   0 10 -10
+
+// Left wall
+OBJECT 10
+cube
+material 2
+TRANS       -5 5 -10
+ROTAT       0 0 0
+SCALE       .01 10 10
+TRANS_END   -5 5 -10
+
+// Right wall
+OBJECT 11
+cube
+material 3
+TRANS       5 5 -10
+ROTAT       0 0 0
+SCALE       .01 10 10
+TRANS_END   5 5 -10
+
+// Cube
+OBJECT 12
+cube
+material 5
+TRANS       2 4 -10
+ROTAT       0 45 45
+SCALE       3 3 3
+TRANS_END   2 4 -10
+
+// Ceiling light
+OBJECT 13
+cube
+material 0
+TRANS       0 10 -10
+ROTAT       0 0 0
+SCALE       3 .3 3
+TRANS_END   0 10 -10
+
+// Sphere
+OBJECT 14
+sphere
+material 6
+TRANS       2 1 0
+ROTAT       0 0 0
+SCALE       2 2 2
+TRANS_END   2 4 -10

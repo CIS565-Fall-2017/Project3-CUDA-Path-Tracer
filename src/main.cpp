@@ -1,6 +1,7 @@
 #include "main.h"
 #include "preview.h"
 #include <cstring>
+#include <fstream>
 
 static std::string startTimeString;
 
@@ -19,6 +20,8 @@ float zoom, theta, phi;
 glm::vec3 cameraPosition;
 glm::vec3 ogLookAt; // for recentering the camera
 
+FILE *fp;
+
 Scene *scene;
 RenderState *renderState;
 int iteration;
@@ -31,7 +34,10 @@ int height;
 //-------------------------------
 
 int main(int argc, char** argv) {
-    startTimeString = currentTimeString();
+    
+	fp = fopen("results.txt", "w");
+
+	startTimeString = currentTimeString();
 
     if (argc < 2) {
         printf("Usage: %s SCENEFILE.txt\n", argv[0]);

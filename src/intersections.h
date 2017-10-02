@@ -6,6 +6,9 @@
 #include "sceneStructs.h"
 #include "utilities.h"
 
+//Toggles Defines
+#include "Setting_defines.h"
+
 /**
  * Handy-dandy hash function that provides seeds for random number generation.
  */
@@ -141,4 +144,128 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
     }
 
     return glm::length(r.origin - intersectionPoint);
+}
+
+__host__ __device__ bool aabbBoxIntersect(const Ray& r, glm::vec3 min, glm::vec3 max)
+{
+	float tnear = FLT_MIN;
+	float tfar = FLT_MAX;
+
+	for (int i = 0; i<3; i++) 
+	{
+		float t0, t1;
+
+		if (fabs(r.direction[i]) < EPSILON)
+		{
+			if (r.origin[i] < min[i] || r.origin[i] > max[i])
+				return false;
+			else
+			{
+				t0 = FLT_MIN;
+				t1 = FLT_MAX;
+			}
+		}
+		else
+		{
+			t0 = (min[i] - r.origin[i]) / r.direction[i];
+			t1 = (max[i] - r.origin[i]) / r.direction[i];
+		}
+
+		tnear = glm::max(tnear, glm::min(t0, t1));
+		tfar = glm::min(tfar, glm::max(t0, t1));
+	}
+
+	if (tfar < tnear) return false; // no intersection
+
+	if (tfar < 0) return false; // behind origin of ray
+
+	return true;
+
+}
+
+__host__ __device__ float meshIntersectionTest(Geom mesh, Ray r,
+	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside, Vertex *vertices) {
+
+	//world to local
+	Ray rt;
+	rt.origin = multiplyMV(mesh.inverseTransform, glm::vec4(r.origin, 1.0f));
+	rt.direction = glm::normalize(multiplyMV(mesh.inverseTransform, glm::vec4(r.direction, 0.0f)));
+
+#if AABB_Test_Toggle
+		if (!aabbBoxIntersect(rt, mesh.bbox_min, mesh.bbox_max))
+			return -1;
+#endif
+	int start_index = mesh.start_Index;
+	int num_vertices = mesh.vertices_Num;
+
+	float t = FLT_MAX;
+
+	float u = 0, v = 0;
+
+	for (int i = 0; i < num_vertices; i += 3) {
+		glm::vec3 baryPosition;
+		glm::vec3 v0, v1, v2;
+		v0 = vertices[start_index + i].position;
+		v1 = vertices[start_index + i + 1].position;
+		v2 = vertices[start_index + i + 2].position;
+
+		// Front Face Intersection Checking
+		bool res = glm::intersectRayTriangle(rt.origin, rt.direction, v0, v1, v2, baryPosition);
+		float ti = FLT_MAX;
+		glm::vec3 intersectPoint = rt.origin + rt.direction * baryPosition.z;
+		u = baryPosition.x;
+		v = baryPosition.y;
+
+		if (res)
+			ti = baryPosition.z;
+		if (ti < t) {
+			t = ti;
+#if Smooth_Shading_Toggle
+			normal = (vertices[start_index + i].normal * (1 - u - v) + vertices[start_index + i + 1].normal * u + vertices[start_index + i + 2].normal * v);
+#else
+			normal = (vertices[start_index + i].normal + vertices[start_index + i + 1].normal + vertices[start_index + i + 2].normal) / 3.0f;
+#endif
+			intersectionPoint = intersectPoint;
+		}
+		// Back Face Intersection Checking
+		res = glm::intersectRayTriangle(rt.origin, rt.direction, v2, v1, v0, baryPosition);
+		ti = FLT_MAX;
+		intersectPoint = rt.origin + rt.direction * baryPosition.z;
+		u = baryPosition.x;
+		v = baryPosition.y;
+
+		if (res)
+			ti = baryPosition.z;
+		if (ti < t) {
+			t = ti;
+#if Smooth_Shading_Toggle			
+			normal = (vertices[start_index + i + 2].normal * (1 - u - v) + vertices[start_index + i + 1].normal * u + vertices[start_index + i].normal * v);
+#else	
+			normal = (vertices[start_index + i].normal + vertices[start_index + i + 1].normal + vertices[start_index + i + 2].normal) / 3.0f;
+#endif
+			intersectionPoint = intersectPoint;
+		}
+	}
+
+	// no intersection
+	if (t == FLT_MAX) {
+		return -1;
+	}
+
+
+	if (glm::dot(rt.direction, normal) >= 0) {
+		outside = false;
+		normal = -normal;
+	}
+	else {
+		outside = true;
+	}
+
+	//local to world
+	intersectionPoint = glm::vec3(multiplyMV(mesh.transform, glm::vec4(intersectionPoint, 1.0f)));
+	normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(normal, 0.0f)));
+	//printf ("Hit Triangle: %f %f %f \n", intersectionPoint.x, intersectionPoint.y, intersectionPoint.z);
+
+	
+	return glm::length(r.origin - intersectionPoint);
 }

@@ -15,6 +15,18 @@ set(SOURCE_FILES
     "preview.cpp"
     "utilities.cpp"
     "utilities.h"
+	"common.h"
+    "common.cu"
+    "cpu.h"
+    "cpu.cu"
+    "naive.h"
+    "naive.cu"
+    "efficient.h"
+    "efficient.cu"
+    "thrust.h"
+    "thrust.cu"
+	"radix.cu"
+    "radix.h"
     )
 
 cuda_add_library(src
