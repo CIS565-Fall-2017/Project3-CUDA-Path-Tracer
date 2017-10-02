@@ -73,7 +73,60 @@ void scatterRay(
         glm::vec3 normal,
         const Material &m,
         thrust::default_random_engine &rng) {
-    // TODO: implement this.
-    // A basic implementation of pure-diffuse shading will just call the
-    // calculateRandomDirectionInHemisphere defined above.
+  // TODO: implement this.
+  // A basic implementation of pure-diffuse shading will just call the
+  // calculateRandomDirectionInHemisphere defined above.
+  thrust::uniform_real_distribution<float> u01(0, 1);
+
+  if (m.hasRefractive && m.hasReflective) {
+    glm::vec3 dir = glm::normalize(pathSegment.ray.direction);
+    glm::vec3 nor = glm::normalize(normal);
+    float cosi = glm::clamp(-1.0f, 1.0f, glm::dot(dir, nor));
+    float etai = 1.f;
+    float etat = m.indexOfRefraction;
+
+    if (cosi < 0.f) { //outside object
+      cosi = -cosi;
+      pathSegment.ray.origin = intersect + (.0002f) * dir;
+    }
+    else { //inside object
+      float k = etai; etai = etat; etat = k;
+      nor = -nor;
+      pathSegment.ray.origin = intersect + (.0001f) * dir;
+    }
+
+    float eta = etai / etat;
+    float k = 1.f - eta * eta * (1.f - cosi * cosi);
+
+    if (k < 0) { // total internal reflection
+      pathSegment.ray.direction = glm::reflect(dir, nor);
+      pathSegment.color *= m.specular.color;
+    }
+    else { //refract
+
+      // Schlick's Approx
+      float r0 = powf((1.f - m.indexOfRefraction) / (1.f + m.indexOfRefraction), 2.f);
+      float rTheta = r0 + (1 - r0) * powf((1 - glm::abs(glm::dot(nor, pathSegment.ray.direction))), 5.f);
+
+      if (rTheta < u01(rng)) {
+        pathSegment.ray.direction = glm::refract(dir, nor, eta);
+        pathSegment.color *= m.color;
+      }
+      else {
+        pathSegment.ray.direction = glm::reflect(dir, normal);
+        pathSegment.color *= m.specular.color;
+      }
+
+    }
+  }
+  else if (m.hasReflective) { // reflective
+    pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
+    pathSegment.color *= m.specular.color;
+    pathSegment.ray.origin = intersect + (.0001f) * pathSegment.ray.direction;
+  }
+  else { // diffuse
+    pathSegment.ray.direction = calculateRandomDirectionInHemisphere(glm::normalize(normal), rng);
+    pathSegment.color *= m.color;
+    pathSegment.ray.origin = intersect + (.0001f) * pathSegment.ray.direction;
+  }
 }

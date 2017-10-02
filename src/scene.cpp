@@ -79,6 +79,8 @@ int Scene::loadGeom(string objectid) {
             utilityCore::safeGetline(fp_in, line);
         }
 
+        newGeom.transformCopy = utilityCore::buildTransformationMatrix(
+          newGeom.translation, newGeom.rotation, newGeom.scale);
         newGeom.transform = utilityCore::buildTransformationMatrix(
                 newGeom.translation, newGeom.rotation, newGeom.scale);
         newGeom.inverseTransform = glm::inverse(newGeom.transform);

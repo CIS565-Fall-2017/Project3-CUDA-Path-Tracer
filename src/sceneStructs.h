@@ -24,6 +24,7 @@ struct Geom {
     glm::vec3 rotation;
     glm::vec3 scale;
     glm::mat4 transform;
+    glm::mat4 transformCopy;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
 };
