@@ -56,7 +56,8 @@ Naive 200 iterations
 
 MIS 200 iterations   
 ![](./img/cornellMIS.png) 
-
+       
+         
 * **Russian roulette**
 
 Russian roulette will terminated the rays that have very little energy and directly compute the compensation for that part, which will decrease the times of iterations and improve the overall efficency. As the graph shows, Russian roulette will produce great effect when the scene is closed.
