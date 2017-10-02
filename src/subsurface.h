@@ -111,11 +111,13 @@ __host__ __device__ Vector3f generateDisplacedOrigin(Vector3f& normal, Vector3f&
 	Vector3f local_up = Vector3f(0, 1, 0);
 	Vector3f world_normal = glm::normalize(normal);
 
+	//https://stackoverflow.com/questions/15101103/euler-angles-between-two-3d-vectors
+	//http://www.euclideanspace.com/maths/geometry/rotations/conversions/angleToEuler/index.htm
+	//https://stackoverflow.com/questions/16970863/is-yaw-pitch-and-roll-respectively-the-same-thing-as-heading-pitch-and-bank
 	Vector3f crossproduct = glm::cross(local_up, world_normal);
 	float cosRotAngle = glm::dot(local_up, world_normal); //because both vetors have length == 1
 	float rotAngle = glm::acos(cosRotAngle);
 	//you now have axis angle form convert to euler angles
-
 	Vector3f eulerangles = axisAngletoEuler(crossproduct, rotAngle);
 
 	Vector3f rotation = eulerangles;
@@ -131,10 +133,11 @@ __host__ __device__ Vector3f generateDisplacedOrigin(Vector3f& normal, Vector3f&
 	return newRayOrigin;
 }
 
-__host__ __device__ Color3f f_Subsurface(Material &m, Vector3f& wo, Vector3f& wi)
+__host__ __device__ Color3f f_Subsurface(Material &m, float& samplePoint, float& scatteringCoefficient)
 {
-	//TODO
-	return m.color*INVPI;
+	float sampledDistance = sampleScatterDistance(samplePoint, scatteringCoefficient);
+	float expColorDecay = 1 / (1 + sampledDistance); // same as expDistRadialCoeff
+	return m.color*expColorDecay;
 }
 
 __host__ __device__ float pdf_Subsurface(Vector3f& wo, Vector3f& wi, float& thetaMin)
@@ -146,29 +149,60 @@ __host__ __device__ float pdf_Subsurface(Vector3f& wo, Vector3f& wi, float& thet
 	return pdf;
 }
 
-__host__ __device__ Color3f sample_f_Subsurface(Vector3f& wo, Vector3f& sample,
-												Vector3f& normal, Vector3f& intersectionPoint,
-												float& scatteringCoefficient,
-												Vector3f& wi, float& pdf)
+__host__ __device__ bool sample_f_Subsurface(Vector3f& wo, Vector3f& sample, 
+											Material& m, Geom& geom,
+											Vector3f& normal, Vector3f& intersectionPoint,
+											float& scatteringCoefficient, float& thetaMin,
+											Color3f& sampledColor, Vector3f& wi, float& pdf)
 {
-	//TODO
+	//determine the sampleDistance
 	//generate a ray whose origin is a point on a disc(with exponential distribution) generated around the surfaceNormal
-	//and shifted inside the object by some amount
+	//and shifted inside the object by glm::normalize(normal)*sampledDistance
 	//and this ray has a direction determined by the generateScatteredDirectionandPDF
 	//carry out an intersection test with this new ray that originates from within the object
-	//determine the sampleDistance
-	//if sampleDistance<t do regluar material stuff
+	//if sampleDistance<t the material was too thick --> have the material sampler sample another bxdf
 	//ie set the pdf back to zero and and color to zero and sample another bxdf
 	//else shift the exit point to the surface of the object, ie make sampledDistance = t
 	//set the color to a scaled down value colorised by the material and set the pdf and wi
 
 	Ray ray;
 	Vector2f sample2f = Vector2f(sample2f[0], sample2f[1]);
-	float sampledDistance = sampleScatterDistance(sample[2], float& scatteringCoefficient);
+	float sampledDistance = sampleScatterDistance(sample[2], scatteringCoefficient);
 	ray.origin = generateDisplacedOrigin(normal, intersectionPoint, sample2f, sampledDistance);
-	ray.direction = ;
+	generateScatteredDirectionandPDF(sample2f, thetaMin, pdf, wi, wo);
+	ray.direction = wi;
 
-	computeIntersectionsWithSelectedObject(Ray& ray, Geom& geom, ShadeableIntersection& intersection);
+	ShadeableIntersection isx;
+	computeIntersectionsWithSelectedObject(ray, geom, isx);
 
-	return Color3f(0.0f);
+	if (sampledDistance < isx.t)
+	{
+		//have the material sampler sample another bxdf instead
+		return false;
+	}
+
+	//shift exit point to the surface of the object and check wi against the normal at that point
+	if (isx.t >= 0.0f)
+	{
+		//actually hit the object
+		intersectionPoint = isx.intersectPoint + EPSILON*2.0f*normal;
+	}
+	else
+	{
+		//didnt hit the object but should still shift the original intersection point
+		intersectionPoint = ray.origin;
+	}
+
+	if (glm::dot(wi, normal)<0.0f)
+	{
+		//wi and normal are not in the same hemisphere of directions so invert wi
+		wi = -wi;
+	}
+
+	float expColorDecay = 1 / (1 + sampledDistance); // same as expDistRadialCoeff
+	sampledColor = m.color*expColorDecay;
+	//wi -- already set in generateScatteredDirectionandPDF
+	//pdf -- already set in generateScatteredDirectionandPDF
+
+	return true;
 }
