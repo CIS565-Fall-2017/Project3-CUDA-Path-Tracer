@@ -9,6 +9,7 @@
 /**
  * Handy-dandy hash function that provides seeds for random number generation.
  */
+
 __host__ __device__ inline unsigned int utilhash(unsigned int a) {
     a = (a + 0x7ed55d16) + (a << 12);
     a = (a ^ 0xc761c23c) ^ (a >> 19);
@@ -25,7 +26,8 @@ __host__ __device__ inline unsigned int utilhash(unsigned int a) {
  * Falls slightly short so that it doesn't intersect the object it's hitting.
  */
 __host__ __device__ glm::vec3 getPointOnRay(Ray r, float t) {
-    return r.origin + (t - .0001f) * glm::normalize(r.direction);
+    //return r.origin + (t - .0001f) * glm::normalize(r.direction);
+	return r.origin + (t ) * glm::normalize(r.direction);
 }
 
 /**
@@ -33,6 +35,11 @@ __host__ __device__ glm::vec3 getPointOnRay(Ray r, float t) {
  */
 __host__ __device__ glm::vec3 multiplyMV(glm::mat4 m, glm::vec4 v) {
     return glm::vec3(m * v);
+}
+__host__ __device__ int sign(float i) {
+	if (i < 0) return -1;
+	else if (i > 0) return 1;
+	return 0;
 }
 
 // CHECKITOUT
@@ -45,6 +52,17 @@ __host__ __device__ glm::vec3 multiplyMV(glm::mat4 m, glm::vec4 v) {
  * @param outside            Output param for whether the ray came from outside.
  * @return                   Ray parameter `t` value. -1 if no intersection.
  */
+__host__ __device__ int GetCubeFaceIndex(const glm::vec3& P) {
+	int idx = 0;
+	float val = -1;
+	for (int i = 0; i < 3; i++) {
+		if (fabs(P[i]) > val) {
+			idx = i * sign(P[i]);
+			val = fabs(P[i]);
+		}
+	}
+	return idx;
+}
 __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
         glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) {
     Ray q;
@@ -55,6 +73,7 @@ __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
     float tmax = 1e38f;
     glm::vec3 tmin_n;
     glm::vec3 tmax_n;
+	glm::vec3 localP;
     for (int xyz = 0; xyz < 3; ++xyz) {
         float qdxyz = q.direction[xyz];
         /*if (glm::abs(qdxyz) > 0.00001f)*/ {
@@ -82,8 +101,12 @@ __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
             tmin_n = tmax_n;
             outside = false;
         }
-        intersectionPoint = multiplyMV(box.transform, glm::vec4(getPointOnRay(q, tmin), 1.0f));
-        normal = glm::normalize(multiplyMV(box.transform, glm::vec4(tmin_n, 0.0f)));
+		localP = getPointOnRay(q, tmin);
+        intersectionPoint = multiplyMV(box.transform, glm::vec4(localP, 1.0f));
+        //normal = glm::normalize(multiplyMV(box.transform, glm::vec4(tmin_n, 0.0f)));
+		normal = glm::normalize(multiplyMV(box.invTranspose, glm::vec4(tmin_n, 0.0f)));
+		//if (!outside) normal = -normal;
+
         return glm::length(r.origin - intersectionPoint);
     }
     return -1;
@@ -100,7 +123,7 @@ __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
  * @return                   Ray parameter `t` value. -1 if no intersection.
  */
 __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
-        glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) {
+        glm::vec3 &intersectionPoint, glm::vec3 &normal,bool &outside) {
     float radius = .5;
 
     glm::vec3 ro = multiplyMV(sphere.inverseTransform, glm::vec4(r.origin, 1.0f));
@@ -136,9 +159,54 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
 
     intersectionPoint = multiplyMV(sphere.transform, glm::vec4(objspaceIntersection, 1.f));
     normal = glm::normalize(multiplyMV(sphere.invTranspose, glm::vec4(objspaceIntersection, 0.f)));
-    if (!outside) {
-        normal = -normal;
-    }
-
+    //if (!outside) {
+    //    normal = -normal;
+    //}
     return glm::length(r.origin - intersectionPoint);
+}
+namespace SearchIntersection {
+	__host__ __device__ void BruteForceSearch(float &t_ref,
+		int &hit_index_ref,
+		glm::vec3 &normal_ref,
+		const Ray &ray,
+		const Geom * geoms,
+		int geoms_size) {
+
+		float t;
+		glm::vec3 normal;
+		float t_min = FLT_MAX;
+		int hit_geom_index = -1;
+		bool outside = true;
+
+		glm::vec3 tmp_intersect;
+		glm::vec3 tmp_normal;
+
+		// naive parse through global geoms
+		for (int i = 0; i < geoms_size; i++)
+		{
+			const Geom &geom = geoms[i];
+
+			if (geom.type == CUBE)
+			{
+				t = boxIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside);
+			}
+			else if (geom.type == SPHERE)
+			{
+				t = sphereIntersectionTest(geom, ray, tmp_intersect, tmp_normal,outside);
+			}
+			// TODO: add more intersection tests here... triangle? metaball? CSG?
+
+			// Compute the minimum t from the intersection tests to determine what
+			// scene geometry object was hit first.
+			if (t > 0.0f && t_min > t)
+			{
+				t_min = t;
+				hit_geom_index = i;
+				normal = tmp_normal;
+			}
+		}
+		t_ref = t_min;
+		hit_index_ref = hit_geom_index;
+		normal_ref = normal;
+	}
 }

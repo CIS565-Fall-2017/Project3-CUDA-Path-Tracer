@@ -9,7 +9,8 @@ GLuint pbo;
 GLuint displayImage;
 
 GLFWwindow *window;
-
+extern float totalTime;
+extern float iterTimer;
 std::string currentTimeString() {
     time_t now;
     time(&now);
@@ -173,7 +174,8 @@ void mainLoop() {
         glfwPollEvents();
         runCuda();
 
-        string title = "CIS565 Path Tracer | " + utilityCore::convertIntToString(iteration) + " Iterations";
+        string title = "CIS565 Path Tracer | " + utilityCore::convertIntToString(iteration) + " Iterations [" 
+			+ utilityCore::convertIntToString(iterTimer) + " ms]";
         glfwSetWindowTitle(window, title.c_str());
 
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);

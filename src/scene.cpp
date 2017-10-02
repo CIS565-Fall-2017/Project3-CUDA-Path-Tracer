@@ -78,7 +78,7 @@ int Scene::loadGeom(string objectid) {
 
             utilityCore::safeGetline(fp_in, line);
         }
-
+		newGeom.idx = id;
         newGeom.transform = utilityCore::buildTransformationMatrix(
                 newGeom.translation, newGeom.rotation, newGeom.scale);
         newGeom.inverseTransform = glm::inverse(newGeom.transform);
@@ -109,9 +109,16 @@ int Scene::loadCamera() {
             state.iterations = atoi(tokens[1].c_str());
         } else if (strcmp(tokens[0].c_str(), "DEPTH") == 0) {
             state.traceDepth = atoi(tokens[1].c_str());
-        } else if (strcmp(tokens[0].c_str(), "FILE") == 0) {
-            state.imageName = tokens[1];
-        }
+		}
+		else if (strcmp(tokens[0].c_str(), "FILE") == 0) {
+			state.imageName = tokens[1];
+		}
+		//else if (strcmp(tokens[0].c_str(), "LENRADIUS") == 0) {
+		//	camera.LenRadius = atof(tokens[1].c_str());
+		//}
+		//else if (strcmp(tokens[0].c_str(), "FOCUS") == 0) {
+		//	camera.Focus = atof(tokens[1].c_str());
+  //      }
     }
 
     string line;
