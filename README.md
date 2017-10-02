@@ -55,7 +55,7 @@ cornell.txt (Direct Lighting)|
  - #define **LEN_RADIUS 3.0f** : Should enable lens camera first. set the lens radius value. Default **OFF**
  - #define **FOCAL_LENGTH 13.0f** : Should enable lens camera first. set the lens FOCAL_LENGTH value. Default **OFF**
 
-##### ** \*Cmakelists change** : tiny_obj_loader, bounds, bvh added.
+##### **\*Cmakelists change** : tiny_obj_loader, bounds, bvh added.
 
 
 
