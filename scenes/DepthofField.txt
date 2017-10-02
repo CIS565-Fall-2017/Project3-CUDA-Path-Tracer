@@ -75,7 +75,7 @@ FOVY        45
 ITERATIONS  5000
 DEPTH       3
 FILE        cornell
-EYE         2.0 5.5 7.0
+EYE         0 5.5 6.5
 LOOKAT      0 5 0
 UP          0 1 0
 

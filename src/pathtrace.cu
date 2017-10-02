@@ -21,7 +21,7 @@
 #define FIRSTBOUNCE 0
 #define SORTBYMATERIAL 1
 #define DEPTHOFFIELD 0
-#define DIRECTLIGHTING 1
+#define DIRECTLIGHTING 0
 
 #define CUDART_PI_F 3.141592654f
 
@@ -104,7 +104,7 @@ static Geom * dev_lights = NULL;
 int num_Lights;
 #endif
 
-static float lensRadius = 0.3f;
+static float lensRadius = 0.2f;
 static float focalDistance = 3.5f;
 
 void pathtraceInit(Scene *scene) {
@@ -206,14 +206,14 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		thrust::uniform_real_distribution<float> v01(0, 1);
 		
 		//use u and v along with the lensradius to determine a new segment origin
-		float radius = lensRadius * u01(rng);
+		float radius = lensRadius * lensRadius * u01(rng);
 		float theta = CUDART_PI_F * 2.0f * v01(rng);
 
-		float x = radius * cosf(theta);
-		float y = radius * sinf(theta);
+		float x = sqrtf(radius) * cosf(theta);
+		float y = sqrtf(radius) * sinf(theta);
 		
 		//determine where the ray would intersect the focal plane normally
-		glm::vec3 focalPoint = segment.ray.origin + (focalDistance / (glm::dot(segment.ray.direction, cam.view) / glm::length(cam.view))) * segment.ray.direction;
+		glm::vec3 focalPoint = segment.ray.origin + (focalDistance * (1.0f / glm::dot(segment.ray.direction, glm::normalize(cam.view)))) * segment.ray.direction;
 
 		
 		//make the ray originate from the new origin and pass through the point on the focal plane
@@ -578,7 +578,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 #endif
 
 
-
+	timer().startGpuTimer();
   bool iterationComplete = false;
 	while (!iterationComplete) {
 
@@ -691,7 +691,9 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
   if (depth > traceDepth || numPathsActive == 0) iterationComplete = true; 
 	}
-
+	timer().endGpuTimer();
+	printElapsedTime(timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+	printf("%i\n", numPathsActive);
   // Assemble this iteration and apply it to the image
   dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
 	finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
