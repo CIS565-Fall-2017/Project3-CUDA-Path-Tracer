@@ -1,6 +1,7 @@
 #include "main.h"
 #include "preview.h"
 #include <cstring>
+#include <chrono>
 
 static std::string startTimeString;
 
@@ -25,6 +26,27 @@ int iteration;
 
 int width;
 int height;
+
+using time_point_t = std::chrono::high_resolution_clock::time_point;
+time_point_t time_start_cpu;
+time_point_t time_end_cpu;
+template<typename T>
+void printElapsedTime(T time, std::string note = "")
+{
+	std::cout << "Elapsed time: " << time << "ms per iteration    " << note << std::endl;
+}
+void starttimer()
+{
+	time_start_cpu = std::chrono::high_resolution_clock::now();
+}
+void printtimer()
+{
+	time_end_cpu = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double, std::milli> duro = time_end_cpu - time_start_cpu;
+	float prev_elapsed_time_cpu_milliseconds = static_cast<decltype(prev_elapsed_time_cpu_milliseconds)>(duro.count());
+	prev_elapsed_time_cpu_milliseconds /= (iteration*1.f);
+	printElapsedTime(prev_elapsed_time_cpu_milliseconds, "(std::chrono Measured)");
+}
 
 //-------------------------------
 //-------------MAIN--------------
@@ -117,6 +139,8 @@ void runCuda() {
         cameraPosition += cam.lookAt;
         cam.position = cameraPosition;
         camchanged = false;
+
+		starttimer();
       }
 
     // Map OpenGL buffer object for writing from CUDA on a single GPU
@@ -139,6 +163,7 @@ void runCuda() {
         // unmap buffer object
         cudaGLUnmapBufferObject(pbo);
     } else {
+		printtimer();
         saveImage();
         pathtraceFree();
         cudaDeviceReset();
@@ -150,10 +175,12 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
     if (action == GLFW_PRESS) {
       switch (key) {
       case GLFW_KEY_ESCAPE:
+		printtimer();
         saveImage();
         glfwSetWindowShouldClose(window, GL_TRUE);
         break;
       case GLFW_KEY_S:
+		printtimer();
         saveImage();
         break;
       case GLFW_KEY_SPACE:
