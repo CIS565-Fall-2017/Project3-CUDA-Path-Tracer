@@ -9,11 +9,28 @@ void Texture::Load(const std::string & path)
 {
 	int channels = 0;
 	float * rawPixels = stbi_loadf(path.c_str(), &this->width, &this->height, &channels, 3);
-
+		
 	if (channels == 3 || channels == 4)
 	{
 		glm::vec3 correction = glm::vec3(gamma);
 		this->pixels = new glm::vec3[width * height];
+
+		glm::vec3 accum = glm::vec3(0.f);
+
+		if (normalize)
+		{
+			for (int i = 0; i < width * height; i++)
+			{
+				glm::vec3 color;
+				color.x = rawPixels[i * channels];
+				color.y = rawPixels[i * channels + 1];
+				color.z = rawPixels[i * channels + 2];
+
+				accum += color;
+			}
+
+			accum /= width * height;
+		}
 
 		for (int i = 0; i < width * height; i++)
 		{
@@ -21,8 +38,11 @@ void Texture::Load(const std::string & path)
 			color.x = rawPixels[i * channels];
 			color.y = rawPixels[i * channels + 1];
 			color.z = rawPixels[i * channels + 2];
+
+			if (normalize)
+				color /= accum;
 			
-			this->pixels[i] = glm::pow(color, correction);
+			this->pixels[i] = glm::pow(color, correction);			
 		}
 
 		std::cout << "Loaded texture \"" << path << "\" [" << width << "x" << height << "|" << channels << "]" << std::endl;
@@ -35,7 +55,7 @@ void Texture::Load(const std::string & path)
 	stbi_image_free(rawPixels);
 }
 
-Texture::Texture(const std::string & filename, float gamma) : gamma(gamma)
+Texture::Texture(const std::string & filename, float gamma, bool normalize) : gamma(gamma), normalize(normalize)
 {
 	this->Load(filename);
 }
@@ -44,7 +64,9 @@ Texture::Texture(int x, int y) :
         width(x),
         height(y),
         pixels(new glm::vec3[x * y]),
-		gamma(1.f) {
+		gamma(1.f),
+		normalize(normalize)
+{
 }
 
 Texture::~Texture() {

@@ -131,8 +131,6 @@ void pathtraceInit(Scene *scene) {
   	cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
     checkCUDAError("pathtraceInit");
-	 
-	initializeDeviceTextures(scene);
 }
 
 void pathtraceFree() {
@@ -155,14 +153,45 @@ __host__ __device__ float evaluateGaussian(float alpha, float radius, float x)
 }
 
 __forceinline__
+__host__ __device__ glm::vec3 palette(float t, glm::vec3 a, glm::vec3 b, glm::vec3 c, glm::vec3 d)
+{
+	return a + b * glm::cos(6.28318f * (c * t + d));
+}
+
+__forceinline__
 __host__ __device__ glm::vec3 sampleTexture(glm::vec3 * dev_textures, glm::vec2 uv, TextureDescriptor tex)
 {
 	uv.y = 1.f - uv.y;
 	uv = glm::mod(uv * tex.repeat, glm::vec2(1.f));
-	int x = uv.x * tex.width;
-	int y = uv.y * tex.height;
-	int index = y * tex.width + x;
-	return dev_textures[index];
+	if (tex.type == 0)
+	{
+		int x = glm::min((int)(uv.x * tex.width), tex.width - 1);
+		int y = glm::min((int)(uv.y * tex.height), tex.height - 1);
+		int index = y * tex.width + x;
+		return dev_textures[tex.index + index];
+	}
+	else
+	{
+		int steps = 0;
+		glm::vec2 z = glm::vec2(0.f);
+		glm::vec2 c = (uv * 2.f - glm::vec2(1.f)) * 1.5f;
+		c.x -= .5;
+
+		for (steps = 0; steps < 100; steps++)
+		{
+			float x = z.x * z.x - z.y * z.y + c.x;
+			float y = 2.f * z.x * z.y + c.y;
+
+			z = glm::vec2(x, y);
+
+			if (glm::dot(z, z) > 2.f)
+				break;
+		}
+		
+		float sn = float(steps) - log2(log2(dot(z, z))) + 4.0f; // http://iquilezles.org/www/articles/mset_smooth/mset_smooth.htm
+		sn = glm::clamp(sn, 0.f, 1.f);
+		return glm::vec3(sn);
+	}
 }
 
 /**
@@ -183,9 +212,9 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		int index = x + (y * cam.resolution.x);
 
 		thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
-		thrust::uniform_real_distribution<float> u01(0, 1);
 
 #ifdef ENABLE_ANTIALISING
+		thrust::uniform_real_distribution<float> u01(0, 1);
 		glm::vec2 sample = glm::vec2(u01(rng), u01(rng));
 #else
 		glm::vec2 sample = glm::vec2(0.5f);
@@ -208,7 +237,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		if (cam.aperture > 0.f)
 		{
 			glm::vec2 bokehUV = glm::vec2(u01(rng), u01(rng));
-			glm::vec2 radiusSample = bokehUV * cam.aperture;
+			glm::vec2 radiusSample = (bokehUV - glm::vec2(.5f)) * cam.aperture; // We need to center it
 
 			// Intersect focal plane
 			float d = cam.focalDistance / glm::dot(segment.ray.direction, cam.view);
@@ -237,6 +266,7 @@ __global__ void computeIntersections(int depth, int num_paths, PathSegment * pat
 		float t;
 		glm::vec3 intersect_point;
 		glm::vec3 normal;
+		glm::vec2 uv;
 		float t_min = FLT_MAX;
 		int hit_geom_index = -1;
 		bool outside = true;
@@ -252,11 +282,11 @@ __global__ void computeIntersections(int depth, int num_paths, PathSegment * pat
 
 			if (geom.type == CUBE)
 			{
-				t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+				t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, uv);
 			}
 			else if (geom.type == SPHERE)
 			{
-				t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+				t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, uv);
 			}
 			// TODO: add more intersection tests here... triangle? metaball? CSG?
 
@@ -281,13 +311,14 @@ __global__ void computeIntersections(int depth, int num_paths, PathSegment * pat
 			intersections[path_index].t = t_min;
 			intersections[path_index].materialId = geoms[hit_geom_index].materialid;
 			intersections[path_index].surfaceNormal = normal;
+			intersections[path_index].uv = uv;
 		}
 	}
 }
 
 // Uber shader for now...
 __global__ void shadeKernel(int iter, int num_paths, ShadeableIntersection * shadeableIntersections,
-	PathSegment * pathSegments, Material * materials)
+	PathSegment * pathSegments, Material * materials, glm::vec3 * textureArray)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -321,6 +352,11 @@ __global__ void shadeKernel(int iter, int num_paths, ShadeableIntersection * sha
 					outRay.origin = pathSegments[idx].ray.origin + pathSegments[idx].ray.direction * intersection.t + n * .001f;
 					outRay.direction = wi;
 
+					materialColor = material.specular.color;
+
+					if (material.specularTexture.valid == 1)
+						materialColor *= sampleTexture(textureArray, intersection.uv, material.specularTexture);
+
 					pathSegments[idx].ray = outRay;
 					pathSegments[idx].color *= materialColor;
 					pathSegments[idx].remainingBounces -= 1;
@@ -336,6 +372,9 @@ __global__ void shadeKernel(int iter, int num_paths, ShadeableIntersection * sha
 					Ray outRay;
 					outRay.origin = pathSegments[idx].ray.origin + pathSegments[idx].ray.direction * intersection.t + n * .001f;
 					outRay.direction = wi;
+					
+					if (material.diffuseTexture.valid == 1)
+						materialColor *= sampleTexture(textureArray, intersection.uv, material.diffuseTexture);
 
 					pathSegments[idx].ray = outRay;
 					pathSegments[idx].color *= materialColor * cosTheta * lambert / pdf;
@@ -504,7 +543,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		// path segments that have been reshuffled to be contiguous in memory.
 
 		shadeKernel <<<numblocksPathSegmentTracing, blockSize1d>>> (
-			iter, nonTerminatedPathCount, dev_intersections, dev_paths, dev_materials);
+			iter, nonTerminatedPathCount, dev_intersections, dev_paths, dev_materials, dev_textures);
 
 		cudaDeviceSynchronize();
 
@@ -579,7 +618,17 @@ void initializeDeviceTextures(Scene * scene)
 	}
 
 	// Now we need to set all texture descriptor indices
-	scene->state.camera.bokehTexture.index = offsetList[scene->state.camera.bokehTexture.index];
+	if(scene->state.camera.bokehTexture.index >= 0)
+		scene->state.camera.bokehTexture.index = offsetList[scene->state.camera.bokehTexture.index];
+
+	for (Material & m : scene->materials)
+	{
+		if(m.diffuseTexture.index >= 0)
+			m.diffuseTexture.index = offsetList[m.diffuseTexture.index];
+
+		if (m.specularTexture.index >= 0)
+			m.specularTexture.index = offsetList[m.specularTexture.index];
+	}
 
 	checkCUDAError("initializeDeviceTextures");
 }

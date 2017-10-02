@@ -25,7 +25,7 @@ __host__ __device__ inline unsigned int utilhash(unsigned int a) {
  * Falls slightly short so that it doesn't intersect the object it's hitting.
  */
 __host__ __device__ glm::vec3 getPointOnRay(Ray r, float t) {
-	return r.origin + (t - .0001f) * glm::normalize(r.direction);
+	return r.origin + glm::normalize(r.direction) * t;
 }
 
 /**
@@ -46,7 +46,7 @@ __host__ __device__ glm::vec3 multiplyMV(glm::mat4 m, glm::vec4 v) {
  * @return                   Ray parameter `t` value. -1 if no intersection.
  */
 __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
-	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) {
+	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside, glm::vec2 &uv) {
 	Ray q;
 	q.origin = multiplyMV(box.inverseTransform, glm::vec4(r.origin, 1.0f));
 	q.direction = glm::normalize(multiplyMV(box.inverseTransform, glm::vec4(r.direction, 0.0f)));
@@ -82,6 +82,16 @@ __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
 			tmin_n = tmax_n;
 			outside = false;
 		}
+		glm::vec3 localP = q.origin + q.direction * tmin;
+
+		// Triplanar
+		uv = glm::vec2(localP.z, localP.y) * tmin_n.x;
+		uv += glm::vec2(localP.x, localP.z) * tmin_n.y;
+		uv += glm::vec2(localP.x, localP.y) * tmin_n.z;
+
+		// [-.5,.5] -> [0,1]
+		uv += glm::vec2(.5f);
+		
 		intersectionPoint = multiplyMV(box.transform, glm::vec4(getPointOnRay(q, tmin), 1.0f));
 		normal = glm::normalize(multiplyMV(box.transform, glm::vec4(tmin_n, 0.0f)));
 		return glm::length(r.origin - intersectionPoint);
@@ -100,7 +110,7 @@ __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
  * @return                   Ray parameter `t` value. -1 if no intersection.
  */
 __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
-	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) {
+	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside, glm::vec2& uv) {
 	float radius = .5;
 
 	glm::vec3 ro = multiplyMV(sphere.inverseTransform, glm::vec4(r.origin, 1.0f));
@@ -134,10 +144,17 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
 		outside = false;
 	}
 
-	glm::vec3 objspaceIntersection = getPointOnRay(rt, t);
+	glm::vec3 localP = getPointOnRay(rt, t);
 
-	intersectionPoint = multiplyMV(sphere.transform, glm::vec4(objspaceIntersection, 1.f));
-	normal = glm::normalize(multiplyMV(sphere.invTranspose, glm::vec4(objspaceIntersection, 0.f)));
+	intersectionPoint = multiplyMV(sphere.transform, glm::vec4(localP, 1.f));
+	normal = glm::normalize(multiplyMV(sphere.invTranspose, glm::vec4(localP, 0.f)));
+
+
+	float phi = glm::atan(localP.z, localP.x);
+	if (phi < 0)
+		phi += glm::two_pi<float>();
+
+	uv = glm::vec2(1.f - (phi / glm::two_pi<float>()), 1.f - (glm::acos(localP.y) / glm::pi<float>()));
 	if (!outside) {
 		//normal = -normal;
 	}

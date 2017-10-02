@@ -131,15 +131,26 @@ int Scene::loadFilm() {
 	return 1;
 }
 
-TextureDescriptor Scene::loadTexture(string path)
+TextureDescriptor Scene::loadTexture(string path, bool normalize)
 {
-	Texture * tex = new Texture(path, 1.f);
-	this->textures.push_back(tex);
-
 	TextureDescriptor desc;
-	desc.index = textures.size() - 1;
-	desc.width = tex->GetWidth();
-	desc.height = tex->GetHeight();
+	if (path == "MANDELBROT")
+	{
+		desc.type = 1;
+		desc.valid = 1;
+	}
+	else
+	{
+		Texture * tex = new Texture(path, 1.f, normalize);
+		this->textures.push_back(tex);
+
+		desc.type = 0;
+		desc.index = textures.size() - 1;
+		desc.width = tex->GetWidth();
+		desc.height = tex->GetHeight();
+		desc.valid = 1;
+	}
+
 	return desc;
 }
 
@@ -150,7 +161,10 @@ void Scene::initialize()
 	glm::vec3 g = glm::vec3(film.gamma);
 
 	for (Material & m : this->materials)
+	{
 		m.color = glm::pow(m.color, g);
+		m.specular.color = glm::pow(m.specular.color, g);
+	}
 }
 
 int Scene::loadCamera() {
@@ -163,7 +177,7 @@ int Scene::loadCamera() {
 	camera.aperture = 0.f;
 
     //load static properties
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 5; i++) {
         string line;
         utilityCore::safeGetline(fp_in, line);
         vector<string> tokens = utilityCore::tokenizeString(line);
@@ -178,13 +192,7 @@ int Scene::loadCamera() {
             state.traceDepth = atoi(tokens[1].c_str());
         } else if (strcmp(tokens[0].c_str(), "FILE") == 0) {
             state.imageName = tokens[1];
-        } else if (strcmp(tokens[0].c_str(), "APERTURE") == 0) {
-			state.camera.aperture = atof(tokens[1].c_str());
-		} else if (strcmp(tokens[0].c_str(), "DISTANCE") == 0) {
-			state.camera.focalDistance = atof(tokens[1].c_str());
-		} else if (strcmp(tokens[0].c_str(), "BOKEH") == 0) {
-			state.camera.bokehTexture = loadTexture(tokens[1]);
-		}
+        } 
     }
 
     string line;
@@ -193,11 +201,22 @@ int Scene::loadCamera() {
         vector<string> tokens = utilityCore::tokenizeString(line);
         if (strcmp(tokens[0].c_str(), "EYE") == 0) {
             camera.position = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
-        } else if (strcmp(tokens[0].c_str(), "LOOKAT") == 0) {
+        }
+		else if (strcmp(tokens[0].c_str(), "LOOKAT") == 0) {
             camera.lookAt = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
-        } else if (strcmp(tokens[0].c_str(), "UP") == 0) {
+        } 
+		else if (strcmp(tokens[0].c_str(), "UP") == 0) {
             camera.up = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
         }
+		else if (strcmp(tokens[0].c_str(), "APERTURE") == 0) {
+			state.camera.aperture = atof(tokens[1].c_str());
+		}
+		else if (strcmp(tokens[0].c_str(), "DISTANCE") == 0) {
+			state.camera.focalDistance = atof(tokens[1].c_str());
+		}
+		else if (strcmp(tokens[0].c_str(), "BOKEH") == 0) {
+			state.camera.bokehTexture = loadTexture(tokens[1], true);
+		}
 
         utilityCore::safeGetline(fp_in, line);
     }
@@ -231,7 +250,7 @@ int Scene::loadMaterial(string materialid) {
     } else {
         cout << "Loading Material " << id << "..." << endl;
         Material newMaterial;
-
+		
         //load static properties
         for (int i = 0; i < 7; i++) {
             string line;
@@ -255,6 +274,23 @@ int Scene::loadMaterial(string materialid) {
                 newMaterial.emittance = atof(tokens[1].c_str());
             }
         }
+
+		string line;
+		utilityCore::safeGetline(fp_in, line);
+		while (!line.empty() && fp_in.good()) {
+			vector<string> tokens = utilityCore::tokenizeString(line);
+			if (strcmp(tokens[0].c_str(), "TEX_DIFFUSE") == 0) 
+			{
+				newMaterial.diffuseTexture = loadTexture(tokens[1], false);
+			}
+			else if (strcmp(tokens[0].c_str(), "TEX_SPECULAR") == 0) 
+			{
+				newMaterial.specularTexture = loadTexture(tokens[1], false);
+			}
+
+			utilityCore::safeGetline(fp_in, line);
+		}
+
         materials.push_back(newMaterial);
         return 1;
     }

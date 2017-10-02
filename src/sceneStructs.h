@@ -32,27 +32,31 @@ struct Geom
     glm::mat4 invTranspose;
 };
 
-struct Material 
-{
-    glm::vec3 color;
-    struct 
-	{
-        float exponent;
-        glm::vec3 color;
-    } specular;
-    float hasReflective;
-    float hasRefractive;
-    float indexOfRefraction;
-    float emittance;
-};
-
 struct TextureDescriptor
 {
+	int valid;
+	int type; // 0 bitmap, 1 procedural
 	int index;
 	int width;
 	int height;
 	glm::vec2 repeat;
-	TextureDescriptor() : index(-1), width(0), height(0), repeat(glm::vec2(1.f)) {};
+	TextureDescriptor() : index(-1), width(0), height(0), repeat(glm::vec2(1.f)), type(0), valid(-1) {};
+};
+
+struct Material
+{
+	glm::vec3 color;
+	struct
+	{
+		float exponent;
+		glm::vec3 color;
+	} specular;
+	float hasReflective;
+	float hasRefractive;
+	float indexOfRefraction;
+	float emittance;
+	TextureDescriptor diffuseTexture;
+	TextureDescriptor specularTexture;
 };
 
 struct Camera 
@@ -111,5 +115,6 @@ struct SampledPath
 struct ShadeableIntersection {
   float t;
   glm::vec3 surfaceNormal;
+  glm::vec2 uv;
   int materialId;
 };

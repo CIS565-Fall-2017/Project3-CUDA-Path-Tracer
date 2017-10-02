@@ -27,6 +27,7 @@ REFL        0
 REFR        0
 REFRIOR     0
 EMITTANCE   0
+TEX_DIFFUSE ../scenes/resources/textures/checker_g.png
 
 // Diffuse green
 MATERIAL 3
@@ -37,6 +38,7 @@ REFL        0
 REFR        0
 REFRIOR     0
 EMITTANCE   0
+TEX_DIFFUSE ../scenes/resources/textures/checker_g.png
 
 // Specular white
 MATERIAL 4
@@ -47,6 +49,7 @@ REFL        1
 REFR        0
 REFRIOR     0
 EMITTANCE   0
+TEX_SPECULAR ../scenes/resources/textures/checker_g.png
 
 // Film
 FILM
@@ -63,7 +66,7 @@ DEPTH       8
 FILE        cornell
 APERTURE    0.25
 DISTANCE	4.0
-BOKEH       ../scenes/resources/bokeh/star.png
+BOKEH       ../scenes/resources/bokeh/chromatic.png
 EYE         2.5 7.3 10.5
 LOOKAT      -1 5 0
 UP          0 1 0

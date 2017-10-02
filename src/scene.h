@@ -19,7 +19,7 @@ private:
     int loadCamera();
 	int loadFilm();
 
-	TextureDescriptor loadTexture(string path);
+	TextureDescriptor loadTexture(string path, bool normalize);
 
 	void initialize();
 

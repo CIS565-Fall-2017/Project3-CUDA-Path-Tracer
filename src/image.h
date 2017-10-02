@@ -9,12 +9,13 @@ private:
     int width;
     int height;
 	float gamma;
+	bool normalize;
     glm::vec3 *pixels;
 
 	void Load(const std::string& filename);
 
 public:
-	Texture(const std::string& filename, float gamma);
+	Texture(const std::string& filename, float gamma, bool normalize = false);
     Texture(int x, int y);
     ~Texture();
     void setPixel(int x, int y, const glm::vec3 &pixel);
