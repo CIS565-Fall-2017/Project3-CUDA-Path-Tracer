@@ -25,9 +25,12 @@ Features:
 - [Shading Techniques](#shading-techniques)
     - Naive*
     - Direct Lighting
-- Stream Compaction for Ray Termination*
-- Material Sorting*
-- First Bounce Caching*
+        - Toggle `DIRECTLIGTHING` in  in `pathtrace.cu`
+- Stream Compaction for Ray Termination* 
+- Material Sorting* 
+    - Toggle `SORTBYMATERIAL` in `pathtrace.cu`
+- First Bounce Caching* 
+    - Toggle `CACHE` in `pathtrace.cu`
 
 [Analysis](#analysis)
 
