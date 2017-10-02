@@ -164,16 +164,22 @@ namespace PathTracer {
 
 			// TODO: implement antialiasing by jittering the ray
 			//************************antialiasing******************************//
-			thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
+			thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, traceDepth);
 			thrust::uniform_real_distribution<float> u01(0.f, 1.0f);
-			x += u01(rng);
-			y += u01(rng);
+			float xJitter = u01(rng);
+			float yJitter = u01(rng);
+			if (x > cam.resolution.x) {
+				xJitter = -xJitter;
+			}
+			if (y > cam.resolution.y) {
+				yJitter = -yJitter;
+			}
 			//************************antialiasing******************************//
 
 
 			segment.ray.direction = glm::normalize(cam.view
-				- cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
-				- cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
+				- cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f + xJitter)
+				- cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f + yJitter)
 			);
 
 			//************************depth of field****************************//
