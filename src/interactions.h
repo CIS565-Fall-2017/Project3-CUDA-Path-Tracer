@@ -60,20 +60,32 @@ __host__ __device__ void spawn_ray(Ray&  ray, glm::vec3& normal, glm::vec3& newd
 	ray.origin += t * ray.direction + EPSILON * normal;
 	ray.direction = newdir;
 }
-__host__ __device__ MaterialType getMaterialType(const Material& m)
+// Returns the MaterialType and the Number of materials. When there is more than one material,
+// a random one is chosen and the number of materials = 1/(prob of choosing that material) is returned.
+// The color needs this to correctly weigh the chances of that material being selected.
+__host__ __device__ MaterialType getMaterialType(const Material& m, float * numMaterials, 
+		    thrust::default_random_engine& rng)
 {
-	if (m.emittance > 0) {
-		return MaterialType::Emmissive;
-	}
-	else if (m.hasReflective > 0) {
-		return MaterialType::Reflective;
-	}
-	else if (m.hasRefractive > 0) {
-		return MaterialType::Refractive;
-	}
-	else {
+	int lambert    { m.summaryState & MaterialType::Lambert };
+	int reflective { m.summaryState & MaterialType::Reflective };
+	int refractive { m.summaryState & MaterialType::Refractive };
+	int emissive   { m.summaryState & MaterialType::Emissive };
+	*numMaterials = (float) (lambert + reflective + refractive + emissive);
+    thrust::uniform_int_distribution<int> u(1, *numMaterials);
+	int memnumber { u(rng)};
+	if (lambert && --memnumber == 0 ) {
 		return MaterialType::Lambert;
 	}
+	if (reflective && --memnumber == 0 ) {
+		return MaterialType::Reflective;
+	}
+	if (refractive && --memnumber == 0 ) {
+		return MaterialType::Refractive;
+	}
+	if (emissive && --memnumber == 0 ) {
+		return MaterialType::Emissive;
+	}
+	return MaterialType::Lambert;
 }
 /**
  * Scatter a ray with some probabilities according to the material properties.
@@ -112,6 +124,27 @@ void scatterRay(
     // calculateRandomDirectionInHemisphere defined above.
 	glm::vec3& negwout{ pathSegment.ray.direction };
 	float dotP{ -glm::dot(negwout, normal) };
+	float numMaterials;
+	MaterialType mat{ getMaterialType(m, &numMaterials, rng) };
+	if (dotP < 0 && mat == MaterialType::Lambert || mat == MaterialType::Emissive) {
+		pathSegment.color = glm::vec3(0.0f);
+		pathSegment.remainingBounces = 0;
+		return;
+	}
+	switch (mat) {
+	case MaterialType::Emissive:
+		pathSegment.color *= m.color *  numMaterials * m.emittance;
+		pathSegment.remainingBounces = 0; // terminate the ray
+		break;
+	case MaterialType::Lambert:
+		// cos weighted the pdf is cos (theta incident)/(PI * numMaterials); 
+		// normally would multiply by the cos (theta I) 
+		  pathSegment.color *= PI * m.color * numMaterials;
+		--pathSegment.remainingBounces;
+	}
+	if (mat == MaterialType::Emissive) {
+	}
+
 	if (dotP > 0 && intersect.t > 0 && m.hasReflective > 0) {
 		pathSegment.color *= m.color;
 		spawn_ray(pathSegment.ray, normal, glm::reflect(negwout, normal), intersect.t);

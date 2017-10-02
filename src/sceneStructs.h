@@ -27,7 +27,18 @@ struct Geom {
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
 };
-
+//Summary state has a digit for each material type
+//  2^0  lambert (1) or not
+//  2^1  Reflective(1) or not
+//  2^2  Transmissive(1) or not
+//  2^3  Emmissive (1) or not(0)
+// Material can be any combination of these with the following exception:
+//  The material is either a Lambert material or a Emissive material but not 
+//  both.  This is because there is only one field for the Color and if it is non
+//  zero and Emissive is >0 it is emissive; if it is nonzero and emissive is not 
+// there it is Lambert.
+// indexOfRefraction is the ratio of the index of refraction of the side away from the normal to
+// the that on the side that the normal points to.:
 struct Material {
     glm::vec3 color;
     struct {
@@ -38,8 +49,13 @@ struct Material {
     float hasRefractive;
     float indexOfRefraction;
     float emittance;
+    int   summaryState;
 };
-enum MaterialType { Lambert, Reflective, Emmissive, Refractive, Other};
+
+
+enum MaterialType { Lambert = 1 << 0, Reflective = 1 << 1, Refractive = 1 << 2, Emissive = 1 << 3};
+// MaxMaterialTypes is number of material categories.
+const  unsigned MaxMaterialTypes {4};
 struct Camera {
     glm::ivec2 resolution;
     glm::vec3 position;

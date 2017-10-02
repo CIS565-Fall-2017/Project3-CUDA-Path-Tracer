@@ -30,6 +30,7 @@ Scene::Scene(string filename) {
             }
         }
     }
+	fp_in.close();
 }
 
 int Scene::loadGeom(string objectid) {
@@ -151,6 +152,31 @@ int Scene::loadCamera() {
     cout << "Loaded camera!" << endl;
     return 1;
 }
+float ColorSum(glm::vec3& color)
+{
+	float sum{ color[0] + color[1] + color[2]};
+	sum *= 256;
+	return sum;
+}
+int materialSummary(Material& m)
+{
+      int i{0};
+      if ( ColorSum(m.color) > 0 ) {
+		  if (m.emittance > 0) {
+			  i = static_cast<int>(MaterialType::Emissive);
+		  }
+		  else {
+			  i = static_cast<int>(MaterialType::Lambert);
+		  }
+      }
+      if ( m.hasReflective > 0) {
+	      i = i + static_cast<int>(MaterialType::Reflective);
+      }
+      if ( m.hasRefractive > 0  && m.indexOfRefraction > 0) {
+	      i = i + static_cast<int>(MaterialType::Refractive);
+      }
+      return i;
+}
 
 int Scene::loadMaterial(string materialid) {
     int id = atoi(materialid.c_str());
@@ -184,6 +210,7 @@ int Scene::loadMaterial(string materialid) {
                 newMaterial.emittance = atof(tokens[1].c_str());
             }
         }
+        newMaterial.summaryState = materialSummary(newMaterial);
         materials.push_back(newMaterial);
         return 1;
     }
