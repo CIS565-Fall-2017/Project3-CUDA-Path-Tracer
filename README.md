@@ -32,7 +32,7 @@ Direct lighting in this project is implemented by detecting when a ray has termi
 The features demonstrated here all serve to make the path tracer produce more realistic, visually-interesting results. How do they affect performance, however? To benchmark this, I measured the average execution time of an iteration after 1000 iterations in the same test scene with a depth of eight. I separated this execution time across four distinct phases of the iteration: the time it took to actually trace the scene for intersections, the time it took to complete shading of the scene, the time it took to make memory contiguous by material (if enabled) and the time it took to use stream compaction to remove rays which have terminated on lights or by exiting the scene. These are the results:
 
 <p align="center">
-  <img src="img/hw2_scan_chart.png"/>
+  <img src="img/chartBenchmark.png"/>
 </p>
 
 As one can see, the runs are fairly similar to one another, with the bulk of the time being spent performing the actions needed to make paths and intersection data contiguous in memory by material. From this graph we can see two things: the visual enhancements don't seem to cause an appreciable slowdown and making memory contiguous does not seem to be worth it. Compared to the baseline implementation, adding antialiasing, direct lighting, and depth of field made the scene look better without a large slowdown. This is reassuring regarding the efficiency of my implementation.
@@ -46,3 +46,7 @@ This path tracer comes with a setting to toggle whether or not intersection and 
 The second performance optimization is caching the first hit for a given orientation of the scene. This first hit is determined entirely by the camera, and is the same across all iterations of an orientation. Therefore, it can be reused for looking up what the first "depth" target in an iteration should be. This comes with two observations. First, the benefit of caching decreases as the depth count increases, because the time saved by looking up the cached value on the first iteration is dwarfed by the number of randomized bounces which still need to be computed. Second, this caching precludes us from doing any sort of nondeterministic actions with the camera. If we were to leverage randomization for implementing features such as antialiasing or depth of field, this first hit would be a different ray across iterations and caching could be of no benefit to us.
 
 The following graph considers these two optimizations across various depths. It computes the average total iteration time across 1000 iterations for implementations with no antialiasing, depth of field, or direct lighting. It compares the performance of the control implementation, the implementation with contiguous memory rearrangement activated, with first hit caching activated, and with both optimizations activated.
+
+<p align="center">
+  <img src="img/chartDepthOptimized.png"/>
+</p>
