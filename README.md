@@ -9,7 +9,7 @@ CUDA Path Tracer
 
 ## Project Overview
 
-The goal of this project was to get an introduction to writing a GPU Path Tracer in CUDA.
+The goal of this project was to get an introduction to writing a GPU Path Tracer in CUDA. Path tracers implement a realstic lighting alogrithm that simulates light bouncing in a scene. By implementing this on the GPU, versus the CPU, we can render globally-illuminated images a lot more quickly.
 
 
 The following features were implemented (most of which can be toggled with flags in `utilities.h`):
@@ -101,7 +101,7 @@ All of the following charts and graphs have been tested on one sample with varyi
 
 In the naive implementation of the path tracer, within each iteration (aka one sample), every pixel is being calculated by accumulating its color across multiple depths (until a maximum depth is reached). A kernel is being launched for per pixel in order to complete this task. 
 
-Stream compaction allows us to remove any rays that have completed their total color accumulation, without having to wait for every thread within the allocated kernels to complete. This allows us to save threads to be used elsewhere, and thus finish rendering faster.
+Stream compaction allows us to remove any rays that have completed their total color accumulation and thus have terminated, without having to wait for every thread within the allocated kernels to complete. This allows us to save threads to be used elsewhere, and thus finish rendering faster.
 
 In this code base, stream compaction has been implemented through the use of `thrust::partition`, using a predicate that distinguishes those path segments that have no more remaining bounces.
 
@@ -114,22 +114,15 @@ In the chart, we can observe that while stream compaction does take longer than 
 
 ![](Renders/Charts/ms-graph.PNG)
 
-EDIT EXPLANATION OF THIS!
+In the chart, it can be seen that stream compaction greatly helps performance while material sorting.
 
-As compared to the charts for stream compaction above, at first it looks like material sorting just makes performance even worse! Times across depth values have doubled. So why is this considered an optimization? 
+As compared to the charts for stream compaction above, however, at first it looks like material sorting just makes performance even worse! Times across depth values have doubled. So why is this considered an optimization? 
 
 First off, what are we trying to do here? We want to sort path segments/rays and intersections to be contiguous in memory by material type. 
 
-First off to explain why performance is worse. There is a lot of overheard in allocating two new device arrays to 
+What's the advantage of this? This really helps when we're implementing very complicated materials, or doing things like reading from texture or normal maps. You can read them all the necessary values from global memory once in the beginning, sort intersections and rays by material type, and have access to the materials' values contiugous in memory. This way you can cache necessary chunks of it whenever you need to, rather than reading from global memory each iteration. 
 
-making pathsegments and isect arrays contiguous in memory to materialID doesn't actually make time and memory any better. you're allocating 2 new device arrays to do this sorting, and every time you were reading from the pathsegments and isect arrays in global memory before, these structs just hold items that you're accessing one of every now and then and just doing simple computations on them anyways. 
-
-this contiugous memory sorting really helps when you're doing things like reading from textures and normal maps. you read them all at once, sort them, and you have access to the values contiguous in memory. so you can cache a chunk of it and do operations on that chucnk, rather than reading from global memory every time 
-
-
-difference between the structs we have and texture/normal maps
-texture maps are stored as floats, but it's 3 floats PER pixel. you need these 3 floats to do anything with this texture/normal map. in the structs we have now, you're generally just accessing one value in it (so one spot in memory VS three spots for those 3 floats)
-you read them all at once in the beginning, and 
+Why is the performance worse? There is a lot of overheard in allocating two new device arrays to complete this sorting task, especially when the materials currently being implemented in this code base do not require the access of large items from global memory.
 
 
 ### First Bounce Caching 
@@ -138,9 +131,13 @@ you read them all at once in the beginning, and
 
 ![](Renders/Charts/cache-graph.PNG)
 
+Here we are caching first bounce intersections in the scene to be used across all subsequent iterations. Caching the first bounce improves performance of stream compaction (as can be seen by comparing `Cache with SC` here and `Stream Compaction` in the corresponding section above). 
 
-FINISH EXPLANATION OF THIS!
 
+### More analysis to be added:
+* Analysis on each individual path tracing feature explained above
+* Targeted analysis on specific kernels 
+* Analysis on stream compaction performance between an open and closed scene 
 
 
 ## Features to be implemented in the future
