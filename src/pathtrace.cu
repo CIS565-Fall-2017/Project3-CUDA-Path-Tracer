@@ -26,9 +26,9 @@
 #define RUSSIANROULETTE 1
 
 // TURN ONLY ONE ON. ALL OFF MEANS NAIVE
-#define DIRECTLIGHTING 1
+#define DIRECTLIGHTING 0
 #define DIRECTLIGHTING_LASTBOUNCE 0
-#define FULLLIGHTING 0
+#define FULLLIGHTING 1
 
 //#define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 //#define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -452,7 +452,7 @@ __global__ void shadeBSDFMaterialDirect(
 __global__ void shadeBSDFMaterialFull(
   int iter, int depth, int num_paths, ShadeableIntersection * shadeableIntersections,
   PathSegment * pathSegments, int * compact_idx, Material * materials, Geom * geoms, Geom * lights, 
-  int numGeoms, int numLights, glm::vec3 * accumulated, glm::vec3 * throughput)
+  int numGeoms, int numLights)
 {
   int index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -729,7 +729,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 #if FULLLIGHTING || DIRECTLIGHTING_LASTBOUNCE
     shadeBSDFMaterialFull << <numblocksPathSegmentTracing, blockSize1d >> > (
       iter, depth, num_paths, dev_intersections, dev_paths, dev_compact_idx, dev_materials,
-      dev_geoms, dev_lights, hst_scene->geoms.size(), hst_scene->lights.size(), accumulated, throughput);
+      dev_geoms, dev_lights, hst_scene->geoms.size(), hst_scene->lights.size());
 #elif DIRECTLIGHTING
     shadeBSDFMaterialDirect <<<numblocksPathSegmentTracing, blockSize1d>>> (
       iter, num_paths, dev_intersections, dev_paths, dev_compact_idx, dev_materials, 
