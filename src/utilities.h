@@ -9,10 +9,21 @@
 #include <string>
 #include <vector>
 
-#define PI                3.1415926535897932384626422832795028841971f
-#define TWO_PI            6.2831853071795864769252867665590057683943f
-#define SQRT_OF_ONE_THIRD 0.5773502691896257645091487805019574556476f
-#define EPSILON           0.00001f
+#define PI					3.1415926535897932384626422832795028841971f
+#define TWO_PI				6.2831853071795864769252867665590057683943f
+#define SQRT_OF_ONE_THIRD	0.5773502691896257645091487805019574556476f
+#define EPSILON				0.00001f
+
+#define RAY_EPSILON			0.000005f
+
+#define STREAM_COMPACTION	true
+#define SORT_BY_MATERIAL	true
+#define CACHE_FIRST_BOUNCE	true
+
+#define DIRECT_LIGHTING		false
+#define NAIVE_AND_DIRECT	false
+
+#define ANTI_ALIASING		false
 
 namespace utilityCore {
     extern float clamp(float f, float min, float max);
@@ -23,4 +34,12 @@ namespace utilityCore {
     extern glm::mat4 buildTransformationMatrix(glm::vec3 translation, glm::vec3 rotation, glm::vec3 scale);
     extern std::string convertIntToString(int number);
     extern std::istream& safeGetline(std::istream& is, std::string& t); //Thanks to http://stackoverflow.com/a/6089413
+
+
+	////Adding my own -- WHY DONT THESE WORK??
+	//extern float AbsDot(const glm::vec3 &a, const glm::vec3 &b);
+	//extern float CosTheta(const glm::vec3 &w);
+	//extern float AbsCosTheta(const glm::vec3 &w);
+	//extern bool SameHemisphere(const glm::vec3 &w, const glm::vec3 &wp);
+	//extern glm::vec3 Refract(const glm::vec3 &wi, const glm::vec3 &normal, float eta);
 }

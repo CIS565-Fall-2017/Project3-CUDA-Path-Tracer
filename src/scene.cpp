@@ -84,7 +84,16 @@ int Scene::loadGeom(string objectid) {
         newGeom.inverseTransform = glm::inverse(newGeom.transform);
         newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
 
+		//Fill geom vector
         geoms.push_back(newGeom);
+
+		//Fill lights vector for direct lighting
+		//Since materials are already loaded in prior to objects, checking this here would work
+		if (materials[newGeom.materialid].emittance > 0.0f)
+		{
+			lights.push_back(newGeom);
+		}
+
         return 1;
     }
 }
@@ -125,6 +134,19 @@ int Scene::loadCamera() {
         } else if (strcmp(tokens[0].c_str(), "UP") == 0) {
             camera.up = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
         }
+
+		//Depth of field 
+		else if (strcmp(tokens[0].c_str(), "LENSRADIUS") == 0) 
+		{
+			camera.lensRadius = atof(tokens[1].c_str());
+		}
+
+		else if (strcmp(tokens[0].c_str(), "FOCALDISTANCE") == 0) 
+		{
+			camera.focalDistance = atof(tokens[1].c_str());
+		}
+
+		
 
         utilityCore::safeGetline(fp_in, line);
     }
