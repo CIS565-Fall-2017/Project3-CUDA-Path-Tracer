@@ -6,6 +6,10 @@ CUDA Path Tracer
 * Mauricio Mutai
 * Tested on: Windows 10, i7-7700HQ @ 2.2280GHz 16GB, GTX 1050Ti 4GB (Personal Computer)
 
+| ![](img/porygon-diff.png) | ![](img/porygon-mix.png) | ![](img/porygon-refl.png) |
+|:-------------------------------:|:--------------------------------:|:--------------------------:|
+| `cornellPorygon.txt`      | `cornellMix.txt`                   | `cornellRefl.txt`
+
 ### Overview
 
 #### Introduction
@@ -210,6 +214,24 @@ There aren't many optimizations to be done here. Since there is no more work to 
 
 This should be much faster than a hypothetical CPU implementation, since there would be very little warp divergence (only in geometry intersection testing). 
 
+### Procedural textures
+
+#### Overview
+
+I implemented some very simple procedural textures.  Below are some examples, rendered in `cornellProc.txt`:
+
+Procedural texture 1
+
+![](img/proc1.png)
+
+Procedural texture2
+
+![](img/proc2.png)
+
+#### Optimizations
+
+The warp divergence could definitely be reduced. On a similar vein, due to the large warp divergence in my procedural textures, the GPU performance will likely be bad compared to a CPU implementation.
+
 ### Toggling features
 
 Most features can be toggled on/off in `pathtrace.cu`:
@@ -224,10 +246,11 @@ Most features can be toggled on/off in `pathtrace.cu`:
 #define MEASURE_PATHS_PER_ITERATION 0
 ```
 
-`intersections.h` contains the toggle for mesh culling via bounding volume:
+`intersections.h` contains the toggle for mesh culling via bounding volume and the choice of procedural texture (if any):
 
 ```
 #define CULL_BY_BBOX 1
+#define PROCEDURAL_TEXTURE 0
 ```
 
 ### Scene file format
