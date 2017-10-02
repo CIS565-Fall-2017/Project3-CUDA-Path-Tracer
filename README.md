@@ -33,7 +33,7 @@ I implemented a simple shading kernel that generates new path segment ray direct
 
 Much of my implementation is derived from [PBRT] Physically Based Rendering, Second Edition: From Theory To Implementation. Pharr, Matt and Humphreys, Greg. 2010, but parts are adapted to work on the GPU
 
-In addition to simple geometry defined by functions (sphere, cube), I've implemented .OBJ importing to incorporate triangle-based models into renders. Many models include thousands to millions of triangles to be intersection tested against rays. As a result, a single intersection may take incredibly long to calculate. The simplest way to test for intersection is to test over every single piece of geometry in the scene, but each intersection can be calculated much faster if we sort the scene's geometry into a spatial data structure such that we avoid testing intersections with a majority of the scene. 
+In addition to simple geometry defined by functions (sphere, cube), I've implemented .OBJ importing (with the help of [tinyobj](https://syoyo.github.io/tinyobjloader/)) to incorporate triangle-based models into renders. Many models include thousands to millions of triangles to be intersection tested against rays. As a result, a single intersection may take incredibly long to calculate. The simplest way to test for intersection is to test over every single piece of geometry in the scene, but each intersection can be calculated much faster if we sort the scene's geometry into a spatial data structure such that we avoid testing intersections with a majority of the scene. 
 
 If we repeatedly partition the objects in the scene into recursive bounding boxes that contain "half" of their parents' geometry, we get a structure that looks like the following: 
 
