@@ -19,7 +19,7 @@
 
 #define CACHE_FIRST_BOUNCE 0
 #define ANTIALIAS 1 // Not compatible with CACH_FIRST_BOUNCE
-#define DOF 0 // compatible with ANTIALIAS
+#define DOF 1 // compatible with ANTIALIAS
 #define SORT_MATERIALS 0
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
@@ -189,9 +189,9 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
     glm::vec3 focal_point = getPointOnRay(segment.ray, f_dist);
     float t = u01(rng);
     float s = u01(rng);
-    segment.origin = segment.origin + cam.right*sqrt(t)*cos(2*PI*s) * cam.lensDiameter +
+    segment.ray.origin = segment.ray.origin + cam.right*sqrt(t)*cos(2*PI*s) * cam.lensDiameter +
                                       cam.up   *sqrt(t)*sin(2*PI*s) * cam.lensDiameter;
-    segment.direction = glm::normalize(focal_point - segment.origin);
+    segment.ray.direction = glm::normalize(focal_point - segment.ray.origin);
 #endif
 
     segment.pixelIndex = index;

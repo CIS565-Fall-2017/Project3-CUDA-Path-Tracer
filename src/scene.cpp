@@ -116,6 +116,8 @@ int Scene::loadCamera() {
 
     string line;
     utilityCore::safeGetline(fp_in, line);
+    camera.focalLength = 5.0f;
+    camera.lensDiameter = 0.0f;
     while (!line.empty() && fp_in.good()) {
         vector<string> tokens = utilityCore::tokenizeString(line);
         if (strcmp(tokens[0].c_str(), "EYE") == 0) {
@@ -124,11 +126,11 @@ int Scene::loadCamera() {
           camera.lookAt = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
         } else if (strcmp(tokens[0].c_str(), "UP") == 0) {
           camera.up = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
-        } else if (strcmp(tokens[0].c_str(), "FOCALLENGTH" == 0) {
-	  camera.focalLength = atof(tokens[1].ctr());
-	} else if (strcmp(tokens[0].c_str(), "LENSDIAMETER" == 0) {
-	  camera.lensDiameter = atof(tokens[1].ctr());
-	}
+        } else if (strcmp(tokens[0].c_str(), "FOCALLENGTH") == 0) {
+       	  camera.focalLength = atof(tokens[1].c_str());
+       	} else if (strcmp(tokens[0].c_str(), "LENSRADIUS") == 0) {
+       	  camera.lensDiameter = atof(tokens[1].c_str());
+       	}
 
         utilityCore::safeGetline(fp_in, line);
     }
