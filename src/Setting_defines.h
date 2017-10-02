@@ -1,5 +1,4 @@
 #pragma once
-#define Stream_Compaction_Toggle 1
 #define Caching_Toggle 1
 #define Sorting_Toggle 0
 #define AntiAliasing_Toggle 1
