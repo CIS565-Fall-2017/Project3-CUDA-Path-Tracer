@@ -18,9 +18,9 @@ Performance improvements with stream compaction weren't apparent until the trace
 because the overhead from stream compaction is too much and is not worth using unless the trace depth is really high; allowing the
 performance boosts that come from stream compaction to outweigh the overhead that come with it.
 
-![](img/compact_table.png)
+![](img/compact_table.PNG)
 
-![](img/compact_chart.png)
+![](img/compact_chart.PNG)
 
 ### Caching First Bounce
 
@@ -28,9 +28,9 @@ Caching the first bounce intersections improves performance but not dramatically
 computed in the first bounce, the impact of caching will be clearer with more intersections. This can be simulated by increasing the image size as
 shown in the chart below.
 
-![](img/cache_table.png)
+![](img/cache_table.PNG)
 
-![](img/cache_chart.png)
+![](img/cache_chart.PNG)
 
 ### Material Sorting
 
