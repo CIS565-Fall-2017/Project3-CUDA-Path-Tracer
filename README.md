@@ -11,6 +11,12 @@ CUDA Path Tracer
 
 This path tracer is optimized to parallelize by ray, effectively tracking the number of bounces, direction, and color of each pixel. Rays terminate when they encounter a light, leave the scene, or after some number of bounces based on scene depth.
 
+*An example of how scene depth, the number of times a ray bounces in a scene, can impact the resulting rendering: 500 iterations, no optimizations or additional rendering features.*
+
+|![16](img/depth16_500_control.png)|![32](img/depth32_500_control.png)|![64](img/depth64_500_control.png)|![128](img/depth128_500_control.png)|
+|:-:|:-:|:-:|:-:|
+|Depth of 16|Depth of 32|Depth of 64|Depth of 128|
+
 ### Antialiasing
 
 This solution featurs antialiasing, implemented by randomly offsetting the camera's ray when fired into the scene. This random offset, across many iterations, introduces a smoothing effect by preventing us from always sampling the same exact pixels. It helps blend in subpixel-level details.
@@ -24,10 +30,6 @@ Depth of field is simulated in this solution by implementing the equations from 
 Direct lighting in this project is implemented by detecting when a ray has terminated on a surface which is not a light, and then randomly selecting a light-emitting piece of geometry in the scene to fire one last bounce towards. If the ray is able to reach the light, it is brightened. Otherwise, the ray is set to black. Over many iterations, the random shadows and bright spots are smoothed out into interesting illumination features. This simple change has the effect of subtly emphasizing surfaces which are directly illuminated by lights.
 
 ## Performance Analysis
-
-|![Bruteforce, 20k Boids](images/liceBrute20k.gif)|![Uniform, 100k Boids](images/liceUniform100k.gif)|![Coherent, 250k Boids](images/liceCoherent350k.gif)|
-|:-:|:-:|:-:|:-:|:-:|
-|Depth of 8|Depth of 16|Depth of 32|Depth of 64|Depth of 128|
 
 The features demonstrated here all serve to make the path tracer produce more realistic, visually-interesting results. How do they affect performance, however? To benchmark this, I measured the average execution time of an iteration after 1000 iterations in the same test scene with a depth of eight. I separated this execution time across four distinct phases of the iteration: the time it took to actually trace the scene for intersections, the time it took to complete shading of the scene, the time it took to make memory contiguous by material (if enabled) and the time it took to use stream compaction to remove rays which have terminated on lights or by exiting the scene. These are the results:
 
@@ -48,5 +50,5 @@ The second performance optimization is caching the first hit for a given orienta
 The following graph considers these two optimizations across various depths. It computes the average total iteration time across 1000 iterations for implementations with no antialiasing, depth of field, or direct lighting. It compares the performance of the control implementation, the implementation with contiguous memory rearrangement activated, with first hit caching activated, and with both optimizations activated.
 
 <p align="center">
-  <img src="img/chartDepthOptimized.png"/>
+  <img src="img/chartDepthOptimization.png"/>
 </p>
