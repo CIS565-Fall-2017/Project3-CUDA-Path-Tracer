@@ -10,11 +10,16 @@ CUDA Path Tracer
 ![result_img](https://github.com/wufk/Project3-CUDA-Path-Tracer/blob/master/img/final.PNG)
 
 Features:
-*1. Shading with BSDF evaluation
-*2. Path termination using stream compaction
-*3. Toggeable option to cache first bounce and sort path segments by materials
-*4. Refraction with frenesel effects using Shilick's approximation
-*5. Stochastic antialiasing
+
+1. Shading with BSDF evaluation
+
+2. Path termination using stream compaction
+
+3. Toggeable option to cache first bounce and sort path segments by materials
+
+4. Refraction with frenesel effects using Shilick's approximation
+
+5. Stochastic antialiasing
 
 ## Analysis
 
