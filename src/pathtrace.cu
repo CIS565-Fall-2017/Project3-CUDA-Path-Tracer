@@ -121,6 +121,7 @@ static glm::vec3 * dev_textures = NULL;
 static glm::vec4 * dev_image = NULL;
 static glm::vec4 * dev_tonemapped_image = NULL;
 static char * dev_meshes = NULL;
+static int * dev_lights = NULL;
 
 static Geom * dev_geoms = NULL;
 static Material * dev_materials = NULL;
@@ -148,6 +149,9 @@ void pathtraceInit(Scene *scene) {
 
   	cudaMalloc(&dev_materials, scene->materials.size() * sizeof(Material));
   	cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
+	
+	cudaMalloc(&dev_lights, hst_scene->lights.size() * sizeof(int));
+	cudaMemcpy(dev_lights, hst_scene->lights.data(), hst_scene->lights.size() * sizeof(int), cudaMemcpyHostToDevice);
 
   	cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
   	cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
@@ -264,12 +268,8 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 	}
 }
 
-// TODO:
-// computeIntersections handles generating ray intersections ONLY.
-// Generating new rays is handled in your shader(s).
-// Feel free to modify the code below.
-__global__ void computeIntersections(int depth, int num_paths, PathSegment * pathSegments, Geom * geoms, 
-	int geoms_size, ShadeableIntersection * intersections, char * dev_meshes)
+__global__ void computeIntersections(int iterations, int depth, int num_paths, PathSegment * pathSegments, Geom * geoms,
+	int geoms_size, int * lightIndices, int lightCount, ShadeableIntersection * intersections, char * dev_meshes)
 {
 	int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -329,6 +329,27 @@ __global__ void computeIntersections(int depth, int num_paths, PathSegment * pat
 			intersections[path_index].normal = normal;
 			intersections[path_index].tangent = tangent;
 			intersections[path_index].uv = uv;
+
+/*
+			thrust::default_random_engine rng = makeSeededRandomEngine(iterations, path_index, depth);
+			thrust::uniform_real_distribution<float> u01(0, 1);
+			float r = u01(rng);
+
+			int lightIndex = glm::clamp((int)r * lightCount, 0, lightCount - 1);
+			Geom lightGeom = geoms[lightIndex];*/
+/*
+			if (geom.type == CUBE)
+			{
+				t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, uv, tangent);
+			}
+			else if (geom.type == SPHERE)
+			{
+				t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, uv, tangent);
+			}
+			else if (geom.type == MESH)
+			{
+				t = meshIntersectionTest(geom, pathSegment.ray, dev_meshes, tmp_intersect, tmp_normal, outside, uv, tangent);
+			}*/
 		}
 	}
 }
@@ -584,8 +605,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		// tracing
 		dim3 numblocksPathSegmentTracing = (nonTerminatedPathCount + blockSize1d - 1) / blockSize1d;
 		
-		computeIntersections <<<numblocksPathSegmentTracing, blockSize1d>>> (
-			depth, nonTerminatedPathCount, dev_paths, dev_geoms, hst_scene->geoms.size(), dev_intersections, dev_meshes);
+		computeIntersections <<<numblocksPathSegmentTracing, blockSize1d>>> (iter, 
+			depth, nonTerminatedPathCount, dev_paths, dev_geoms, hst_scene->geoms.size(), dev_lights, hst_scene->lights.size(), dev_intersections, dev_meshes);
 
 		checkCUDAError("Intersection testing");
 		cudaDeviceSynchronize();

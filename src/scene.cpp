@@ -224,6 +224,14 @@ void Scene::initialize()
 		m.color = glm::pow(m.color, g);
 		m.specular.color = glm::pow(m.specular.color, g);
 	}
+
+	for (int i = 0; i < geoms.size(); i++)
+	{
+		if (materials[geoms[i].materialid].emittance > 0.f)
+			lights.push_back(i);
+	}
+
+	cout << "Lights: " << lights.size() << endl;
 }
 
 int Scene::loadCamera() {

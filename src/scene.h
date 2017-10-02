@@ -29,6 +29,7 @@ public:
     Scene(string filename);
     ~Scene();
 
+	std::vector<int> lights;
 	std::vector<Mesh*> meshes;
     std::vector<Geom> geoms;
     std::vector<Material> materials;

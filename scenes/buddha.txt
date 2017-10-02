@@ -10,7 +10,7 @@ EMITTANCE   5
 
 // Diffuse white
 MATERIAL 1
-RGB         .65 .65 .85
+RGB         .9 .75 .45
 SPECEX      0
 SPECRGB     0 0 0
 REFL        0
@@ -129,10 +129,10 @@ FOVY        15
 ITERATIONS  2000
 DEPTH       5
 FILE        cornell
-APERTURE    2.85
-DISTANCE	24.2
-BOKEH       ../scenes/resources/bokeh/star_alt.png
-EYE         0 0 20.5
+APERTURE    .75
+DISTANCE	14.5
+BOKEH       ../scenes/resources/bokeh/heart.png
+EYE         0 0 14.5
 LOOKAT      0 3 -2
 UP          0 1 0
 
@@ -163,11 +163,11 @@ SCALE       .01 20 20
 // Mesh
 OBJECT 3
 mesh
-FILE 		../scenes/resources/meshes/dragon.obj
+FILE 		../scenes/resources/meshes/buddha.obj
 material 3
 TRANS       0 0 0
-ROTAT       0 0 0
-SCALE       5 5 5
+ROTAT       0 180 0
+SCALE       6 6 6
 
 // FLOOR
 OBJECT 4
