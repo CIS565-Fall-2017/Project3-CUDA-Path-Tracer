@@ -10,6 +10,7 @@ __host__ __device__ bool MatchesFlags(const BxDFType sampledbxdf)
 	if ( (sampledbxdf & BSDF_SPECULAR_BRDF) ||
 		 (sampledbxdf & BSDF_SPECULAR_BTDF) ||
 		 (sampledbxdf & BSDF_LAMBERT)		||
+		 (sampledbxdf & BxDF_SUBSURFACE)    ||
 		 (sampledbxdf & BSDF_GLASS) )
 	{
 		return true;
@@ -225,14 +226,12 @@ __host__ __device__ Color3f sample_f(const Material &m, thrust::default_random_e
 	return Color;
 }
 
-
-
 __host__ __device__ void sampleMaterials(const Material &m, const Vector3f& wo, const Vector3f& normal,
 										 Color3f& sampledColor, Vector3f& wi, float& pdf,
 										 thrust::default_random_engine &rng)
 {
 	//simple pick and choose, if you implement a more complex material which requires you to 
-	//sample multiple bxDFs then include the samplef thing from the other branch
+	//sample multiple bxDFs then use the sample_f function
 	BxDFType sampledBxDF = chooseBxDF(m, rng, sampledColor, wi, pdf);
 
 	if (sampledBxDF == BSDF_LAMBERT)

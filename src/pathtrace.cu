@@ -297,7 +297,7 @@ __global__ void sortIndicesByMaterial(int numActiveRays, ShadeableIntersection *
 }
 
 __global__ void shadeMaterialsNaive(int iter, int numActiveRays, ShadeableIntersection * shadeableIntersections,
-									PathSegment * pathSegments, Material * materials)
+									PathSegment * pathSegments, Geom * geoms, Material * materials)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (idx < numActiveRays)
@@ -331,7 +331,7 @@ __global__ void shadeMaterialsNaive(int iter, int numActiveRays, ShadeableInters
 
 		// if the intersection exists and the itersection is not a light then
 		//deal with the material and end up changing the pathSegment color and its ray direction
-		naiveIntegrator(pathSegments[idx], intersection, material, rng);
+		naiveIntegrator(pathSegments[idx], intersection, material, geoms[idx], rng);
 	}
 }
 
@@ -517,7 +517,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 																			 dev_lights, hst_scene->lights.size());
 #else // NAIVE_INTEGRATOR
 		shadeMaterialsNaive <<<numblocksPathSegmentTracing, blockSize1d>>> (iter, activeRays, dev_intersections, 
-																			dev_paths, dev_materials);
+																			dev_paths, dev_geoms, dev_materials);
 #endif
 
 #if INACTIVE_RAY_CULLING		
