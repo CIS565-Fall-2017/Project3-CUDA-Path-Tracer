@@ -35,16 +35,6 @@ __host__ __device__ glm::vec3 multiplyMV(glm::mat4 m, glm::vec4 v) {
 	return glm::vec3(m * v);
 }
 
-// CHECKITOUT
-/**
- * Test intersection between a ray and a transformed cube. Untransformed,
- * the cube ranges from -0.5 to 0.5 in each axis and is centered at the origin.
- *
- * @param intersectionPoint  Output parameter for point of intersection.
- * @param normal             Output parameter for surface normal.
- * @param outside            Output param for whether the ray came from outside.
- * @return                   Ray parameter `t` value. -1 if no intersection.
- */
 __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
 	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside, glm::vec2 &uv, glm::vec3 & tangent) {
 	Ray q;
@@ -110,16 +100,6 @@ __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
 	return -1;
 }
 
-// CHECKITOUT
-/**
- * Test intersection between a ray and a transformed sphere. Untransformed,
- * the sphere always has radius 0.5 and is centered at the origin.
- *
- * @param intersectionPoint  Output parameter for point of intersection.
- * @param normal             Output parameter for surface normal.
- * @param outside            Output param for whether the ray came from outside.
- * @return                   Ray parameter `t` value. -1 if no intersection.
- */
 __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
 	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside, glm::vec2& uv, glm::vec3&tangent) {
 	float radius = .5;
@@ -181,4 +161,56 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
 	}
 
 	return glm::length(r.origin - intersectionPoint);
+}
+
+__host__ __device__ float meshIntersectionTest(Geom geo, Ray r, Triangle * meshes,
+	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside, glm::vec2& uv, glm::vec3&tangent) 
+{
+	glm::vec3 ro = multiplyMV(geo.inverseTransform, glm::vec4(r.origin, 1.0f));
+	glm::vec3 rd = glm::normalize(multiplyMV(geo.inverseTransform, glm::vec4(r.direction, 0.0f)));
+	
+	float distance = 10000000.f;
+	int triangleIndex = -1;
+
+	for (int i = 0; i < geo.meshData.triangleCount; i++)
+	{
+		Triangle & triangle = meshes[geo.meshData.offset + i];
+
+		glm::vec3 t = ro - triangle.p1;
+		glm::vec3 p = glm::cross(rd, triangle.e2);
+		glm::vec3 q = glm::cross(t, triangle.e1);
+
+		float multiplier = 1.f / glm::dot(p, triangle.e1);
+		float rayT = multiplier * glm::dot(q, triangle.e2);
+		float u = multiplier * glm::dot(p, t);
+		float v = multiplier * glm::dot(q, rd);
+
+		if (rayT < distance && rayT >= 0.f && u >= 0.f && v >= 0.f && u + v <= 1.f)
+		{
+			distance = rayT;
+			triangleIndex = i;
+			uv = glm::vec2(u, v);
+		}
+	}
+
+	if (triangleIndex >= 0)
+	{
+		Ray rt;
+		rt.origin = ro;
+		rt.direction = rd;
+
+		Triangle & triangle = meshes[triangleIndex];
+		outside = true;
+
+		glm::vec3 localP = getPointOnRay(rt, distance);
+		glm::vec3 localNormal = triangle.n1 * uv.x + triangle.n2 * uv.y + triangle.n3 * (1.f - uv.x - uv.y);
+
+		intersectionPoint = multiplyMV(geo.transform, glm::vec4(localP, 1.f));
+		normal = glm::normalize(multiplyMV(geo.invTranspose, glm::vec4(localNormal, 0.f)));
+		//tangent = glm::normalize(multiplyMV(geo.transform, glm::vec4(localTangent, 0.0f)));
+
+		return distance;
+	}
+
+	return -1.f;
 }

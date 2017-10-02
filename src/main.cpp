@@ -76,6 +76,7 @@ int main(int argc, char** argv) {
 	startTime = std::chrono::system_clock::now();
 
 	initializeDeviceTextures(scene);
+	initializeMeshes(scene);
 
     // GLFW main loop
     mainLoop();

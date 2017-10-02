@@ -120,6 +120,7 @@ static Scene * hst_scene = NULL;
 static glm::vec3 * dev_textures = NULL;
 static glm::vec4 * dev_image = NULL;
 static glm::vec4 * dev_tonemapped_image = NULL;
+static Triangle * dev_meshes = NULL;
 
 static Geom * dev_geoms = NULL;
 static Material * dev_materials = NULL;
@@ -268,7 +269,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 // Generating new rays is handled in your shader(s).
 // Feel free to modify the code below.
 __global__ void computeIntersections(int depth, int num_paths, PathSegment * pathSegments, Geom * geoms, 
-	int geoms_size, ShadeableIntersection * intersections)
+	int geoms_size, ShadeableIntersection * intersections, Triangle * dev_meshes)
 {
 	int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -302,8 +303,10 @@ __global__ void computeIntersections(int depth, int num_paths, PathSegment * pat
 			{
 				t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, uv, tangent);
 			}
-			// TODO: add more intersection tests here... triangle? metaball? CSG?
-
+			else if (geom.type == MESH)
+			{
+				t = meshIntersectionTest(geom, pathSegment.ray, dev_meshes, tmp_intersect, tmp_normal, outside, uv, tangent);
+			}
 			// Compute the minimum t from the intersection tests to determine what
 			// scene geometry object was hit first.
 			if (t > 0.0f && t_min > t)
@@ -546,10 +549,6 @@ struct PathTerminationOperator
 	}
 };
 
-/**
- * Wrapper for the __global__ call that sets up the kernel calls and does a ton
- * of memory management
- */
 void pathtrace(uchar4 *pbo, int frame, int iter) {
     const int traceDepth = hst_scene->state.traceDepth;
     const Camera &cam = hst_scene->state.camera;
@@ -563,37 +562,6 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
 	// 1D block for path tracing
 	const int blockSize1d = 128;
-
-    ///////////////////////////////////////////////////////////////////////////
-
-    // Recap:
-    // * Initialize array of path rays (using rays that come out of the camera)
-    //   * You can pass the Camera object to that kernel.
-    //   * Each path ray must carry at minimum a (ray, color) pair,
-    //   * where color starts as the multiplicative identity, white = (1, 1, 1).
-    //   * This has already been done for you.
-    // * For each depth:
-    //   * Compute an intersection in the scene for each path ray.
-    //     A very naive version of this has been implemented for you, but feel
-    //     free to add more primitives and/or a better algorithm.
-    //     Currently, intersection distance is recorded as a parametric distance,
-    //     t, or a "distance along the ray." t = -1.0 indicates no intersection.
-    //     * Color is attenuated (multiplied) by reflections off of any object
-    //   * TODO: Stream compact away all of the terminated paths.
-    //     You may use either your implementation or `thrust::remove_if` or its
-    //     cousins.
-    //     * Note that you can't really use a 2D kernel launch any more - switch
-    //       to 1D.
-    //   * TODO: Shade the rays that intersected something or didn't bottom out.
-    //     That is, color the ray by performing a color computation according
-    //     to the shader, then generate a new ray to continue the ray path.
-    //     We recommend just updating the ray's PathSegment in place.
-    //     Note that this step may come before or after stream compaction,
-    //     since some shaders you write may also cause a path to terminate.
-    // * Finally, add this iteration's results to the image. This has been done
-    //   for you.
-
-    // TODO: perform one iteration of path tracing
 
 	generateRayFromCamera <<<blocksPerGrid2d, blockSize2d >>>(cam, iter, traceDepth, dev_paths, dev_prefiltered, dev_textures);
 	checkCUDAError("generate camera ray");
@@ -617,20 +585,11 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		dim3 numblocksPathSegmentTracing = (nonTerminatedPathCount + blockSize1d - 1) / blockSize1d;
 		
 		computeIntersections <<<numblocksPathSegmentTracing, blockSize1d>>> (
-			depth, nonTerminatedPathCount, dev_paths, dev_geoms, hst_scene->geoms.size(), dev_intersections);
+			depth, nonTerminatedPathCount, dev_paths, dev_geoms, hst_scene->geoms.size(), dev_intersections, dev_meshes);
 
 		checkCUDAError("trace one bounce");
 		cudaDeviceSynchronize();
 		depth++;
-
-		// TODO:
-		// --- Shading Stage ---
-		// Shade path segments based on intersections and generate new rays by
-		// evaluating the BSDF.
-		// Start off with just a big kernel that handles all the different
-		// materials you have in the scenefile.
-		// TODO: compare between directly shading the path segments and shading
-		// path segments that have been reshuffled to be contiguous in memory.
 
 		shadeKernel <<<numblocksPathSegmentTracing, blockSize1d>>> (
 			iter, nonTerminatedPathCount, dev_intersections, dev_paths, dev_materials, dev_textures);
@@ -724,4 +683,25 @@ void initializeDeviceTextures(Scene * scene)
 	}
 
 	checkCUDAError("initializeDeviceTextures");
+}
+
+void initializeMeshes(Scene * scene)
+{
+	int totalMemory = 0;
+
+	for (int i = 0; i < scene->meshes.size(); i++)
+		totalMemory += scene->meshes[i]->triangles.size();
+
+	cudaMalloc(&dev_meshes, totalMemory * sizeof(Triangle));
+	int offset = 0;
+
+	for (int i = 0; i < scene->meshes.size(); i++)
+	{
+		Mesh * mesh = scene->meshes[i];
+		int size = mesh->triangles.size();
+		cudaMemcpy(dev_meshes + offset, mesh->triangles.data(), size * sizeof(Triangle), cudaMemcpyHostToDevice);
+		offset += size;
+	}
+
+	checkCUDAError("initializeMeshes");
 }
