@@ -23,11 +23,11 @@
 
 // Toggle options for features 1 - ON & 0 - OFF
 #define ERRORCHECK	1
-#define AA	0
+#define AA	1
 #define DOF	0
 #define PATHCOMPACTION	0
 #define NAIVEDIRECTLIGHTING	0		// This implementation performs DL on the first Bounce and continues to the next iteration
-#define LASTBOUNCEDIRECTLIGHTING  1
+#define LASTBOUNCEDIRECTLIGHTING  0
 #define CACHEFIRSTBOUNCE 0
 #define SORTPATHSBYMATERIAL 0
 // Toggle for performance analysis

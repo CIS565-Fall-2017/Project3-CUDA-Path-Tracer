@@ -48,6 +48,11 @@ CUDA Path Tracer
 
 ![LB_DL](img/Renders/DLLB.png)
 
+## Anti-Aliasing
+* With AA & Without AA
+
+![WAA](img/Renders/WAA.png) ![WOUTAA](img/Renders/WOUTAA.png)
+
 Performance Analysis
 ===================
 
