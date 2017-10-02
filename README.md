@@ -134,6 +134,8 @@ Below is a comparison of the same scene, `cornellMirrors.txt`, rendered first wi
 
 ![](img/cache-DL.png)
 
+Note that the "mirror" on the left wall is partially diffuse, hence why it is affected by direct lighting.
+
 #### Performance impact
 
 Below is a graph showing the time required to render `cornellMirrors.txt` with 5000 samples and ray depth of 8, under three different settings: bare-bones, cache only enabled, and both direct lighting and cache enabled:
@@ -185,6 +187,48 @@ Then, when performing ray-scene intersection, instead of always checking all the
 Compared to a hypothetical CPU implementation, this GPU implementation would probably be weighed down by the massive warp divergence that could happen in case some threads in a warp hit the mesh, but others do not.
 
 One obvious optimization that can be made is implementing a more efficient spatial data structure to greatly reduce the number of triangles that must be checked when shooting a ray through the scene. Something like an octree or a BVH could significantly improve performance. 
+
+### Use normals as colors
+
+#### Overview
+
+This very simple feature lets objects be shaded according to their normals, instead of the regular shader kernel. It is useful for debugging. Below is an example:
+
+![](img/normals.png)
+
+#### Performance impact
+
+Since this greatly removes most of the complexity of path tracing (no need to shoot additional rays, very simple "shading", etc), this is very fast.
+
+For example, the image above took 205519.031 ms to render, while the regularly shaded scene took 844956.938 ms.
+
+Note that I waited for the full 5000 samples to finish, but the image was "ready" as soon as the first sample finished, since there is no randomness involved here.
+
+#### Optimizations
+
+There aren't many optimizations to be done here. Since there is no more work to be done after shooting the first ray and determining which surface it hits (if any), all paths are terminated before their first bounce.
+
+This should be much faster than a hypothetical CPU implementation, since there would be very little warp divergence (only in geometry intersection testing). 
+
+### Toggling features
+
+Most features can be toggled on/off in `pathtrace.cu`:
+
+```
+#define COMPACTION 0
+#define SORT_BY_MATERIAL 0
+#define CACHE_FIRST_HIT 1
+#define DIRECT_LIGHTING 1
+#define COLOR_BY_NORMALS 0
+#define MEASURE_SHADER 0
+#define MEASURE_PATHS_PER_ITERATION 0
+```
+
+`intersections.h` contains the toggle for mesh culling via bounding volume:
+
+```
+#define CULL_BY_BBOX 1
+```
 
 ### Scene file format
 

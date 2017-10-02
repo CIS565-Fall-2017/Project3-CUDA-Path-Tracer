@@ -3,6 +3,7 @@
 #include "intersections.h"
 
 #define SHADOW_OFFSET 0.0001f
+#define PROCEDURAL_TEXTURE 1
 
 __host__ __device__
 glm::vec3 calculateRandomDirection(
