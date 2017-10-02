@@ -137,7 +137,7 @@ len radius = 3.0, focal length = 10.0 | len radius = 3.0, focal length = 13.0 | 
  ------------ | ------------- | -------------
  direct lighting 50 spp|direct lighting 100 spp| direct lighting 5000 spp
  ![](img/71_NaiveLighting_50samp.png) |  ![](img/71_NaiveLighting_100samp.png) | ![](img/71_NaiveLighting_5000samp.png)
- direct lighting 50 spp|direct lighting 100 spp| direct lighting 5000 spp
+ naive lighting 50 spp| naive lighting 100 spp| naive lighting 5000 spp
 
  ###### Analysis:
  Like comparison shown above, direct lighting converges much quicker and thus definitely much cheaper. Basically, there is no clear difference for 50spp and 5000 spp for direct lighting except for so complex places, like the lower right glass ball, and only this ball converges relatively slow, and can see clear noises in it for 50spp and 100spp. There is no performance difference between two methods in terms of the time need for each iteration.
