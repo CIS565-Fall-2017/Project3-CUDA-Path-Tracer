@@ -17,7 +17,6 @@ REFL        0
 REFR        0
 REFRIOR     0
 EMITTANCE   0
-TEX_DIFFUSE ../scenes/resources/textures/checker_g.png
 
 // Diffuse red
 MATERIAL 2
@@ -46,7 +45,7 @@ MATERIAL 4
 RGB         .98 .98 .98
 SPECEX      0
 SPECRGB     .98 .98 .98
-REFL        0
+REFL        1
 REFR        0
 REFRIOR     0
 EMITTANCE   0
@@ -66,8 +65,8 @@ FOVY        45
 ITERATIONS  1000
 DEPTH       8
 FILE        cornell
-APERTURE    0.0
-DISTANCE	4.0
+APERTURE    0.2
+DISTANCE	2.0
 BOKEH       ../scenes/resources/bokeh/chromatic.png
 EYE         0 -1 5.5
 LOOKAT      0 2 0
@@ -124,7 +123,7 @@ SCALE       .01 10 10
 // Mesh
 OBJECT 6
 mesh
-FILE 		../scenes/resources/meshes/teapot.obj
+FILE 		../scenes/resources/meshes/dragon.obj
 material 4
 TRANS       0 0 -3
 ROTAT       0 0 0
