@@ -37,7 +37,7 @@ In addition to simple geometry defined by functions (sphere, cube), I've impleme
 
 If we repeatedly partition the objects in the scene into recursive bounding boxes that contain "half" of their parents' geometry, we get a structure that looks like the following: 
 
-![](img/bvh_explain_example.png)
+![](img/bvh_explain_example.PNG)
 
 This way, instead of performing intersection tests over n elements (where n is the number of objects), we only need to perform intersection tests over the log(n) bounding boxes that bring you to your element. 
 
@@ -49,7 +49,7 @@ My implementation is mostly sequential and performed on the CPU, but takes advan
 
 The resulting array ordering may look something like this:
 
-![](img/bvh_array_example.png)
+![](img/bvh_array_example.PNG)
 
 At each depth of the BVH Tree, we partition the geometry of each node into two children nodes until we reach the maximum tree depth. For each partition, we choose an different axis to split the parent BVH bounding box. Using a pre-defined number of buckets, we test partitioning the geometry by these buckets and determine the split that results in the most equal partition using the Surface Area Heuristic (SAH). This basically just means we try to ensure that the total surface area of the two partitions are mostly even.
 
@@ -65,9 +65,9 @@ The following table/graphs demonstrate how the time elapsed per iteration change
 
 All measurements are taken on the same scene with about 20,000 triangles
 
-![](img/bvh_table.png)
-![](img/bvh_graph_construct.png)
-![](img/bvh_graph_iteration.png)
+![](img/bvh_table.PNG)
+![](img/bvh_graph_construct.PNG)
+![](img/bvh_graph_iteration.PNG)
 
 Iteration time does not improve much at depth 14 because log(20000) is between 14 and 15. Thus, increasing maximum BVH depth just results in more empty leaf nodes
 
@@ -87,8 +87,8 @@ Rather than parallelizing by pixel at every path tracing depth, we can paralleli
 
 The table below shows how without stream compaction each depth takes about the same amount of time to execute, while with stream compaction, the time decreases with each level.
 
-![](img/compact_table.png)
-![](img/compact_graph.png)
+![](img/compact_table.PNG)
+![](img/compact_graph.PNG)
 
 With the currently maximum depth level, we don't see much of an improvement with stream compaction, but if the maximum number of bounces a path segment could make were higher, then we would see an improvement with stream compaction.
 
@@ -115,6 +115,6 @@ Some materials require different amounts of computation to calculate shading. If
 
 The following table shows how including material sorting effects the execution time per iteration.
 
-![](img/matsort_table.png)
+![](img/matsort_table.PNG)
 
 The main reason why we don't see a performance increase is because the two materials implemented in my project are incredibly simple and short. The computation in sorting the long arrays was much more than the computation saved in eliminating divergence.
