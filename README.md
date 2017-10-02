@@ -8,6 +8,12 @@ CUDA Path Tracer
 
 ![](img/loris.gif)
 
+![](img/mask1000spp.png)\
+1000 samples per pixel ~500,000 tris\
+Construction: 8 minutes\
+One iteration: ~650ms\
+Total Render Time: ~7 minutes
+
 # **Project Overview and Goals**
 
 The goal of this project is to implement a simple GPU Path Tracer.
@@ -72,6 +78,7 @@ All measurements are taken on the same scene with about 20,000 triangles
 Iteration time does not improve much at depth 14 because log(20000) is between 14 and 15. Thus, increasing maximum BVH depth just results in more empty leaf nodes
 
 ![](img/bvh_example.png)\
+Test Scene for time measurements\
 1000 samples per pixel, ~20,000 triangles, BVH Depth 14
 
 ## Places that could be improved/Things to think about for optimization:

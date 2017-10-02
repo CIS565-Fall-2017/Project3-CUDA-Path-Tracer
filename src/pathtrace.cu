@@ -27,7 +27,7 @@
 #define MATSORT 0
 #define CACHE_CAMERA_RAYS 0
 #define AA_JITTER 1
-#define BVH_DEPTH 16 /*
+#define BVH_DEPTH 19 /*
 		0
 	  /   \
 	1		1

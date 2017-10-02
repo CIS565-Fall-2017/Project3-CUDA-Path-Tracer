@@ -261,14 +261,14 @@ __global__ void computeBVHIntersections(
 
 	if (path_index < num_paths)
 	{
-		glm::vec2 geom_ranges[200];
+		glm::vec2 geom_ranges[300];
 		int geom_idx = 0;
 		PathSegment pathSegment = pathSegments[path_index];
 		if (pathSegment.pixelIndex == 400) {
 			int pixelIndex = pathSegment.pixelIndex;
 			pixelIndex++;
 		}
-		BVHNode* stack[200];
+		BVHNode* stack[300];
 		BVHNode* * stackPtr = stack;
 		*stackPtr++ = NULL; // push
 
