@@ -1,6 +1,6 @@
 // Emissive material (light)
 MATERIAL 0
-RGB         1 1 1
+RGB         1 0.5 1
 SPECEX      0
 SPECRGB     0 0 0
 REFL        0
@@ -60,21 +60,41 @@ REFR        1
 REFRIOR     1.517
 EMITTANCE   0
 
+// Transmissive yellow
 MATERIAL 6
 RGB         .98 .98 .2
 SPECEX      0
-SPECRGB     .3 .98 .2
+SPECRGB     .98 .98 .2
 REFL        0
 REFR        1
 REFRIOR     1.517
 EMITTANCE   0
+
+// Diffuse yellow
+MATERIAL 7
+RGB         .98 .98 .2
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+
+MATERIAL 8
+RGB         0.5 1 1
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   5
 
 // Camera
 CAMERA
 RES         800 800
 FOVY        45
 ITERATIONS  5000
-DEPTH       8
+DEPTH       16
 FILE        cornell
 FOCALLENGTH 5.0
 LENSRAD     0.2
@@ -87,9 +107,9 @@ UP          0 1 0
 OBJECT 0
 sphere
 material 0
-TRANS       0 10 0
+TRANS       2 7 -2
 ROTAT       0 0 0
-SCALE       3 3 3
+SCALE       2 2 2
 
 // Floor
 OBJECT 1
@@ -134,15 +154,31 @@ SCALE       .01 10 10
 // Sphere
 OBJECT 6
 sphere
-material 1
-TRANS       -3 4 -1
+material 4
+TRANS       -3 2 0
 ROTAT       0 0 0
-SCALE       3 3 3
+SCALE       2.5 2.5 2.5
 
 // Sphere
 OBJECT 7
 sphere
-material 2
-TRANS       3 4 -1
+material 5
+TRANS       3 2 0
 ROTAT       0 0 0
-SCALE       3 3 3
+SCALE       2.5 2.5 2.5
+
+// Sphere
+OBJECT 8
+sphere
+material 7
+TRANS       0 2 0
+ROTAT       0 0 0
+SCALE       2.5 2.5 2.5
+
+// light yellow
+OBJECT 9
+sphere
+material 8
+TRANS       -2 7 -2
+ROTAT       0 0 0
+SCALE       2 2 2

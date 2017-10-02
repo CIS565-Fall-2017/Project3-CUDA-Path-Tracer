@@ -69,6 +69,8 @@ struct PathSegment {
 	int pixelIndex;
 	int remainingBounces;
   bool refractEnter;
+  glm::vec3 throughput;
+  bool specular;
 };
 
 // Use with a corresponding PathSegment to do:
