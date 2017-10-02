@@ -17,7 +17,6 @@ REFL        0
 REFR        0
 REFRIOR     0
 EMITTANCE   0
-TEX_NORMAL ../scenes/resources/textures/bricks_n.jpg
 
 // Diffuse red
 MATERIAL 2
@@ -50,17 +49,18 @@ REFL        1
 REFR        0
 REFRIOR     0
 EMITTANCE   0
-TEX_SPECULAR ../scenes/resources/textures/checker_g.png
 
 // Film
 FILM
 GAMMA			2.2
 FILTER_RADIUS	1.5
 FILTER_ALPHA	4.0
+VIGNETTE_START	0.35
+VIGNETTE_END	1.0
 
 // Camera
 CAMERA
-RES         800 800
+RES         960 408
 FOVY        45
 ITERATIONS  1000
 DEPTH       8

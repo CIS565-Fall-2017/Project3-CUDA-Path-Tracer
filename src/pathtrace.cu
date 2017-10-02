@@ -49,21 +49,45 @@ thrust::default_random_engine makeSeededRandomEngine(int iter, int index, int de
     return thrust::default_random_engine(h);
 }
 
+// Hardcoded for now (TODO: expose curve)
+__forceinline__
+__host__ __device__ glm::vec3 FilmicTonemapping(glm::vec3 x)
+{
+	return ((x*(0.15f*x + 0.10f*0.50f) + 0.20f*0.02f) / (x*(0.15f*x + 0.50f) + 0.20f*0.30f)) - 0.02f / 0.30f;
+}
+
+
 __global__ void tonemapKernel(glm::vec4 * rawImage, glm::vec4 * resultImage, glm::ivec2 resolution, Film film)
 {
 	int x = (blockIdx.x * blockDim.x) + threadIdx.x;
 	int y = (blockIdx.y * blockDim.y) + threadIdx.y;
 
-	if (x < resolution.x && y < resolution.y) {
+	if (x < resolution.x && y < resolution.y) 
+	{
+		float maxDistance = glm::max(resolution.x, resolution.y);
+		glm::vec2 uv = glm::vec2(x - resolution.x * .5f, y - resolution.y * .5f);
+		uv /= maxDistance;
+
+		float vignette = 1.0 - glm::smoothstep(film.vignetteStart, film.vignetteEnd, glm::length(uv) / 0.70710678118f);
+
 		int index = x + (y * resolution.x);
 		glm::vec4 pixel = rawImage[index];
 
 		// Divide by accumulated filter weight
 		pixel /= pixel.w;
+		pixel *= film.exposure * vignette;
+		
+		// Custom vignette operator
+		pixel = glm::mix(pixel * pixel * pixel * .5f, pixel, vignette);
 
-		pixel.x = glm::pow(pixel.x, film.invGamma);
-		pixel.y = glm::pow(pixel.y, film.invGamma);
-		pixel.z = glm::pow(pixel.z, film.invGamma);
+		// Filmic tonemapping reference: http://filmicworlds.com/blog/filmic-tonemapping-operators/
+		glm::vec3 current = FilmicTonemapping(glm::vec3(pixel));
+		glm::vec3 whiteScale = 1.0f / FilmicTonemapping(glm::vec3(13.2f));
+		glm::vec3 color = glm::clamp(current*whiteScale, glm::vec3(0.f), glm::vec3(1.f));
+
+		pixel.x = glm::pow(color.x, film.invGamma);
+		pixel.y = glm::pow(color.y, film.invGamma);
+		pixel.z = glm::pow(color.z, film.invGamma);
 
 		resultImage[index] = pixel;
 	}
@@ -354,7 +378,35 @@ __global__ void shadeKernel(int iter, int num_paths, ShadeableIntersection * sha
 					n = glm::normalize(tangent * texData.r + bitangent * texData.g + n * texData.b);
 				}
 
-				if (material.hasReflective > 0.f)
+				if (material.hasRefractive > 0.f)
+				{
+					glm::vec3 wo = pathSegments[idx].ray.direction;
+
+					float VdotN = glm::dot(wo, n);
+					bool leaving = VdotN > 0.f;
+					n *= leaving ? -1.f : 1.f;
+					float eta = leaving ? 1.f / material.indexOfRefraction : material.indexOfRefraction;
+
+					glm::vec3 wi = glm::refract(-wo, n, eta);
+
+					// Total internal reflection
+					if (glm::length(wi) < 0.01f)
+					{
+						pathSegments[idx].color = glm::vec3(0.0f);
+						pathSegments[idx].remainingBounces = 0;
+					}
+					else
+					{
+						Ray outRay;
+						outRay.origin = pathSegments[idx].ray.origin + pathSegments[idx].ray.direction * intersection.t - n * .001f;
+						outRay.direction = wi;
+
+						pathSegments[idx].ray = outRay;
+						pathSegments[idx].color *= materialColor;
+						pathSegments[idx].remainingBounces -= 1;
+					}
+				}
+				else if (material.hasReflective > 0.f)
 				{
 					glm::vec3 wo = pathSegments[idx].ray.direction;
 					glm::vec3 wi = glm::reflect(wo, n);

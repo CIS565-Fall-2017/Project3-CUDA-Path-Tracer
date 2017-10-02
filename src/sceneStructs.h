@@ -81,8 +81,11 @@ struct Film
 	float filterAlpha;
 	float invGamma;
 	float gamma;
+	float exposure;
+	float vignetteStart;
+	float vignetteEnd;
 
-	Film() : filterRadius(1.5f), filterAlpha(4.0f), gamma(2.2f), invGamma(1.f / 2.2f) {};
+	Film() : filterRadius(1.5f), filterAlpha(4.0f), gamma(2.2f), invGamma(1.f / 2.2f), exposure(16.f), vignetteStart(.3f), vignetteEnd(1.25f) {};
 };
 
 struct RenderState 
@@ -114,9 +117,9 @@ struct SampledPath
 // 1) color contribution computation
 // 2) BSDF evaluation: generate a new ray
 struct ShadeableIntersection {
-  float t;
-  int materialId;
-  glm::vec3 normal;
-  glm::vec3 tangent;
-  glm::vec2 uv;
+	float t;
+	int materialId;
+	glm::vec3 normal;
+	glm::vec3 tangent;
+	glm::vec2 uv;
 };

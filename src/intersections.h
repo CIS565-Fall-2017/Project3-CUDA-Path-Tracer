@@ -177,7 +177,7 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
 
 	uv = glm::vec2(1.f - (phi / glm::two_pi<float>()), 1.f - (glm::acos(localP.y) / glm::pi<float>()));
 	if (!outside) {
-		//normal = -normal;
+		normal = -normal;
 	}
 
 	return glm::length(r.origin - intersectionPoint);

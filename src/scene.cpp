@@ -107,11 +107,12 @@ int Scene::loadFilm() {
 	RenderState &state = this->state;
 	Film &film = state.film;
 
-	for (int i = 0; i < 3; i++) {
-		string line;
-		utilityCore::safeGetline(fp_in, line);
+	string line;
+	utilityCore::safeGetline(fp_in, line);
+
+	while (!line.empty() && fp_in.good()) 
+	{
 		vector<string> tokens = utilityCore::tokenizeString(line);
-		
 		if (strcmp(tokens[0].c_str(), "FILTER_RADIUS") == 0) 
 		{
 			film.filterRadius = atof(tokens[1].c_str());
@@ -125,6 +126,20 @@ int Scene::loadFilm() {
 			film.gamma = atof(tokens[1].c_str());
 			film.invGamma = 1.f / film.gamma;
 		}
+		else if (strcmp(tokens[0].c_str(), "EXPOSURE") == 0)
+		{
+			film.exposure = atof(tokens[1].c_str());
+		}
+		else if (strcmp(tokens[0].c_str(), "VIGNETTE_START") == 0)
+		{
+			film.vignetteStart = atof(tokens[1].c_str());
+		}
+		else if (strcmp(tokens[0].c_str(), "VIGNETTE_END") == 0)
+		{
+			film.vignetteEnd = atof(tokens[1].c_str());
+		}
+
+		utilityCore::safeGetline(fp_in, line);
 	}
 
 	cout << "Loaded film!" << endl;
