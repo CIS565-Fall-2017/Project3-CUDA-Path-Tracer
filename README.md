@@ -30,7 +30,7 @@ The first iteration of my pathtracer employed basic Bidirectional Scattering Dis
 Refraction behaviors occur when light moves through a medium. Since light travels at different speed in different materials, it can be said to bend upon moving from one medium to another. 
 
 ### Direct Lighting
-![](imgcornell.2017-09-29_19-20-16z.83samp.png)
+![](img/cornell.2017-09-29_19-20-16z.83samp.png)
 One technique for adding shaper shadows to a pathtraced image, and terminating rays faster, is to calculate some rays through direct lighting. That is to say, instead of computing bounces through a BSDF, one instead computes a bounce directly to a light by sampling points on lights in the scene. 
 
 ### Depth of Field
@@ -62,10 +62,10 @@ The memory access patterns of my kernels could use significant optimization. I e
 ![](img/SortByMaterial.PNG)
 
 ## The Process
-![](basicPathTracer001.png)
-![](basicPathTracer003.png)
-![](cornell.2017-09-29_03-02-34z.54samp.png)
-![]cornell.2017-09-28_19-31-31z.7samp.png)
-![]cornell.2017-09-28_18-29-39z.10samp.png)
-![]cornell.2017-09-26_15-32-21z.105samp.png)
+![](img/basicPathTracer001.png)
+![](img/basicPathTracer003.png)
+![](img/cornell.2017-09-29_03-02-34z.54samp.png)
+![](img/cornell.2017-09-28_19-31-31z.7samp.png)
+![](img/cornell.2017-09-28_18-29-39z.10samp.png)
+![](img/cornell.2017-09-26_15-32-21z.105samp.png)
 
