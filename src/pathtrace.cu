@@ -324,10 +324,10 @@ __global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterati
 
 void compactPath(int& num_paths, PathSegment *paths, bool *flag)
 {
-	thrust::device_ptr<bool> dev_ptrFlag(flag);
-	thrust::device_ptr<PathSegment> dev_ptrPaths(paths);
-	thrust::remove_if(dev_ptrPaths, dev_ptrPaths + num_paths, dev_ptrFlag, thrust::logical_not<bool>());
-	num_paths = thrust::count_if(dev_ptrFlag, dev_ptrFlag + num_paths, thrust::identity<bool>());
+	thrust::device_ptr<bool> thrust_flags(flag);
+	thrust::device_ptr<PathSegment> thrust_paths(paths);
+	thrust::remove_if(thrust_paths, thrust_paths + num_paths, thrust_flags, thrust::logical_not<bool>());
+	num_paths = thrust::count_if(thrust_flags, thrust_flags + num_paths, thrust::identity<bool>());
 }
 
 void sortByMaterials(int num_path) {
