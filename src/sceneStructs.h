@@ -8,6 +8,24 @@
 
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
 
+class AABB
+{
+public:
+	AABB(const glm::vec3& min, const glm::vec3& max) : min(min), max(max), center((min + max) * .5f) {}
+	AABB() : min(glm::vec3(0.f)), max(glm::vec3(0.f)), center((min + max) * .5f) {}
+
+	// Intersection is handled in device
+	AABB Encapsulate(AABB bounds);
+	AABB Transform(const glm::mat4x4& transform);
+
+	glm::vec3 min;
+	glm::vec3 max;
+	glm::vec3 center;
+
+private:
+	static glm::vec3 aabb[];
+};
+
 enum GeomType 
 {
     SPHERE,
@@ -24,25 +42,119 @@ struct Ray
 struct Triangle
 {
 	// Data
-	glm::vec3 e1;
-	glm::vec3 e2;
 	glm::vec3 p1;
+	glm::vec3 p2;
+	glm::vec3 p3;
 
 	// Normals
 	glm::vec3 n1;
 	glm::vec3 n2;
 	glm::vec3 n3;
+
+	AABB bounds;
 };
 
-struct Mesh
+struct CompactTriangle
 {
-	std::vector<Triangle> triangles;
+	// Data
+	float e1x;
+	float e1y;
+	float e1z;
+
+	float e2x;
+	float e2y;
+	float e2z;
+
+	float p1x;
+	float p1y;
+	float p1z;
+
+	// Normals
+	float n1x;
+	float n1y;
+	float n1z;
+
+	float n2x;
+	float n2y;
+	float n2z;
+
+	float n3x;
+	float n3y;
+	float n3z;
+};
+
+struct StackData
+{
+	int nodeOffset;
+	float minDistance;
+	float maxDistance;
+};
+
+struct CompactNode
+{
+	int leftNode;
+	int rightNode;
+	float split;
+
+	// These two could be an union
+	int axis;
+	int primitiveCount;
+};
+
+class Mesh
+{
+private:
+	struct MeshNode
+	{
+	public:
+		MeshNode(const std::vector<Triangle *> &triangles, glm::vec3 min, glm::vec3 max, int depth, int maxDepth, int threshold);
+		~MeshNode();
+
+		void BuildNode(const std::vector<Triangle *> &triangles, const glm::vec3& minVector, const glm::vec3& maxVector, int depth, int maxDepth, int threshold);
+		float CostFunction(float split, const std::vector<Triangle *> &triangles, float minAxis, float maxAxis);
+		float GetSplitPoint(const std::vector<Triangle *> &triangles, float minAxis, float maxAxis);
+
+		bool IsLeaf();
+		int GetNodeCount();
+		int TriangleCount();
+		int GetDepth();
+
+	public:
+		std::vector<Triangle *> nodeTriangles;
+		MeshNode * left;
+		MeshNode * right;
+
+		float split;
+		int axis;
+		int parentOffset; // For compaction
+	};
+
+public:
+	Mesh(int maxDepth, int maxLeafSize, std::vector<Triangle*>& triangles);
+	~Mesh();
+
+	void Build(glm::mat4x4 transform);
+
+	int maxDepth;
+	AABB meshBounds;
+	int maxLeafSize;
+	int * compactNodes;
+	int compactDataSize;
+
+protected:
+	std::vector<Triangle*> triangles;
+	MeshNode * root;
+
+	AABB CalculateAABB();
+	void Compact();
 };
 
 struct MeshDescriptor
 {
 	int offset;
 	int triangleCount;
+	glm::vec3 minAABB;
+	glm::vec3 maxAABB;
 	MeshDescriptor() : offset(-1), triangleCount(0) {};
 };
 
@@ -51,7 +163,6 @@ struct Geom
     enum GeomType type;
     int materialid;
 	MeshDescriptor meshData;
-
     glm::vec3 translation;
     glm::vec3 rotation;
     glm::vec3 scale;

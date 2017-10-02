@@ -120,7 +120,7 @@ static Scene * hst_scene = NULL;
 static glm::vec3 * dev_textures = NULL;
 static glm::vec4 * dev_image = NULL;
 static glm::vec4 * dev_tonemapped_image = NULL;
-static Triangle * dev_meshes = NULL;
+static void * dev_meshes = NULL;
 
 static Geom * dev_geoms = NULL;
 static Material * dev_materials = NULL;
@@ -269,7 +269,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 // Generating new rays is handled in your shader(s).
 // Feel free to modify the code below.
 __global__ void computeIntersections(int depth, int num_paths, PathSegment * pathSegments, Geom * geoms, 
-	int geoms_size, ShadeableIntersection * intersections, Triangle * dev_meshes)
+	int geoms_size, ShadeableIntersection * intersections, void * dev_meshes)
 {
 	int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -289,8 +289,6 @@ __global__ void computeIntersections(int depth, int num_paths, PathSegment * pat
 		glm::vec3 tmp_intersect;
 		glm::vec3 tmp_normal;
 
-		// naive parse through global geoms
-
 		for (int i = 0; i < geoms_size; i++)
 		{
 			Geom & geom = geoms[i];
@@ -307,6 +305,7 @@ __global__ void computeIntersections(int depth, int num_paths, PathSegment * pat
 			{
 				t = meshIntersectionTest(geom, pathSegment.ray, dev_meshes, tmp_intersect, tmp_normal, outside, uv, tangent);
 			}
+
 			// Compute the minimum t from the intersection tests to determine what
 			// scene geometry object was hit first.
 			if (t > 0.0f && t_min > t)
@@ -687,21 +686,49 @@ void initializeDeviceTextures(Scene * scene)
 
 void initializeMeshes(Scene * scene)
 {
+	// Build kd trees and compact memory
+	for (int i = 0; i < scene->geoms.size(); i++)
+	{
+		if (scene->geoms[i].type == MESH)
+			scene->meshes[scene->geoms[i].meshData.offset]->Build(scene->geoms[i].transform);
+	}
+
+	// Allocate
 	int totalMemory = 0;
-
 	for (int i = 0; i < scene->meshes.size(); i++)
-		totalMemory += scene->meshes[i]->triangles.size();
+		totalMemory += scene->meshes[i]->compactDataSize;
 
-	cudaMalloc(&dev_meshes, totalMemory * sizeof(Triangle));
+	cudaMalloc(&dev_meshes, totalMemory);
+
 	int offset = 0;
+	std::vector<int> offsetList;
 
+	// Copy
 	for (int i = 0; i < scene->meshes.size(); i++)
 	{
+		offsetList.push_back(offset);
 		Mesh * mesh = scene->meshes[i];
-		int size = mesh->triangles.size();
-		cudaMemcpy(dev_meshes + offset, mesh->triangles.data(), size * sizeof(Triangle), cudaMemcpyHostToDevice);
+		int size = mesh->compactDataSize;
+		int * compactData = mesh->compactNodes;
+
+		cudaMemcpy((void*) ((int*)dev_meshes + offset), compactData, size, cudaMemcpyHostToDevice);
 		offset += size;
 	}
+
+	// Update references
+	for (int i = 0; i < scene->geoms.size(); i++)
+	{
+		if (scene->geoms[i].type == MESH) 
+		{
+			Mesh * mesh = scene->meshes[scene->geoms[i].meshData.offset];
+			AABB bounds = mesh->meshBounds;
+			scene->geoms[i].meshData.maxAABB = bounds.max;
+			scene->geoms[i].meshData.minAABB = bounds.min;
+			scene->geoms[i].meshData.offset = offsetList[scene->geoms[i].meshData.offset];
+		}
+	}
+
+	std::cout << "Mesh memory: " << totalMemory << std::endl;
 
 	checkCUDAError("initializeMeshes");
 }

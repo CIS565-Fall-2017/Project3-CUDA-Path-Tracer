@@ -15,6 +15,9 @@
 #include <map>
 #include <fstream>
 #include <sstream>
+#include <stack>
+
+#define SAH_SUBDIV 15
 
 Scene::Scene(string filename) {
     cout << "Reading scene from " << filename << " ..." << endl;
@@ -366,6 +369,13 @@ int Scene::loadMaterial(string materialid) {
         return 1;
     }
 }
+//
+//AABB GetTriangleBounds(Triangle& t)
+//{
+//	glm::vec3 min = glm::min(this->points[0], glm::min(this->points[1], this->points[2]));
+//	glm::vec3 max = glm::max(this->points[0], glm::max(this->points[1], this->points[2]));
+//	return AABB(min - Vector3f(glm::epsilon<float>()), max - Vector3f(glm::epsilon<float>()));
+//}
 
 MeshDescriptor Scene::loadMesh(string & filename)
 {
@@ -373,7 +383,7 @@ MeshDescriptor Scene::loadMesh(string & filename)
 	std::string errors = tinyobj::LoadObj(shapes, materials, filename.c_str());
 	std::cout << errors << std::endl;
 
-	Mesh * mesh = new Mesh();
+	std::vector<Triangle*> triangles;
 
 	if (errors.size() == 0)
 	{
@@ -389,12 +399,16 @@ MeshDescriptor Scene::loadMesh(string & filename)
 				glm::vec3 p1(positions[indices[j] * 3], positions[indices[j] * 3 + 1], positions[indices[j] * 3 + 2]);
 				glm::vec3 p2(positions[indices[j + 1] * 3], positions[indices[j + 1] * 3 + 1], positions[indices[j + 1] * 3 + 2]);
 				glm::vec3 p3(positions[indices[j + 2] * 3], positions[indices[j + 2] * 3 + 1], positions[indices[j + 2] * 3 + 2]);
-				
-				Triangle t;
 
-				t.e1 = p2 - p1;
-				t.e2 = p3 - p1;
-				t.p1 = p1;
+				glm::vec3 min = glm::min(p1, glm::min(p2, p3));
+				glm::vec3 max = glm::max(p1, glm::max(p2, p3));
+				AABB bounds = AABB(min - glm::vec3(glm::epsilon<float>()), max + glm::vec3(glm::epsilon<float>()));
+								
+				Triangle * triangle = new Triangle();
+				triangle->p1 = p1;
+				triangle->p2 = p2;
+				triangle->p3 = p3;
+				triangle->bounds = bounds;
 
 				if (normals.size() > 0)
 				{
@@ -402,9 +416,9 @@ MeshDescriptor Scene::loadMesh(string & filename)
 					glm::vec3 n2(normals[indices[j + 1] * 3], normals[indices[j + 1] * 3 + 1], normals[indices[j + 1] * 3 + 2]);
 					glm::vec3 n3(normals[indices[j + 2] * 3], normals[indices[j + 2] * 3 + 1], normals[indices[j + 2] * 3 + 2]);
 					
-					t.n1 = n1;
-					t.n2 = n2;
-					t.n3 = n3;
+					triangle->n1 = n1;
+					triangle->n2 = n2;
+					triangle->n3 = n3;
 				}
 				if (uvs.size() > 0)
 				{
@@ -416,8 +430,7 @@ MeshDescriptor Scene::loadMesh(string & filename)
 					t->uvs[2] = t3;*/
 				}
 
-
-				mesh->triangles.push_back(t);
+				triangles.push_back(triangle);
 			}
 		}
 
@@ -429,17 +442,434 @@ MeshDescriptor Scene::loadMesh(string & filename)
 		std::cout << errors << std::endl;
 	}
 
-	//this->tree = new KDTreeMesh(15, 5);
-	//this->tree->Build(this->faces);
-	//this->Precompute();
+	Mesh * mesh = new Mesh(15, 2, triangles);
 	this->meshes.push_back(mesh);
 
+	// Needs to be transformed later
 	MeshDescriptor desc;
 	desc.offset = this->meshes.size() - 1;
-	desc.triangleCount = mesh->triangles.size();
+	desc.triangleCount = triangles.size();
 
 	cout << "Loaded mesh with " << desc.triangleCount << " triangles" << endl;
 	return desc;
+}
+
+glm::vec3 axisPlaneNormals[] = { glm::vec3(1.f,0,0), glm::vec3(0,1.f,0), glm::vec3(0,0,1.f) };
+
+Mesh::MeshNode::MeshNode(const std::vector<Triangle *>& originalTriangles, glm::vec3 min, glm::vec3 max, int depth, int maxDepth, int threshold)
+{
+	glm::vec3 extent = glm::abs(max - min);
+
+	if (extent.x > extent.y && extent.x > extent.z)
+		this->axis = 0;
+	else if (extent.y > extent.x && extent.y > extent.z)
+		this->axis = 1;
+	else
+		this->axis = 2;
+
+	this->left = nullptr;
+	this->right = nullptr;
+	this->split = 0;
+	this->BuildNode(originalTriangles, min, max, depth, maxDepth, threshold);
+	this->parentOffset = -1;
+}
+
+Mesh::MeshNode::~MeshNode()
+{
+	if (this->left != nullptr)
+		delete left;
+
+	if (this->right != nullptr)
+		delete right;
+}
+
+void Mesh::MeshNode::BuildNode(const std::vector<Triangle *>& triangles, const glm::vec3 &minVector, const glm::vec3 &maxVector, int depth, int maxDepth, int threshold)
+{
+	if (triangles.size() > threshold && depth < maxDepth)
+	{
+		glm::vec3 axisNormal = axisPlaneNormals[axis];
+
+		float minAxis = minVector[axis];
+		float maxAxis = maxVector[axis];
+
+		// If axis cannot be subdivided, we stop, to prevent jumping
+		// between axis indefinitely
+		if (glm::abs(minAxis - maxAxis) < glm::epsilon<float>())
+		{
+			this->nodeTriangles = triangles;
+			this->left = nullptr;
+			this->right = nullptr;
+			return;
+		}
+
+		split = GetSplitPoint(triangles, minVector[axis], maxVector[axis]);
+
+		std::vector<Triangle*> leftShapes;
+		std::vector<Triangle*> rightShapes;
+
+		for (int i = 0; i < triangles.size(); i++)
+		{
+			Triangle * tri = triangles[i];
+			AABB bounds = tri->bounds;
+
+			float p = bounds.center[axis];
+
+			// If shape position is on right, surely its on right node
+			if (p > split) {
+				rightShapes.push_back(tri);
+
+				// But if bounding box collides with plane, add on left
+				// node
+				float min = bounds.min[axis];
+
+				if (min <= split)
+					leftShapes.push_back(tri);
+
+			}
+			else {
+				leftShapes.push_back(tri);
+
+				// But if bounding box collides with plane, add on right
+				// node
+				float max = bounds.max[axis];
+
+				if (max >= split)
+					rightShapes.push_back(tri);
+			}
+		}
+
+		glm::vec3 leftMax = maxVector - (axisNormal * glm::abs(maxVector[axis] - split));
+		glm::vec3 rightMin = minVector + (axisNormal * glm::abs(split - minVector[axis]));
+
+		this->left = new MeshNode(leftShapes, minVector, leftMax, depth + 1, maxDepth, threshold);
+		this->right = new MeshNode(rightShapes, rightMin, maxVector, depth + 1, maxDepth, threshold);
+	}
+	else
+	{
+		this->nodeTriangles = triangles;
+		this->left = nullptr;
+		this->right = nullptr;
+	}
+}
+
+float Mesh::MeshNode::CostFunction(float split, const std::vector<Triangle *>& triangles, float minAxis, float maxAxis)
+{
+	int leftCount = 0;
+	int rightCount = 0;
+
+	for (int i = 0; i < triangles.size(); i++)
+	{
+		Triangle * tri = triangles[i];
+		AABB bounds = tri->bounds;
+
+		float p = bounds.center[axis];
+
+		// If shape position is on right, surely its on right node
+		if (p > split) {
+			rightCount++;
+
+			// But if bounding box collides with plane, add on left
+			// node
+			float min = bounds.min[axis];
+
+			if (min <= split)
+				leftCount++;
+
+		}
+		else {
+			leftCount++;
+
+			// But if bounding box collides with plane, add on right
+			// node
+			float max = bounds.max[axis];
+
+			if (max >= split)
+				rightCount++;
+		}
+	}
+
+	// Here we simplify Surface area by using just the size on the split
+	// axis
+	float leftSize = split - minAxis;
+	float rightSize = maxAxis - split;
+
+	return (leftSize * leftCount) + (rightSize * rightCount);
+}
+
+float Mesh::MeshNode::GetSplitPoint(const std::vector<Triangle *> &triangles, float minAxis, float maxAxis)
+{
+	// Spatial median
+	float center = (maxAxis + minAxis) * .5f;
+
+	// Object median
+	float objMedian = 0;
+
+	for (int i = 0; i < triangles.size(); i++)
+		objMedian += triangles[i]->bounds.center[axis];
+
+	objMedian /= triangles.size();
+
+	float step = (center - objMedian) / SAH_SUBDIV;
+
+	float minCost = std::numeric_limits<float>::infinity();
+	float result = objMedian;
+
+	if (glm::abs(step) > glm::epsilon<float>())
+	{
+		// i is the proposed split point
+		for (float i = objMedian; i < center; i += step)
+		{
+			float cost = CostFunction(i, triangles, minAxis, maxAxis);
+
+			if (minCost > cost)
+			{
+				minCost = cost;
+				result = i;
+			}
+		}
+	}
+
+	return result;
+}
+
+int Mesh::MeshNode::GetNodeCount()
+{
+	if (IsLeaf())
+		return 1;
+	else
+		return 1 + left->GetNodeCount() + right->GetNodeCount();
+}
+
+int Mesh::MeshNode::TriangleCount()
+{
+	if (IsLeaf())
+		return this->nodeTriangles.size();
+	else
+		return left->TriangleCount() + right->TriangleCount();
+}
+
+int Mesh::MeshNode::GetDepth()
+{
+	if (IsLeaf())
+		return 1;
+
+	return glm::max(left->GetDepth(), right->GetDepth()) + 1;
+}
+
+bool Mesh::MeshNode::IsLeaf()
+{
+	return left == nullptr && right == nullptr;
+}
+
+Mesh::Mesh(int maxDepth, int maxLeafSize, std::vector<Triangle*>& triangles) : maxDepth(maxDepth), maxLeafSize(maxLeafSize), root(nullptr), compactNodes(nullptr), triangles(triangles)
+{
+}
+
+Mesh::~Mesh()
+{
+	if (this->root != nullptr)
+		delete this->root;
+
+	if (this->compactNodes != nullptr)
+		delete[] this->compactNodes;
+}
+
+AABB Mesh::CalculateAABB()
+{
+	AABB bounds;
+
+	if (triangles.size() > 0)
+		bounds = triangles[0]->bounds;
+
+	for (int i = 1; i < triangles.size(); i++)
+		bounds = bounds.Encapsulate(triangles[i]->bounds);
+
+	return bounds;
+}
+
+void Mesh::Build(glm::mat4x4 transform)
+{
+	for (int i = 0; i < triangles.size(); i++)
+	{
+		Triangle * t = triangles[i];
+		t->p1 = glm::vec3(transform * glm::vec4(t->p1, 1.f));
+		t->p2 = glm::vec3(transform * glm::vec4(t->p2, 1.f));
+		t->p3 = glm::vec3(transform * glm::vec4(t->p3, 1.f));
+
+		t->n1 = glm::vec3(transform * glm::vec4(t->n1, 0.f));
+		t->n2 = glm::vec3(transform * glm::vec4(t->n2, 0.f));
+		t->n3 = glm::vec3(transform * glm::vec4(t->n3, 0.f));
+
+		glm::vec3 min = glm::min(t->p1, glm::min(t->p2, t->p3));
+		glm::vec3 max = glm::max(t->p1, glm::max(t->p2, t->p3));
+		t->bounds = AABB(min - glm::vec3(glm::epsilon<float>()), max + glm::vec3(glm::epsilon<float>()));
+	}
+
+	meshBounds = this->CalculateAABB();
+	this->root = new MeshNode(triangles, meshBounds.min, meshBounds.max, 0, this->maxDepth, this->maxLeafSize);
+
+	std::cout << this->root->GetDepth() << " tree depth" << std::endl;
+	std::cout << this->root->GetNodeCount() << " tree nodes" << std::endl;
+	std::cout << this->root->TriangleCount() << " total elements in tree" << std::endl;
+
+	this->Compact();
+}
+
+void Mesh::Compact()
+{
+	int nodeCount = this->root->GetNodeCount();
+	int elements = this->root->TriangleCount();
+
+	// Left, right, split, axis, primitiveCount
+	int nodeSize = 4 + 4 + 4 + 4 + 4;
+	int elementSize = sizeof(CompactTriangle);
+
+	this->compactDataSize = (nodeCount * nodeSize) + (elements * elementSize);
+	this->compactNodes = (int*)std::malloc(compactDataSize);
+
+	int mb = compactDataSize / (1024 * 1024);
+	std::cout << "Compact mesh kd-tree memory size: " << mb << " megabytes" << std::endl;
+
+	if (this->compactNodes == nullptr)
+		std::cerr << "Could not allocate " << mb << " megabytes" << std::endl;
+
+	std::stack<MeshNode*> stack;
+	stack.push(this->root);
+
+	int offset = 0;
+
+	// For compaction, we need to remember the original placement of nodes in parent
+	// nodes because we can't really know the offset until we build everything.
+	while (!stack.empty())
+	{
+		MeshNode * node = stack.top();
+		stack.pop();
+
+		if (node == nullptr)
+			continue;
+
+		// If this node is the child of a parent, let's set the current offset
+		if (node->parentOffset != -1)
+			compactNodes[node->parentOffset] = offset;
+
+		int baseOffset = offset;
+
+		CompactNode * cNode = (CompactNode*)(compactNodes + offset);
+		cNode->leftNode = -1;
+		cNode->rightNode = -1;
+		cNode->split = node->split;
+		cNode->axis = node->axis;
+
+		if (node->IsLeaf())
+		{
+			cNode->primitiveCount = node->nodeTriangles.size();
+			offset += 5;
+
+			float * triData = (float*)compactNodes;
+			int triCount = node->nodeTriangles.size();
+
+			for (int i = 0; i < triCount; i++)
+			{
+				Triangle * triangle = node->nodeTriangles[i];
+
+				glm::vec3 e1 = triangle->p2 - triangle->p1;
+				glm::vec3 e2 = triangle->p3 - triangle->p1;
+				glm::vec3 p = triangle->p1;
+
+				// e1
+				triData[offset++] = e1.x;
+				triData[offset++] = e1.y;
+				triData[offset++] = e1.z;
+
+				// e2
+				triData[offset++] = e2.x;
+				triData[offset++] = e2.y;
+				triData[offset++] = e2.z;
+
+				// p1
+				triData[offset++] = triangle->p1.x;
+				triData[offset++] = triangle->p1.y;
+				triData[offset++] = triangle->p1.z;
+
+				// Normals
+				triData[offset++] = triangle->n1.x;
+				triData[offset++] = triangle->n1.y;
+				triData[offset++] = triangle->n1.z;
+
+				triData[offset++] = triangle->n2.x;
+				triData[offset++] = triangle->n2.y;
+				triData[offset++] = triangle->n2.z;
+
+				triData[offset++] = triangle->n3.x;
+				triData[offset++] = triangle->n3.y;
+				triData[offset++] = triangle->n3.z;
+			}
+		}
+		else
+		{
+			cNode->primitiveCount = 0;
+			offset += 5;
+
+			node->left->parentOffset = baseOffset;
+			node->right->parentOffset = baseOffset + 1;
+
+			stack.push(node->left);
+			stack.push(node->right);
+		}
+	}
+
+	// Now that everything is copied and compacted, we can delete our root
+	delete this->root;
+	this->root = nullptr;
+}
+
+glm::vec3 AABB::aabb[] = { glm::vec3(1, 1, 1),glm::vec3(1, -1, -1), glm::vec3(1, 1, -1), glm::vec3(1, -1, 1),
+glm::vec3(-1, 1, 1), glm::vec3(-1, -1, -1), glm::vec3(-1, 1, -1), glm::vec3(-1, -1, 1) };
+
+AABB AABB::Encapsulate(AABB bounds)
+{
+	glm::vec3 min = glm::min(this->min, bounds.min);
+	glm::vec3 max = glm::max(this->max, bounds.max);
+	return AABB(min, max);
+}
+
+AABB AABB::Transform(const glm::mat4x4 &transform)
+{
+	// If infinite box, prevent overflowing
+	if (min.x == -std::numeric_limits<float>::infinity() || min.y == -std::numeric_limits<float>::infinity() || min.z == -std::numeric_limits<float>::infinity()
+		|| max.x == std::numeric_limits<float>::infinity() || max.y == std::numeric_limits<float>::infinity() || max.z == std::numeric_limits<float>::infinity())
+	{
+		return *this;
+	}
+
+	float maxX = -std::numeric_limits<float>::infinity();
+	float maxY = -std::numeric_limits<float>::infinity();
+	float maxZ = -std::numeric_limits<float>::infinity();
+
+	float minX = std::numeric_limits<float>::infinity();
+	float minY = std::numeric_limits<float>::infinity();
+	float minZ = std::numeric_limits<float>::infinity();
+
+	glm::vec3 halfSize = (max - center);
+
+	for (int i = 0; i < 8; i++)
+	{
+		glm::vec3 v = center + (AABB::aabb[i] * halfSize);
+		glm::vec3 tPoint = glm::vec3(transform * glm::vec4(v.x, v.y, v.z, 1.));
+
+		maxX = glm::max(tPoint.x, maxX);
+		maxY = glm::max(tPoint.y, maxY);
+		maxZ = glm::max(tPoint.z, maxZ);
+
+		minX = glm::min(tPoint.x, minX);
+		minY = glm::min(tPoint.y, minY);
+		minZ = glm::min(tPoint.z, minZ);
+	}
+
+	glm::vec3 newMin = glm::vec3(minX, minY, minZ);
+	glm::vec3 newMax = glm::vec3(maxX, maxY, maxZ);
+
+	return AABB(newMin, newMax);
 }
 
 //

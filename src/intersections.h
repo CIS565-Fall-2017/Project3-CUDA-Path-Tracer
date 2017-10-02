@@ -163,54 +163,205 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
 	return glm::length(r.origin - intersectionPoint);
 }
 
-__host__ __device__ float meshIntersectionTest(Geom geo, Ray r, Triangle * meshes,
-	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside, glm::vec2& uv, glm::vec3&tangent) 
-{
-	glm::vec3 ro = multiplyMV(geo.inverseTransform, glm::vec4(r.origin, 1.0f));
-	glm::vec3 rd = glm::normalize(multiplyMV(geo.inverseTransform, glm::vec4(r.direction, 0.0f)));
-	
-	float distance = 10000000.f;
-	int triangleIndex = -1;
+__host__ __device__ bool aabbIntersectionTest(Ray r, glm::vec3 min, glm::vec3 max, float & tmin, float & tmax) {
 
-	for (int i = 0; i < geo.meshData.triangleCount; i++)
-	{
-		Triangle & triangle = meshes[geo.meshData.offset + i];
+	tmin = -1e38f;
+	tmax = 1e38f;
 
-		glm::vec3 t = ro - triangle.p1;
-		glm::vec3 p = glm::cross(rd, triangle.e2);
-		glm::vec3 q = glm::cross(t, triangle.e1);
-
-		float multiplier = 1.f / glm::dot(p, triangle.e1);
-		float rayT = multiplier * glm::dot(q, triangle.e2);
-		float u = multiplier * glm::dot(p, t);
-		float v = multiplier * glm::dot(q, rd);
-
-		if (rayT < distance && rayT >= 0.f && u >= 0.f && v >= 0.f && u + v <= 1.f)
-		{
-			distance = rayT;
-			triangleIndex = i;
-			uv = glm::vec2(u, v);
+	for (int xyz = 0; xyz < 3; ++xyz) {
+		float qdxyz = r.direction[xyz];
+		/*if (glm::abs(qdxyz) > 0.00001f)*/ {
+			float t1 = (min[xyz] - r.origin[xyz]) / qdxyz;
+			float t2 = (max[xyz] - r.origin[xyz]) / qdxyz;
+			float ta = glm::min(t1, t2);
+			float tb = glm::max(t1, t2);
+			if (ta > 0 && ta > tmin)
+				tmin = ta;
+			if (tb < tmax)
+				tmax = tb;
 		}
 	}
 
-	if (triangleIndex >= 0)
+	if (tmax >= tmin && tmax > 0)
 	{
-		Ray rt;
-		rt.origin = ro;
-		rt.direction = rd;
+		/*if (tmin <= 0)
+			tmin = tmax;*/
 
-		Triangle & triangle = meshes[triangleIndex];
-		outside = true;
-
-		glm::vec3 localP = getPointOnRay(rt, distance);
-		glm::vec3 localNormal = triangle.n1 * uv.x + triangle.n2 * uv.y + triangle.n3 * (1.f - uv.x - uv.y);
-
-		intersectionPoint = multiplyMV(geo.transform, glm::vec4(localP, 1.f));
-		normal = glm::normalize(multiplyMV(geo.invTranspose, glm::vec4(localNormal, 0.f)));
-		//tangent = glm::normalize(multiplyMV(geo.transform, glm::vec4(localTangent, 0.0f)));
-
-		return distance;
+		return true;
 	}
+
+	return false;
+}
+
+__host__ __device__ float meshIntersectionTest(Geom geo, Ray r, void * meshes,
+	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside, glm::vec2& uv, glm::vec3&tangent) 
+{
+	outside = true;
+	float minDistance = -1000000.f;
+	float maxDistance = 1000000.f;
+
+	// If we dont hit the AABB, return!
+	if (!aabbIntersectionTest(r, geo.meshData.minAABB, geo.meshData.maxAABB, minDistance, maxDistance))
+		return -1.f;
+
+	glm::vec3 invRayDir = glm::vec3(1.f / r.direction.x, 1.f / r.direction.y, 1.f / r.direction.z);
+	StackData stack[64] = { 0 };
+	int stackTop = 0;
+
+	bool hit = false;
+	int currentNode = 0;
+	int triangleSize = 10;
+
+	float intersectionDistance = 1000000.f;
+	int * compactNodes = (int*)(meshes) + geo.meshData.offset;
+
+	// The stack approach is very similar to pbrtv3
+	while (currentNode != -1 && stackTop < 64)
+	{
+		// If on a previous loop there was an intersection and is closer
+		// than the current node min distance, don't even start checking intersections
+		if (intersectionDistance < minDistance)
+			break;
+
+		CompactNode * cNode = (CompactNode*)(compactNodes + currentNode);
+		int leftNode = cNode->leftNode;
+		int rightNode = cNode->rightNode;
+		float split = cNode->split;
+		int axis = cNode->axis;
+
+		// Leaf
+		if (leftNode == -1 && rightNode == -1)
+		{
+			int primitiveCount = cNode->primitiveCount;
+			CompactTriangle * flatElements = (CompactTriangle*)(compactNodes + currentNode + 5);
+
+			// Check intersection with all primitives inside this node
+			for (int i = 0; i < primitiveCount; i++)
+			{
+				CompactTriangle& tri = flatElements[i];
+
+				glm::vec3 e1(tri.e1x, tri.e1y, tri.e1z);
+				glm::vec3 e2(tri.e2x, tri.e2y, tri.e2z);
+				glm::vec3 p1(tri.p1x, tri.p1y, tri.p1z);
+
+				glm::vec3 t = r.origin - p1;
+				glm::vec3 p = glm::cross(r.direction, e2);
+				glm::vec3 q = glm::cross(t, e1);
+
+				float multiplier = 1.f / glm::dot(p, e1);
+				float rayT = multiplier * glm::dot(q, e2);
+				float u = multiplier * glm::dot(p, t);
+				float v = multiplier * glm::dot(q, r.direction);
+
+				if (rayT < intersectionDistance && rayT >= 0.f && u >= 0.f && v >= 0.f && u + v <= 1.f)
+				{
+					intersectionDistance = rayT;
+					//fint->elementIndex = (i * triangleSize) + currentNode + 5;
+
+					glm::vec3 n1(tri.n1x, tri.n1y, tri.n1z);
+					glm::vec3 n2(tri.n2x, tri.n2y, tri.n2z);
+					glm::vec3 n3(tri.n3x, tri.n3y, tri.n3z);
+
+					glm::vec3 localP = getPointOnRay(r, intersectionDistance);
+					glm::vec3 localNormal = glm::normalize(n1 * uv.x + n2 * uv.y + n3 * (1.f - uv.x - uv.y));
+
+					intersectionPoint = multiplyMV(geo.transform, glm::vec4(localP, 1.f));
+					normal = glm::normalize(multiplyMV(geo.invTranspose, glm::vec4(localNormal, 0.f)));
+					//tangent = glm::normalize(multiplyMV(geo.transform, glm::vec4(localTangent, 0.0f)));
+
+					hit = true;
+				}
+			}
+
+			if (stackTop > 0)
+			{
+				stackTop--;
+				currentNode = stack[stackTop].nodeOffset;
+				minDistance = stack[stackTop].minDistance;
+				maxDistance = stack[stackTop].maxDistance;
+			}
+			else break; // There's no other object in the stack, we finished iterating!
+		}
+		else
+		{
+			float t = (split - r.origin[axis]) * invRayDir[axis];
+			int nearNode = leftNode;
+			int farNode = rightNode;
+
+			if (r.origin[axis] >= split && !(r.origin[axis] == split && r.direction[axis] < 0))
+			{
+				nearNode = rightNode;
+				farNode = leftNode;
+			}
+
+			if (t > maxDistance || t <= 0)
+				currentNode = nearNode;
+			else if (t < minDistance)
+				currentNode = farNode;
+			else
+			{
+				stack[stackTop].nodeOffset = farNode;
+				stack[stackTop].minDistance = t;
+				stack[stackTop].maxDistance = maxDistance;
+				stackTop++; // Increment the stack
+				currentNode = nearNode;
+				maxDistance = t;
+			}
+		}
+	}
+
+	if (hit)
+		return intersectionDistance;
+
+//	return hit;
+//}
+
+
+	//glm::vec3 ro = multiplyMV(geo.inverseTransform, glm::vec4(r.origin, 1.0f));
+	//glm::vec3 rd = glm::normalize(multiplyMV(geo.inverseTransform, glm::vec4(r.direction, 0.0f)));
+	//
+	//float distance = 10000000.f;
+	//int triangleIndex = -1;
+
+	//for (int i = 0; i < geo.meshData.triangleCount; i++)
+	//{
+	//	Triangle triangle = ((Triangle*)meshes)[geo.meshData.offset + i];
+
+	//	glm::vec3 t = ro - triangle.p1;
+	//	glm::vec3 p = glm::cross(rd, triangle.e2);
+	//	glm::vec3 q = glm::cross(t, triangle.e1);
+
+	//	float multiplier = 1.f / glm::dot(p, triangle.e1);
+	//	float rayT = multiplier * glm::dot(q, triangle.e2);
+	//	float u = multiplier * glm::dot(p, t);
+	//	float v = multiplier * glm::dot(q, rd);
+
+	//	if (rayT < distance && rayT >= 0.f && u >= 0.f && v >= 0.f && u + v <= 1.f)
+	//	{
+	//		distance = rayT;
+	//		triangleIndex = i;
+	//		uv = glm::vec2(u, v);
+	//	}
+	//}
+
+	//if (triangleIndex >= 0)
+	//{
+	//	Ray rt;
+	//	rt.origin = ro;
+	//	rt.direction = rd;
+
+	//	Triangle & triangle = ((Triangle*)meshes)[triangleIndex];
+	//	outside = true;
+
+	//	glm::vec3 localP = getPointOnRay(rt, distance);
+	//	glm::vec3 localNormal = triangle.n1 * uv.x + triangle.n2 * uv.y + triangle.n3 * (1.f - uv.x - uv.y);
+
+	//	intersectionPoint = multiplyMV(geo.transform, glm::vec4(localP, 1.f));
+	//	normal = glm::normalize(multiplyMV(geo.invTranspose, glm::vec4(localNormal, 0.f)));
+	//	//tangent = glm::normalize(multiplyMV(geo.transform, glm::vec4(localTangent, 0.0f)));
+
+	//	return distance;
+	//}
 
 	return -1.f;
 }
