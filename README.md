@@ -32,13 +32,15 @@ Here are the plots showing the changes of the number of rays in the pool and the
 
 As the plot shows, in the open scene, the number of rays in the pool will decrease dramatically, while in the closed scene, the changes is not very obvious. That makes sense because in the closed scene, the rays have less possibility to hit nothing and most of them will keep bouncing untill the depth reaches the limitation.
 
-Open Scene
+Open Scene     
+
 ![](./img/OpenGlass.png) 
       
-Closed Scene
+Closed Scene    
+
 ![](./img/CloseGlass.png) 
 
-## Extra features
+## Extra features   
 * **Efficient material sort**
 When the rays in different threads hit the object with different material, the threads will get into different branches and the overall efficency will be decreased. To reduce the branches of the tracing process, we need to sort the ray according to their material so that the rays in one block will probably hit the same material. However, since our scene is very simple and there are not too many different materials for in a row(we scan the pixel row by row), sorting by material may not produce great difference.
 
@@ -46,25 +48,32 @@ But we still need to talk about the way of sorting by materials, because it will
 
 ![](./img/Sorting.png) 
 
-* **MIS and Direct Lighting**
+* **MIS and Direct Lighting**      
+     
 For the naive ray tracing method, we cannot get a very good illumination distribution since many rays will hit nothing and return 0 value. We want the rays have higher possibility to hit the light, because the light contribute most for the global illumination(which is the idea of importance sampling). For MIS, See PBRT for more info. By using MIS, we get a image with better illumination distribution in less iterations.  
 
-Naive 200 iterations
+Naive 200 iterations     
+
 ![](./img/cornellNaive.png) 
 
-Naive 200 iterations
+Naive 200 iterations   
+
 ![](./img/cornellMIS.png) 
 
-* **Russian roulette**
+* **Russian roulette**          
+        
 Russian roulette will terminated the rays that have very little energy and directly compute the compensation for that part, which will decrease the times of iterations and improve the overall efficency. As the graph shows, Russian roulette will produce great effect when the scene is closed.
 
-Open Scene
+Open Scene        
+
 ![](./img/Russian_roulette_Open.png) 
 
-Closed Scene
+Closed Scene     
+     
 ![](./img/Russian_roulette_Close.png) 
 
-* **Other features**
+* **Other features**   
+
 Some other features, like depth field camera, glass(refraction) material ,are also included in the project. Here are the images.
 
        
@@ -75,5 +84,6 @@ Depth field camera
 ![](./img/cornellDepthCam.png) 
 
 
-* **BVH Tree**
+* **BVH Tree**        
+
 Still updating......
