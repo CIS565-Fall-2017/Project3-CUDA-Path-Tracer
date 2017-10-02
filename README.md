@@ -80,7 +80,7 @@ Next, we will look at the performance impact of individual features in more deta
 
 Below is a graph of the time requires to render `cornellMirrors.txt` with 5000 samples at different maximum ray depths. This compares the bare-bones version and the version that caches first intersections.
 
-![](img/graph-cache-depth.pbg)
+![](img/graph-cache-depth.png)
 
 As we can see, the absolute difference between runtimes is approximately constant, regardless of the maximum ray depth. This makes sense, since we are always saving the same amount of time per iteration -- i.e., the time required to compute the first intersections. 
 
@@ -88,8 +88,142 @@ Another way to look at this data is to compute the relative difference between r
 
 ![](img/graph-relative-cache-depth.png)
 
-As we can see, the optimization is approximately 20% faster at first, but quickly drops off to about 5% as we reach a more conventional ray depth of 8. Although the 20% speedup at a ray depth of 1 is great, images rendered with this ray depth are devoid of specular effects and only useful if direct lighting is enabled. So, in relative terms, this optimization does not scale well as the ray depth increases.
+As we can see, the optimization is approximately 20% faster at first, but quickly drops off to about 5% as we reach a more conventional ray depth of 8. Although the 20% speedup at a ray depth of 1 is great, images rendered with this ray depth are only useful if direct lighting is enabled, and even then, will lack features such as global illumination, soft shadows, etc. So, in relative terms, this optimization does not scale well as the ray depth increases.
 
+#### Stream compaction in "closed" vs. "open" scenes
 
+I created two scenes, `cornellClosed.txt` and `cornellOpen.txt`. The former is similar to `cornellMirrors.txt`, but had the ceiling, floor, and walls (except for the back wall) extended, and a wall was added to the "front" of the box to make it fully closed. `cornellOpen.txt` is similar, but had the front wall moved away such that it wouldn't close the box anymore, but would still be included in intersection tests.
+
+Below are renders of these scenes:
+
+`cornellClosed.txt`
+
+![](img/closed.png)
+
+`cornellOpen.txt`
+
+![](img/open.png)
+
+Using these scenes, I took measurements of the runtime of the shader kernel for each of the 8 iterations in one path. I also measured the number of paths remaining after each iteration. The purpose of these measurements was to analyze the performance impact of the stream compaction optimization in "open" vs. "closed" scenes.
+
+Below are the graphs showing these results. First, the number of paths:
+
+![](img/graph-closed-paths.png)
+
+![](img/graph-open-paths.png)
+
+Thus, we can see that, in the closed Cornell box, there are many fewer paths that get terminated early. This makes sense, since, in this case, paths only get terminated if they hit the light, whereas, in the open box, rays can go into the void outside the box and get terminated.
+
+![](img/graph-closed-runtime.png)
+
+![](img/graph-open-runtime.png)
+
+Here, note that the last iterations take much longer than the previous ones because direct lighting was enabled (so most of the rays incur an additional cost of looking for a light).
+
+In the case of the closed Cornell box, note that there isn't a large difference between runtimes for most iterations. This make sense, since relatively few paths are terminated and removed at each iteration. However, for the open Cornell box, the shader runtime clearly decreases with each iteration (except for the final one, as explained before).
+
+### Direct lighting
+
+#### Overview
+
+The idea behind direct lighting is to mitigate some of the randomness in a naive path tracer. When we reach our max ray depth, if a ray hasn't reached a light yet, we shoot a ray from its current intersection point to a randomly chosen light. This speeds up convergence, since we make it much more likely that any given ray will hit light.
+
+Below is a comparison of the same scene, `cornellMirrors.txt`, rendered first without direct lighting, then with direct lighting:
+
+![](img/cache-noDL.png)
+
+![](img/cache-DL.png)
+
+#### Performance impact
+
+Below is a graph showing the time required to render `cornellMirrors.txt` with 5000 samples and ray depth of 8, under three different settings: bare-bones, cache only enabled, and both direct lighting and cache enabled:
+
+![](img/graph-DL.png)
+
+As we can see, direct lighting does add slightly to our runtime, but not a significant amount. In fact, when coupled with the cache optimization, it is still faster than just the bare-bones version. The impact of direct lighting can also be seen at a lower level in the "closed" vs. "open" discussion above. 
+
+Considering the much more convergent images we get from direct lighting, this small performance hit is definitely worth it.
+
+#### Optimizations
+
+If direct lighting is enabled, a separate list of indices of Geom objects which emit light is prepared in the path tracer initialization in order to speed up direct lighting. After all, by preparing this list, we don't need to iterate through the list of objects in our scene every time we need to run direct lighting in the shading kernel.
+
+Compared to a hypothetical CPU version, this GPU implementation to perform well. Since direct lighting can only happen in the last bounce of a ray, the effects of warp divergence are greatly mitigated, so this should not be much worse than a CPU implementation.
+
+If this feature were to be optimized further, one could consider finding a faster way of computing the intersection check versus the randomly chosen light.
+
+### OBJ loading
+
+#### Overview
+
+Using the very convenient ![tinyOBJ](https://github.com/syoyo/tinyobjloader/tree/develop) library, this path tracer can load OBJ meshes and render them.
+
+Due to the current lack of general support for texture mapping (from loaded files), any material information in the OBJs is ignored. However, the basic geometry data (vertex positions and normals) is loaded and used to render the mesh.
+
+A slight modification was made to the original scene file format in order to support meshes -- see below.
+
+Here is an example of a Porygon mesh, rendered in the scene `cornellPorygonMix.txt`:
+
+![](img/porygon-mix.png)
+
+#### Performance impact
+
+Below is a graph comparing two similar scenes: `cornellMirrors.txt` and `cornellPorygon.txt`. The main difference between them is that, while the former has a sphere in its center, the latter has a mesh of Porygon from Pokemon Snap. The mesh was rendered once with culling enabled, and once with it disabled.
+
+![](img/graph-mesh.png)
+
+As we can see, regardless of culling, the mesh significantly increases the render time. The simple bounding volume culling reduced the render time by approximately 9% relative to when it is disabled.
+
+Although it is slow, the ability to render arbitrary meshes is definitely valuable in a path tracer.
+
+#### Optimizations
+
+A very simple bounding volume culling was implemented to speed up mesh rendering slightly. When the mesh is loaded, an axis-aligned bounding box is computed. 
+
+Then, when performing ray-scene intersection, instead of always checking all the triangles in the mesh, we first check if the ray hits this bounding box. If so, then we iterate all the mesh's triangles for intersection tests -- but if the bounding box is missed, then we can safely ignore all the mesh's triangles.
+
+Compared to a hypothetical CPU implementation, this GPU implementation would probably be weighed down by the massive warp divergence that could happen in case some threads in a warp hit the mesh, but others do not.
+
+One obvious optimization that can be made is implementing a more efficient spatial data structure to greatly reduce the number of triangles that must be checked when shooting a ray through the scene. Something like an octree or a BVH could significantly improve performance. 
 
 ### Scene file format
+
+This project uses a custom scene description format. Scene files are flat text
+files that describe all geometry, materials, lights, cameras, and render
+settings inside of the scene. Items in the format are delimited by new lines,
+and comments can be added using C-style `// comments`.
+
+Materials are defined in the following fashion:
+
+* MATERIAL (material ID) //material header
+* RGB (float r) (float g) (float b) //diffuse color
+* SPECX (float specx) //specular exponent
+* SPECRGB (float r) (float g) (float b) //specular color
+* REFL (bool refl) //reflectivity flag, 0 for no, 1 for yes
+* REFR (bool refr) //refractivity flag, 0 for no, 1 for yes
+* REFRIOR (float ior) //index of refraction for Fresnel effects
+* EMITTANCE (float emittance) //the emittance strength of the material. Material is a light source iff emittance > 0.
+
+Cameras are defined in the following fashion:
+
+* CAMERA //camera header
+* RES (float x) (float y) //resolution
+* FOVY (float fovy) //vertical field of view half-angle. the horizonal angle is calculated from this and the reslution
+* ITERATIONS (float interations) //how many iterations to refine the image
+* DEPTH (int depth) //maximum depth (number of times the path will bounce)
+* FILE (string filename) //file to output render to upon completion
+* EYE (float x) (float y) (float z) //camera's position in worldspace
+* LOOKAT (float x) (float y) (float z) //point in space that the camera orbits around and points at
+* UP (float x) (float y) (float z) //camera's up vector
+
+Objects are defined in the following fashion:
+
+* OBJECT (object ID) //object header
+* (cube OR sphere OR mesh) //type of object, can be either "cube", "sphere", or
+  "mesh". Note that cubes and spheres are unit sized and centered at the
+  origin.
+* material (material ID) //material to assign this object
+* TRANS (float transx) (float transy) (float transz) //translation
+* ROTAT (float rotationx) (float rotationy) (float rotationz) //rotation
+* SCALE (float scalex) (float scaley) (float scalez) //scale
+* FILENAME (filename) //path to OBJ file -- only used if object is a mesh
