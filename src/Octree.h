@@ -48,7 +48,7 @@ public:
 
 	// returns number octant of geometry centerpoint. -1 if not in node,
 	// otherwise bit corresponds to 0 (-) 1 (+) x, y, z e.g. 3 is -x, +y, +z
-	int octant(OctreeNodeCPU* node, Geom g);
+	int octant(OctreeNodeCPU* node, glm::vec3 centerpoint);
 
 	// Initialize with a scene
 	OctreeBuilder() {

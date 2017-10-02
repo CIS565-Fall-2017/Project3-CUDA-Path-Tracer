@@ -72,8 +72,8 @@ bool OctreeBuilder::overDivision(OctreeNodeCPU* node, AxisBoundingBox abb) {
 // Get the octant of the geometry's center point.
 // Do this after checking whether a geometry fits in an octant.
 // Returns a 3 bit number corresponding to +- xyz octant
-int OctreeBuilder::octant(OctreeNodeCPU* node, Geom g) {
-	glm::vec3 center = g.translation;
+int OctreeBuilder::octant(OctreeNodeCPU* node, glm::vec3 centerpoint) {
+	glm::vec3 center = centerpoint;
 	glm::vec3 nodeCenter = node->center;
 	int oct = 0;
 	if (center.z > nodeCenter.z) oct += 1;
@@ -81,6 +81,7 @@ int OctreeBuilder::octant(OctreeNodeCPU* node, Geom g) {
 	if (center.x > nodeCenter.x) oct += 1 << 2;
 	return oct;
 }
+
 
 // split a leaf into octants, assign existing geometries accordingly
 void OctreeBuilder::splitNode(OctreeNodeCPU* node, Scene* scene) {
@@ -131,7 +132,8 @@ void OctreeBuilder::splitNode(OctreeNodeCPU* node, Scene* scene) {
 			keep.push_back(idx);
 		}
 		else {
-			OctreeNodeCPU* child = node->children[octant(node, scene->geoms[idx])];
+			AxisBoundingBox aabb = scene->geomBounds[idx];
+			OctreeNodeCPU* child = node->children[octant(node, 0.5f * (aabb.maxXYZ + aabb.minXYZ))];
 			child->eltIndices.push_back(idx);
 		}
 	}
@@ -194,7 +196,8 @@ void OctreeBuilder::buildFromScene(Scene* scene) {
 			if (overDivision(current, scene->geomBounds[i])) {
 				break;
 			}
-			auto* child = current->children[octant(current, scene->geoms[i])];
+			AxisBoundingBox aabb = scene->geomBounds[i];
+			auto* child = current->children[octant(current, 0.5f * (aabb.maxXYZ + aabb.minXYZ))];
 			current = child;
 		}
 		// either reached a leaf or the geometry cannot fit into an octant of current

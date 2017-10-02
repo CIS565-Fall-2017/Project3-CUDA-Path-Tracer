@@ -5,7 +5,7 @@
 #include <glm/gtx/string_cast.hpp>
 
 //#define DEBUGSPHERES 1
-#define DEBUGTRIS
+//#define DEBUGTRIS
 
 #define TINYOBJLOADER_IMPLEMENTATION // define this in only *one* .cc
 #include "tiny_obj_loader.h"
@@ -206,7 +206,7 @@ int Scene::loadGeom(string objectid) {
 			for (int i = 0; i < shapes.size(); i++) {
 				
 				// for each triangle
-				for (int j = 0; j < shapes[i].mesh.num_face_vertices.size() / 3; j++) {
+				for (int j = 0; j < shapes[i].mesh.indices.size() / 3; j++) {
 					
 					Geom newTri;
 					newTri.type = TRIANGLE;
