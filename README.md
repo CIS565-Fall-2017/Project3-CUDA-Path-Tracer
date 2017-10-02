@@ -8,7 +8,7 @@ CUDA Path Tracer
 
 | ![](img/porygon-diff.png) | ![](img/porygon-mix.png) | ![](img/porygon-refl.png) |
 |:-------------------------------:|:--------------------------------:|:--------------------------:|
-| `cornellPorygon.txt`      | `cornellMix.txt`                   | `cornellRefl.txt`
+| `cornellPorygon.txt`      | `cornellPorygonMix.txt`                   | `cornellPorygonRefl.txt`
 
 ### Overview
 
@@ -40,6 +40,7 @@ Toggleable features:
 * Direct lighting for brighter, more convergent images
 * Use normals as colors
 * Bounding volume culling for .OBJ meshes
+* Simple procedural textures
 
 #### Optimizations
 
@@ -228,9 +229,23 @@ Procedural texture2
 
 ![](img/proc2.png)
 
+For reference, here is the same scene without procedural textures:
+
+![](img/noproc.png)
+
+#### Performance impact
+
+If we render `cornellProc.txt` without using procedural textures, it takes 232764.984 ms.
+
+When rendered using the first procedural texture, it takes 232840.297 ms. If using the second procedural texture instead, it takes 229104.969 ms.
+
+Thus, it seems there is not a noticeable performance impact to using this feature. This is likely because bottlenecks in our performance lie elsewhere (e.g. memory I/O, geometry intersection warp divergence).
+
 #### Optimizations
 
 The warp divergence could definitely be reduced. On a similar vein, due to the large warp divergence in my procedural textures, the GPU performance will likely be bad compared to a CPU implementation.
+
+I would definitely like to implement more interesting procedural textures in the future!
 
 ### Toggling features
 

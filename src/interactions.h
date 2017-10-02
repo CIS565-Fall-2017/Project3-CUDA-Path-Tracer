@@ -3,7 +3,8 @@
 #include "intersections.h"
 
 #define SHADOW_OFFSET 0.0001f
-#define PROCEDURAL_TEXTURE 1
+#define TWO_PI 6.2818530718f
+
 
 __host__ __device__
 glm::vec3 calculateRandomDirection(
@@ -92,7 +93,12 @@ void scatterRay(
         glm::vec3 intersect,
         glm::vec3 normal,
         const Material &m,
-        thrust::default_random_engine &rng) {
+        thrust::default_random_engine &rng
+#if PROCEDURAL_TEXTURE
+        ,
+        glm::vec3 uv
+#endif
+) {
     // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
@@ -105,12 +111,53 @@ void scatterRay(
     // Specular
     pathSegment.ray.origin = intersect + normal * SHADOW_OFFSET;
     pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
+
     pathSegment.color *= m.specular.color / (reflectFactor / factorSum);
+
   }
   else {
     // Diffuse
     pathSegment.ray.origin = intersect + normal * SHADOW_OFFSET; // shadow acne
     pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
+#if PROCEDURAL_TEXTURE == 1
+    uv = glm::normalize(uv);
+    for (int coord = 0; coord < 3; coord++) {
+      if (uv[coord] < 0.2f) {
+        uv[coord] = 0.2f;
+      }
+      else if (uv[coord] < 0.4f) {
+        uv[coord] = 0.4f;
+      }
+      else if (uv[coord] < 0.6f) {
+        uv[coord] = 0.6f;
+      }
+      else if (uv[coord] < 0.7f) {
+        uv[coord] = 0.7f;
+      }
+      else if (uv[coord] < 0.8f) {
+        uv[coord] = 0.8f;
+      }
+      else if (uv[coord] < 0.9f) {
+        uv[coord] = 0.9f;
+      }
+    }
+    uv.x += uv.y / 5.0f;
+    uv.z += uv.y / 5.0f;
+    uv.y *= 3.0f / 5.0f;
+    glm::vec3 procColor = uv * 2.0f;
+    pathSegment.color *= procColor / (diffuseFactor / factorSum);// *d / pdf;
+#elif PROCEDURAL_TEXTURE == 2
+    uv = glm::normalize(uv);
+    float xFactor = cos(TWO_PI * 4.0f * uv.x);
+    xFactor = xFactor > 0.0f ? 0.5f * xFactor : 0.0f;
+    float yFactor = cos(TWO_PI * 8.0f * uv.y);
+    yFactor = yFactor > 0.0f ? 0.6f * yFactor : 0.0f;
+    float zFactor = cos(TWO_PI * 16.0f * uv.z);
+    zFactor = zFactor > 0.0f ? 0.7f * zFactor : 0.0f;
+    glm::vec3 procColor = m.color * (glm::vec3(1.0f) - glm::vec3(xFactor, yFactor, zFactor));
+    pathSegment.color *= procColor / (diffuseFactor / factorSum);// *d / pdf;
+#else
     pathSegment.color *= m.color / (diffuseFactor / factorSum);// *d / pdf;
+#endif
   }
 }

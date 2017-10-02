@@ -7,6 +7,7 @@
 #include "utilities.h"
 
 #define CULL_BY_BBOX 1
+#define PROCEDURAL_TEXTURE 0
 
 /**
  * Handy-dandy hash function that provides seeds for random number generation.
@@ -48,7 +49,11 @@ __host__ __device__ glm::vec3 multiplyMV(glm::mat4 m, glm::vec4 v) {
  * @return                   Ray parameter `t` value. -1 if no intersection.
  */
 __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
-        glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) {
+        glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside
+#if PROCEDURAL_TEXTURE
+        , glm::vec3 &uv
+#endif
+) {
     Ray q;
     q.origin    =                multiplyMV(box.inverseTransform, glm::vec4(r.origin   , 1.0f));
     q.direction = glm::normalize(multiplyMV(box.inverseTransform, glm::vec4(r.direction, 0.0f)));
@@ -84,7 +89,12 @@ __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
             tmin_n = tmax_n;
             outside = false;
         }
+#if PROCEDURAL_TEXTURE
+        uv = getPointOnRay(q, tmin);
+        intersectionPoint = multiplyMV(box.transform, glm::vec4(uv, 1.0f));
+#else
         intersectionPoint = multiplyMV(box.transform, glm::vec4(getPointOnRay(q, tmin), 1.0f));
+#endif
         normal = glm::normalize(multiplyMV(box.transform, glm::vec4(tmin_n, 0.0f)));
         return glm::length(r.origin - intersectionPoint);
     }
@@ -102,7 +112,11 @@ __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
  * @return                   Ray parameter `t` value. -1 if no intersection.
  */
 __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
-        glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) {
+        glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside
+#if PROCEDURAL_TEXTURE
+  , glm::vec3 &uv
+#endif
+) {
     float radius = .5;
 
     glm::vec3 ro = multiplyMV(sphere.inverseTransform, glm::vec4(r.origin, 1.0f));
@@ -135,7 +149,9 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
     }
 
     glm::vec3 objspaceIntersection = getPointOnRay(rt, t);
-
+#if PROCEDURAL_TEXTURE
+    uv = objspaceIntersection;
+#endif
     intersectionPoint = multiplyMV(sphere.transform, glm::vec4(objspaceIntersection, 1.f));
     normal = glm::normalize(multiplyMV(sphere.invTranspose, glm::vec4(objspaceIntersection, 0.f)));
     if (!outside) {
@@ -146,7 +162,11 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
 }
 
 __host__ __device__ float triangleIntersectionTest(Triangle tri, Geom geomMesh, Ray r,
-  glm::vec3 &intersectionPoint, glm::vec3 &normal) {
+  glm::vec3 &intersectionPoint, glm::vec3 &normal
+#if PROCEDURAL_TEXTURE
+  , glm::vec3 &uv
+#endif
+) {
   glm::vec3 bary;
 
   glm::vec3 v0 = tri.verts[0].pos;
@@ -158,6 +178,9 @@ __host__ __device__ float triangleIntersectionTest(Triangle tri, Geom geomMesh, 
 
     float t = bary.z;
     intersectionPoint = getPointOnRay(r, t);
+#if PROCEDURAL_TEXTURE
+    uv = glm::vec3(bary.x, bary.y, 1 - bary.x - bary.z);
+#endif
     normal = glm::normalize(bary.x * tri.verts[0].nor + bary.y * tri.verts[1].nor + (1.0f - bary.x - bary.y) * tri.verts[2].nor);//tri.verts[0].nor;
     if (glm::dot(normal, r.direction) > 0.0f) {
       normal *= -1.0f;
@@ -170,11 +193,18 @@ __host__ __device__ float triangleIntersectionTest(Triangle tri, Geom geomMesh, 
 }
 
 __host__ __device__ float meshIntersectionTest(Geom meshGeom, Ray r, Mesh *meshes, Triangle *tris,
-  glm::vec3 &intersectionPoint, glm::vec3 &normal) {
+  glm::vec3 &intersectionPoint, glm::vec3 &normal
+#if PROCEDURAL_TEXTURE
+  , glm::vec3 &uv
+#endif
+) {
 
   Mesh mesh = meshes[meshGeom.meshIdx];
   glm::vec3 tmp_intersect;
   glm::vec3 tmp_normal;
+#if PROCEDURAL_TEXTURE
+  glm::vec3 tmp_uv;
+#endif
 #if CULL_BY_BBOX
   // bbox test
 
@@ -184,7 +214,11 @@ __host__ __device__ float meshIntersectionTest(Geom meshGeom, Ray r, Mesh *meshe
   Geom bbox;
   bbox.transform = mesh.bboxTransform;//glm::mat4(100.0f);
   bbox.inverseTransform = mesh.bboxInverseTransform; //glm::mat4(0.01f);
+#if PROCEDURAL_TEXTURE
+  if (boxIntersectionTest(bbox, r, tmp_intersect, tmp_normal, outside, tmp_uv) < 0.0f) {
+#else
   if (boxIntersectionTest(bbox, r, tmp_intersect, tmp_normal, outside) < 0.0f) {
+#endif
     return -1.0f;
   }
 #endif
@@ -196,11 +230,19 @@ __host__ __device__ float meshIntersectionTest(Geom meshGeom, Ray r, Mesh *meshe
   // indexing at i causes a single triangle to be rendered?? but not i + 1????
   for (int i = mesh.triangleStartIdx - 1; i < mesh.triangleEndIdx; i++) {
     Triangle tri = tris[i + 1];
+#if PROCEDURAL_TEXTURE
+    float t = triangleIntersectionTest(tri, meshGeom, r, tmp_intersect, tmp_normal, tmp_uv);
+#else
     float t = triangleIntersectionTest(tri, meshGeom, r, tmp_intersect, tmp_normal);
+#endif
+
     if (t >= 0.0f && t < t_min) {
       t_min = t;
       intersectionPoint = tmp_intersect;
       normal = tmp_normal;
+#if PROCEDURAL_TEXTURE
+      uv = tmp_uv;
+#endif
     }
   }
   return (t_min == FLT_MAX) ? -1.0f : t_min;

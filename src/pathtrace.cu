@@ -234,7 +234,11 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 
 /* Returns hit_geom_index */
 __device__ int naiveGeomParse(Geom *geoms, int geoms_size, Ray &ray, Mesh *meshes, Triangle *tris,
-                              glm::vec3 &intersect_point, glm::vec3 &normal, float &t_min) {
+                              glm::vec3 &intersect_point, glm::vec3 &normal, float &t_min
+#if PROCEDURAL_TEXTURE
+  , glm::vec3 &uv
+#endif
+) {
 
   t_min = FLT_MAX;
   float t;
@@ -243,11 +247,27 @@ __device__ int naiveGeomParse(Geom *geoms, int geoms_size, Ray &ray, Mesh *meshe
   bool outside = true;
   glm::vec3 tmp_intersect;
   glm::vec3 tmp_normal;
+#if PROCEDURAL_TEXTURE
+  glm::vec3 tmp_uv;
+#endif
 
   for (int i = 0; i < geoms_size; i++)
   {
     Geom & geom = geoms[i];
-
+#if PROCEDURAL_TEXTURE
+    if (geom.type == CUBE)
+    {
+      t = boxIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside, tmp_uv);
+    }
+    else if (geom.type == SPHERE)
+    {
+      t = sphereIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside, tmp_uv);
+    }
+    else if (geom.type == MESH)
+    {
+      t = meshIntersectionTest(geom, ray, meshes, tris, tmp_intersect, tmp_normal, tmp_uv);
+    }
+#else
     if (geom.type == CUBE)
     {
       t = boxIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside);
@@ -260,6 +280,7 @@ __device__ int naiveGeomParse(Geom *geoms, int geoms_size, Ray &ray, Mesh *meshe
     {
       t = meshIntersectionTest(geom, ray, meshes, tris, tmp_intersect, tmp_normal);
     }
+#endif
     // TODO: add more intersection tests here... triangle? metaball? CSG?
 
     // Compute the minimum t from the intersection tests to determine what
@@ -270,6 +291,9 @@ __device__ int naiveGeomParse(Geom *geoms, int geoms_size, Ray &ray, Mesh *meshe
       hit_geom_index = i;
       intersect_point = tmp_intersect;
       normal = tmp_normal;
+#if PROCEDURAL_TEXTURE
+      uv = tmp_uv;
+#endif
     }
   }
 
@@ -299,49 +323,16 @@ __global__ void computeIntersections(
 	{
 		PathSegment pathSegment = pathSegments[path_index];
 
-#if 0
-		float t;
-		glm::vec3 intersect_point;
-		glm::vec3 normal;
-		float t_min = FLT_MAX;
-		int hit_geom_index = -1;
-		bool outside = true;
-
-		glm::vec3 tmp_intersect;
-		glm::vec3 tmp_normal;
-
-		// naive parse through global geoms
-
-		for (int i = 0; i < geoms_size; i++)
-		{
-			Geom & geom = geoms[i];
-
-			if (geom.type == CUBE)
-			{
-				t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
-			}
-			else if (geom.type == SPHERE)
-			{
-				t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
-			}
-			// TODO: add more intersection tests here... triangle? metaball? CSG?
-
-			// Compute the minimum t from the intersection tests to determine what
-			// scene geometry object was hit first.
-			if (t > 0.0f && t_min > t)
-			{
-				t_min = t;
-				hit_geom_index = i;
-				intersect_point = tmp_intersect;
-				normal = tmp_normal;
-			}
-		}
-#else
-
     glm::vec3 intersect_point;
     glm::vec3 normal;
+#if PROCEDURAL_TEXTURE
+    glm::vec3 uv;
+#endif
     float t_min;
-
+#if PROCEDURAL_TEXTURE
+    int hit_geom_index = naiveGeomParse(geoms, geoms_size, pathSegment.ray, meshes, tris,
+      intersect_point, normal, t_min, uv);
+#else
     int hit_geom_index = naiveGeomParse(geoms, geoms_size, pathSegment.ray, meshes, tris,
       intersect_point, normal, t_min);
 #endif
@@ -365,6 +356,9 @@ __global__ void computeIntersections(
       materialIds2[path_index] = materialId;
 #endif
 			intersections[path_index].surfaceNormal = normal;
+#if PROCEDURAL_TEXTURE
+      intersections[path_index].uv = uv;
+#endif
 		}
 	}
 }
@@ -476,11 +470,20 @@ __global__ void shadeRealMaterial(
       else {
 
         PathSegment &pathSegment = pathSegments[idx];
+#if PROCEDURAL_TEXTURE
+        scatterRay(pathSegments[idx],
+          pathSegments[idx].ray.origin + pathSegments[idx].ray.direction * intersection.t,
+          intersection.surfaceNormal,
+          material,
+          rng,
+          intersection.uv);
+#else
         scatterRay(pathSegments[idx],
           pathSegments[idx].ray.origin + pathSegments[idx].ray.direction * intersection.t,
           intersection.surfaceNormal,
           material,
           rng);
+#endif
         pathSegments[idx].remainingBounces--;
 
 #if DIRECT_LIGHTING
@@ -496,8 +499,13 @@ __global__ void shadeRealMaterial(
           sampleRay.direction = glm::normalize(glm::vec3(samplePoint) - sampleRay.origin);
           glm::vec3 dummyVec;
           float dummyFloat;
+#if PROCEDURAL_TEXTURE
+          int hit_geom_index = naiveGeomParse(geoms, geoms_size, sampleRay, meshes, tris,
+            dummyVec, dummyVec, dummyFloat, dummyVec);
+#else
           int hit_geom_index = naiveGeomParse(geoms, geoms_size, sampleRay, meshes, tris,
             dummyVec, dummyVec, dummyFloat);
+#endif
           if (hit_geom_index == lightIdx) {
             Material lightMaterial = materials[geoms[lightIdx].materialid];
             pathSegments[idx].color *= lightMaterial.color * lightMaterial.emittance;
