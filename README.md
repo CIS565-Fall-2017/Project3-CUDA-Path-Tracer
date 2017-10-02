@@ -19,7 +19,7 @@ The core features include:
 
 The additional features include:
 * Anti-aliasing
-* Dpeth of field
+* Depth of field
 * Arbitrary mesh loading and rendering with toggleable bounding volume intersection culling
 #### Figure 1: Anti-aliasing before
 
@@ -43,13 +43,15 @@ The additional features include:
 ### Core feature performance
 
 #### Figure 5: Specular Sphere
-Specular image
+
+![](img/spec_sphere.png)
 
 #### Path termination
 Path termination gets rid of path segments that don't hit any objects or lights in the scenes. In the scene, we begin with 640000 path segments because of our initial screen resolution and this tapers off immediately because the cornell box is an open box where plenty of rays will escape into the darkness. By the 7th bounce, there are only around 140000 bounces remaining for an iteration of pathtracing on Figure 5 above.
 
-#### Figure 6
-Number of Pathsegments vs. Bounces Bar Chart
+#### Figure 6: Number of Pathsegments vs. Bounces
+
+![](img/chart.png)
 
 #### Materials sorting
 Materials sorting actually slowed down the speed of each iteration quite a bit. For a single specular sphere object in a diffuse cornell box, the materials sorting slowed the iteration time from 44ms to 101ms. For a specular dodecahedron, it slowed the iteration time from 54ms to 112ms. However for a specular cow object with over 5000 triangles, the materials sorting only slowed the iteration time from 1660ms to 1700ms.
@@ -63,11 +65,15 @@ Caching the first bounce of the intersection did not make a huge difference for 
 
 #### Figure 7: Cow Mesh Performance
 
+![](img/chart2.png)
+
 #### Figure 8: Specular Cow
 
 ![](img/obj_speccow.png)
 
 #### Figure 8: Dodecahedron Performance
+
+![](img/chart3.png)
 
 #### Figure 9: Specular Dodecahedron
 
