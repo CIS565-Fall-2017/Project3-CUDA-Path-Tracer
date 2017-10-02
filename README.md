@@ -116,8 +116,7 @@ ATRANS      1 1 1
 AROTAT      0 45 0
 ```
 
-ATRANS: the object translate [1,1,1] from the original translation.
-AROTAT: the object rotate [0 45 0] from the original rotation.
+ATRANS: the object translate [1,1,1] from the original translation; AROTAT: the object rotate [0 45 0] from the original rotation;
 
 ## Performance Analysis
 

@@ -90,7 +90,6 @@ static ShadeableIntersection * dev_intersections = NULL;
 // ...
 
 static ShadeableIntersection * dev_first_intersections = NULL;
-static bool cache_first_bounce = false;
 //static int * sqrtival_x = NULL;
 //static int * sqrtival_y = NULL;
 
@@ -137,9 +136,7 @@ void pathtraceInit(Scene *scene) {
 	random_shuffle(temp, temp + sqrtVal);
 
 	cudaMalloc(&sqrtival_y, sqrtVal * sizeof(int));
-	cudaMemcpy(sqrtival_x, temp, sqrtVal * sizeof(int), cudaMemcpyHostToDevice);
-
-	cache_first_bounce = false;*/
+	cudaMemcpy(sqrtival_x, temp, sqrtVal * sizeof(int), cudaMemcpyHostToDevice);*/
 
     checkCUDAError("pathtraceInit");
 }
@@ -574,21 +571,6 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	// tracing
 	dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
 #if CACHE_FIRST_BOUNCE
-	/*if (depth == 0 && cache_first_bounce)
-	{
-		cudaMemcpy(dev_intersections, dev_first_intersections, num_paths * sizeof(dev_first_intersections[0]),cudaMemcpyDeviceToDevice);
-	}
-	else
-	{
-		computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
-			depth
-			, num_paths
-			, dev_paths
-			, dev_geoms
-			, hst_scene->geoms.size()
-			, dev_intersections
-			);
-	}*/
 	if (depth == 0 && iter == 1)
 	{
 		computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
@@ -630,14 +612,6 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	checkCUDAError("trace one bounce");
 	cudaDeviceSynchronize();
 	depth++;
-
-#if CACHE_FIRST_BOUNCE
-	/*if (!cache_first_bounce)
-	{
-		cache_first_bounce = true;
-		cudaMemcpy(dev_first_intersections, dev_intersections, num_paths * sizeof(dev_first_intersections[0]), cudaMemcpyDeviceToDevice);
-	}*/
-#endif
 
 	// TODO:
 	// --- Shading Stage ---
