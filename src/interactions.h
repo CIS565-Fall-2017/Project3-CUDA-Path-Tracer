@@ -92,7 +92,7 @@ __host__ __device__ void directLightingIntegrator(PathSegment & pathSegment,
 
 	//visibility test
 	ShadeableIntersection isx;
-	computeIntersectionsWithSelectedObject(pathSegment, geoms, numGeoms, isx);
+	computeIntersectionsForASingleRay(pathSegment, geoms, numGeoms, isx);
 
 	// if the shadow feeler ray doesnt hit the sample light then color the pathSegment black
 	if (isx.t < 0.0f && isx.hitGeomIndex != selectedLight.lightGeomIndex)

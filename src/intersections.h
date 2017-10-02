@@ -143,9 +143,57 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
     return glm::length(r.origin - intersectionPoint);
 }
 
-__host__ __device__ void computeIntersectionsWithSelectedObject(PathSegment& pathSegment, 
-																Geom * geoms, int& geoms_size, 
+__host__ __device__ void computeIntersectionsWithSelectedObject(Ray& ray, Geom& geom,
 																ShadeableIntersection& intersection)
+{
+	float t;
+	glm::vec3 intersect_point;
+	glm::vec3 normal;
+	float t_min = FLT_MAX;
+	bool hit_geom = false;
+	bool outside = true;
+
+	glm::vec3 tmp_intersect;
+	glm::vec3 tmp_normal;
+
+	// Naive parse through global geoms
+	if (geom.type == CUBE)
+	{
+		t = boxIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside);
+	}
+	else if (geom.type == SPHERE)
+	{
+		t = sphereIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside);
+	}
+	// TODO: add more intersection tests here... triangle? metaball? CSG?
+
+	// Compute the minimum t from the intersection tests to determine what
+	// scene geometry object was hit first.
+	if (t > 0.0f && t_min > t)
+	{
+		t_min = t;
+		hit_geom = true;
+		intersect_point = tmp_intersect;
+		normal = tmp_normal;
+	}
+
+	if (!hit_geom)
+	{
+		intersection.t = -1.0f;
+	}
+	else
+	{
+		//The ray hits something
+		intersection.t = t_min;
+		intersection.intersectPoint = intersect_point;
+		intersection.materialId = geom.materialid;
+		intersection.surfaceNormal = glm::normalize(normal);
+	}
+}
+
+__host__ __device__ void computeIntersectionsForASingleRay(PathSegment& pathSegment, 
+														   Geom * geoms, int& geoms_size, 
+														   ShadeableIntersection& intersection)
 {
 	float t;
 	glm::vec3 intersect_point;
