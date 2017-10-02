@@ -142,3 +142,102 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
 
     return glm::length(r.origin - intersectionPoint);
 }
+
+// CHECKITOUT
+/**
+* Test intersection between a ray and a transformed cube. Untransformed,
+* the cube ranges from -0.5 to 0.5 in each axis and is centered at the origin.
+*
+* @param intersectionPoint  Output parameter for point of intersection.
+* @param normal             Output parameter for surface normal.
+* @param outside            Output param for whether the ray came from outside.
+* @return                   Ray parameter `t` value. -1 if no intersection.
+*/
+__host__ __device__ float triangleIntersectionTest(Geom triangle, Ray r,
+	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) {
+
+	Ray q;
+	q.origin = multiplyMV(triangle.inverseTransform, glm::vec4(r.origin, 1.0f));
+	q.direction = glm::normalize(multiplyMV(triangle.inverseTransform, glm::vec4(r.direction, 0.0f)));
+
+	glm::vec3 bary;
+
+	float t = -1;
+	if (glm::intersectRayTriangle(q.origin, q.direction, triangle.triangle.p0, triangle.triangle.p1, triangle.triangle.p2, bary)) {
+		t = bary.z;
+	}
+
+	glm::vec3 objspaceIntersection = getPointOnRay(q, t);
+
+	intersectionPoint = multiplyMV(triangle.transform, glm::vec4(objspaceIntersection, 1.f));
+
+	normal = glm::normalize(glm::cross(triangle.triangle.p0 - triangle.triangle.p1, triangle.triangle.p0 - triangle.triangle.p2));
+	outside = true;
+
+	if (glm::dot(q.origin, normal) < 0) {
+		outside = false;
+	}
+
+	return t;
+}
+
+
+// Ray - box intersection, referenced Scratchapixel.com
+__host__ __device__ bool boundingVolumeIntersectionTest(Geom box, Ray r) {
+	Ray q;
+	q.origin = multiplyMV(box.inverseTransform, glm::vec4(r.origin, 1.0f));
+	q.direction = glm::normalize(multiplyMV(box.inverseTransform, glm::vec4(r.direction, 0.0f)));
+
+	float tmin = (box.box.min.x - q.origin.x) / q.direction.x;
+	float tmax = (box.box.max.x - q.origin.x) / q.direction.x;
+
+	if (tmin > tmax) {
+		float temp = tmin;
+		tmin = tmax;
+		tmax = temp;
+	}
+
+	float tymin = (box.box.min.y - q.origin.y) / q.direction.y;
+	float tymax = (box.box.max.y - q.origin.y) / q.direction.y;
+
+	if (tymin > tymax) {
+		float temp = tymin;
+		tymin = tymax;
+		tymax = temp;
+	}
+
+	if ((tmin > tymax) || (tymin > tmax)) {
+		return false;
+	}
+
+	if (tymin > tmin) {
+		tmin = tymin;
+	}
+
+	if (tymax < tmax) {
+		tmax = tymax;
+	}
+
+	float tzmin = (box.box.min.z - q.origin.z) / q.direction.z;
+	float tzmax = (box.box.max.z - q.origin.z) / q.direction.z;
+
+	if (tzmin > tzmax) {
+		float temp = tzmin;
+		tzmin = tzmax;
+		tzmax = temp;
+	}
+
+	if ((tmin > tzmax) || (tzmin > tmax)) {
+		return false;
+	}
+
+	if (tzmin > tmin) {
+		tmin = tzmin;
+	}
+
+	if (tzmax < tmax) {
+		tmax = tzmax;
+	}
+
+	return true;
+}

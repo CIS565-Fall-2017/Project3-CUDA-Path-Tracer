@@ -4,6 +4,10 @@
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtx/string_cast.hpp>
 
+#define TINYOBJLOADER_IMPLEMENTATION
+#include "tiny_obj_loader.h"
+
+
 Scene::Scene(string filename) {
     cout << "Reading scene from " << filename << " ..." << endl;
     cout << " " << endl;
@@ -51,7 +55,12 @@ int Scene::loadGeom(string objectid) {
             } else if (strcmp(line.c_str(), "cube") == 0) {
                 cout << "Creating new cube..." << endl;
                 newGeom.type = CUBE;
-            }
+			}
+			else if (strcmp(line.c_str(), "mesh") == 0) {
+				cout << "Creating new mesh..." << endl;
+				// newGeom.type = TRIANGLE;
+				return loadMesh();
+			}
         }
 
         //link material
@@ -63,21 +72,23 @@ int Scene::loadGeom(string objectid) {
         }
 
         //load transformations
-        utilityCore::safeGetline(fp_in, line);
-        while (!line.empty() && fp_in.good()) {
-            vector<string> tokens = utilityCore::tokenizeString(line);
+		utilityCore::safeGetline(fp_in, line);
+		while (!line.empty() && fp_in.good()) {
+			vector<string> tokens = utilityCore::tokenizeString(line);
 
-            //load tranformations
-            if (strcmp(tokens[0].c_str(), "TRANS") == 0) {
-                newGeom.translation = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
-            } else if (strcmp(tokens[0].c_str(), "ROTAT") == 0) {
-                newGeom.rotation = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
-            } else if (strcmp(tokens[0].c_str(), "SCALE") == 0) {
-                newGeom.scale = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
-            }
+			//load tranformations
+			if (strcmp(tokens[0].c_str(), "TRANS") == 0) {
+				newGeom.translation = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+			}
+			else if (strcmp(tokens[0].c_str(), "ROTAT") == 0) {
+				newGeom.rotation = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+			}
+			else if (strcmp(tokens[0].c_str(), "SCALE") == 0) {
+				newGeom.scale = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+			}
 
-            utilityCore::safeGetline(fp_in, line);
-        }
+			utilityCore::safeGetline(fp_in, line);
+		}
 
         newGeom.transform = utilityCore::buildTransformationMatrix(
                 newGeom.translation, newGeom.rotation, newGeom.scale);
@@ -87,6 +98,131 @@ int Scene::loadGeom(string objectid) {
         geoms.push_back(newGeom);
         return 1;
     }
+}
+
+void Scene::loadTransformations(Geom *newGeom, glm::vec3 translate, glm::vec3 rotate, glm::vec3 scale) {
+	newGeom->translation = translate;
+	newGeom->rotation = rotate;
+	newGeom->scale = scale;
+}
+
+
+int Scene::loadMesh() {
+	string line;
+	utilityCore::safeGetline(fp_in, line);
+
+	tinyobj::attrib_t attribute;
+	std::vector<tinyobj::shape_t> shapes;
+	std::vector<tinyobj::material_t> materials;
+	std::string err;
+
+	if (!line.empty() && fp_in.good()) {
+		cout << "Loading Mesh obj....." << endl;
+		bool ret = tinyobj::LoadObj(&attribute, &shapes, &materials, &err, line.c_str());
+		if (!ret) {
+			cout << "No obj found...." << endl;
+			exit(1);
+		}
+		cout << "start getting triangles" << endl;
+		glm::vec3 translate, rotate, scale;
+		int materialid;
+
+		//link material
+		utilityCore::safeGetline(fp_in, line);
+		if (!line.empty() && fp_in.good()) {
+			vector<string> tokens = utilityCore::tokenizeString(line);
+			materialid = atoi(tokens[1].c_str());
+		}
+
+		// Retrieve transformations once
+		utilityCore::safeGetline(fp_in, line);
+		while (!line.empty() && fp_in.good()) {
+			vector<string> tokens = utilityCore::tokenizeString(line);
+
+			//load tranformations
+			if (strcmp(tokens[0].c_str(), "TRANS") == 0) {
+				translate = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+			}
+			else if (strcmp(tokens[0].c_str(), "ROTAT") == 0) {
+				rotate = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+			}
+			else if (strcmp(tokens[0].c_str(), "SCALE") == 0) {
+				scale = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+			}
+			utilityCore::safeGetline(fp_in, line);
+		} 
+
+
+		for (size_t i = 0; i < shapes.size(); i++) {
+
+			float minX = std::numeric_limits<float>::max();
+			float minY = std::numeric_limits<float>::max();
+			float minZ = std::numeric_limits<float>::max();
+			float maxX = std::numeric_limits<float>::min();
+			float maxY = std::numeric_limits<float>::min();
+			float maxZ = std::numeric_limits<float>::min();
+
+			Geom newGeom1;
+			newGeom1.type = BV;
+
+			newGeom1.materialid = materialid;
+			loadTransformations(&newGeom1, translate, rotate, scale);
+			newGeom1.transform = utilityCore::buildTransformationMatrix(
+				newGeom1.translation, newGeom1.rotation, newGeom1.scale);
+			newGeom1.inverseTransform = glm::inverse(newGeom1.transform);
+			newGeom1.invTranspose = glm::inverseTranspose(newGeom1.transform);
+
+			int boundingIndex = geoms.size(); 
+			cout << "Bounding box geom index: " << boundingIndex << endl;
+			
+			cout << "shape" << i << endl;
+			for (size_t f = 0; f < shapes[i].mesh.indices.size() / 3; f++) {
+				Geom newGeom;
+				newGeom.type = TRIANGLE;
+			
+				tinyobj::index_t index = shapes[i].mesh.indices[3 * f];
+				newGeom.triangle.p0 = glm::vec3(attribute.vertices[3 * index.vertex_index],
+					attribute.vertices[3 * index.vertex_index + 1],
+					attribute.vertices[3 * index.vertex_index + 2]);
+
+				index = shapes[i].mesh.indices[3 * f + 1];
+				newGeom.triangle.p1 = glm::vec3(attribute.vertices[3 * index.vertex_index],
+					attribute.vertices[3 * index.vertex_index + 1],
+					attribute.vertices[3 * index.vertex_index + 2]);
+
+				index = shapes[i].mesh.indices[3 * f + 2];
+				newGeom.triangle.p2 = glm::vec3(attribute.vertices[3 * index.vertex_index],
+					attribute.vertices[3 * index.vertex_index + 1],
+					attribute.vertices[3 * index.vertex_index + 2]);
+
+				minX = std::min(minX, min(newGeom.triangle.p0.x, min(newGeom.triangle.p1.x, newGeom.triangle.p2.x)));
+				minY = std::min(minY, min(newGeom.triangle.p0.y, min(newGeom.triangle.p1.y, newGeom.triangle.p2.y)));
+				minZ = std::min(minZ, min(newGeom.triangle.p0.z, min(newGeom.triangle.p1.z, newGeom.triangle.p2.z)));
+
+				maxX = std::max(maxX, max(newGeom.triangle.p0.x, max(newGeom.triangle.p1.x, newGeom.triangle.p2.x)));
+				maxY = std::max(maxY, max(newGeom.triangle.p0.y, max(newGeom.triangle.p1.y, newGeom.triangle.p2.y)));
+				maxZ = std::max(maxZ, max(newGeom.triangle.p0.z, max(newGeom.triangle.p1.z, newGeom.triangle.p2.z)));
+
+				newGeom.materialid = materialid;
+				loadTransformations(&newGeom, translate, rotate, scale);
+				newGeom.transform = utilityCore::buildTransformationMatrix(
+					newGeom.translation, newGeom.rotation, newGeom.scale);
+				newGeom.inverseTransform = glm::inverse(newGeom.transform);
+				newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
+				triangles.push_back(newGeom);
+			}
+			//newGeom1.type = BV;
+			newGeom1.box.min = glm::vec3(minX, minY, minZ);
+			newGeom1.box.max = glm::vec3(maxX, maxY, maxZ);
+			geoms.push_back(newGeom1);
+
+			cout << "geom type" << newGeom1.type << endl;
+
+		}
+		cout << triangles.size() << endl;
+		cout << geoms.size() << endl;
+	}
+	return 1;
 }
 
 int Scene::loadCamera() {

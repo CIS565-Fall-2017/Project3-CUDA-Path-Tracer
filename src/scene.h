@@ -16,11 +16,14 @@ private:
     int loadMaterial(string materialid);
     int loadGeom(string objectid);
     int loadCamera();
+	int loadMesh();
+	void loadTransformations(Geom *newGeom, glm::vec3 translate, glm::vec3 rotate, glm::vec3 scale);
 public:
     Scene(string filename);
     ~Scene();
 
     std::vector<Geom> geoms;
+	std::vector<Geom> triangles;
     std::vector<Material> materials;
     RenderState state;
 };
