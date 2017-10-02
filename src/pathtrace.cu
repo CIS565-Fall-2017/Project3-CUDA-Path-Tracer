@@ -20,9 +20,9 @@
 // Various rendering feature toggles.
 #define ANTIALIAS true					// Toggle antialiasing.
 #define CONTIGUOUS false				// Toggle contiguous memory by ray material.
-#define CACHE_FIRST false				// Toggle caching the results of the first ray bounce.
-#define DOF false						// Toggle depth of field effects.
-#define DIRECT_LIGHTING false			// Toggle the direct lighting of the scene.
+#define CACHE_FIRST true				// Toggle caching the results of the first ray bounce.
+#define DOF true						// Toggle depth of field effects.
+#define DIRECT_LIGHTING true			// Toggle the direct lighting of the scene.
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -357,7 +357,7 @@ __global__ void shadeFakeMaterial (
 						pathSegments[idx].color *= lightMaterial.color;
 
 					// Otherwise this ray is in shadow to its chosen light.
-					} else {
+					} else { 
 						pathSegments[idx].color = glm::vec3(0.f);
 					}
 				}
@@ -496,13 +496,26 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		num_lights = 0;
 	}
 
+	// Timing values.
+	int TIMING_RUNS = 1000;
+	float tracingTime = 0;
+	float shadingTime = 0;
+	float contiguousTime = 0;
+	float compactionTime = 0;
+
 	// Continue iterating and shooting rays until the scene is built.
 	int depth = 0;
 	PathSegment* dev_path_end = dev_paths + pixelcount;
 	int num_paths = dev_path_end - dev_paths;
 	int num_paths_workable = num_paths;
 	bool iterationComplete = false;
+	StreamCompaction::Common::PerformanceTimer timer;
 	while (!iterationComplete) {
+
+		// Start the timer.
+		if (TIMING_RUNS > 0) {
+			timer.startGpuTimer();
+		}
 
 		// --- PathSegment Tracing Stage ---
 		// Shoot ray into scene, bounce between objects, push shading chunks
@@ -543,6 +556,13 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		cudaDeviceSynchronize();
 		depth++;
 
+		// Record the tracing stage time.
+		if (TIMING_RUNS > 0) {
+			timer.endGpuTimer();
+			tracingTime += timer.getGpuElapsedTimeForPreviousOperation();
+			timer.startGpuTimer();
+		}
+
 		// --- Shading Stage ---
 		// Shade path segments based on intersections and generate new rays by
 		// evaluating the BSDF.
@@ -551,6 +571,11 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(iter, 
 			num_paths_workable, dev_intersections, dev_paths, dev_materials,
 			dev_lights, num_lights, dev_geoms, hst_scene->geoms.size());
+
+		// Record the shading stage time.
+		timer.endGpuTimer();
+		shadingTime += timer.getGpuElapsedTimeForPreviousOperation();
+		timer.startGpuTimer();
 
 		// Compare between directly shading the path segments and shading
 		// path segments that have been reshuffled to be contiguous in memory.
@@ -566,6 +591,13 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 				dev_materialIDs_path + num_paths_workable, dev_paths);
 			thrust::sort_by_key(thrust::device, dev_materialIDs_intersection,
 				dev_materialIDs_intersection + num_paths_workable, dev_intersections);
+
+			// Record the time spent making memory contiguous.
+			if (TIMING_RUNS > 0) {
+				timer.endGpuTimer();
+				contiguousTime += timer.getGpuElapsedTimeForPreviousOperation();
+				timer.startGpuTimer();
+			}
 		}
 
 		// Stream compact away all of the terminated paths.
@@ -579,6 +611,27 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		if (depth >= traceDepth || num_paths_workable <= 0) {
 			iterationComplete = true;
 		}
+
+		// Record the time spent using compaction to filter terminated rays.
+		if (TIMING_RUNS > 0) {
+			timer.endGpuTimer();
+			compactionTime += timer.getGpuElapsedTimeForPreviousOperation();
+		}
+	}
+
+	// Print out the current timing averages once enough iterations have passed.
+	if (iter > 0 && iter % TIMING_RUNS == 0) {
+		printf("Average Times per Iteration by Stage\n");
+		printf("Tracing time : %fms\n", (tracingTime / TIMING_RUNS));
+		printf("Shading time : %fms\n", (shadingTime / TIMING_RUNS));
+		printf("Contiguous time : %fms\n", (contiguousTime / TIMING_RUNS));
+		printf("Compaction time : %fms\n", (compactionTime / TIMING_RUNS));
+		printf("Total time : %fms\n", ((tracingTime + shadingTime +
+			contiguousTime + compactionTime) / TIMING_RUNS));
+		tracingTime = 0;
+		shadingTime = 0;
+		contiguousTime = 0;
+		compactionTime = 0;
 	}
 
 	dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
