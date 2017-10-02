@@ -320,55 +320,5 @@ __host__ __device__ float meshIntersectionTest(Geom geo, Ray originalRay, char *
 		return glm::distance(originalRay.origin, intersectionPoint);
 	}
 
-//	return hit;
-//}
-
-
-	//glm::vec3 ro = multiplyMV(geo.inverseTransform, glm::vec4(r.origin, 1.0f));
-	//glm::vec3 rd = glm::normalize(multiplyMV(geo.inverseTransform, glm::vec4(r.direction, 0.0f)));
-	//
-	//float distance = 10000000.f;
-	//int triangleIndex = -1;
-
-	//for (int i = 0; i < geo.meshData.triangleCount; i++)
-	//{
-	//	Triangle triangle = ((Triangle*)meshes)[geo.meshData.offset + i];
-
-	//	glm::vec3 t = ro - triangle.p1;
-	//	glm::vec3 p = glm::cross(rd, triangle.e2);
-	//	glm::vec3 q = glm::cross(t, triangle.e1);
-
-	//	float multiplier = 1.f / glm::dot(p, triangle.e1);
-	//	float rayT = multiplier * glm::dot(q, triangle.e2);
-	//	float u = multiplier * glm::dot(p, t);
-	//	float v = multiplier * glm::dot(q, rd);
-
-	//	if (rayT < distance && rayT >= 0.f && u >= 0.f && v >= 0.f && u + v <= 1.f)
-	//	{
-	//		distance = rayT;
-	//		triangleIndex = i;
-	//		uv = glm::vec2(u, v);
-	//	}
-	//}
-
-	//if (triangleIndex >= 0)
-	//{
-	//	Ray rt;
-	//	rt.origin = ro;
-	//	rt.direction = rd;
-
-	//	Triangle & triangle = ((Triangle*)meshes)[triangleIndex];
-	//	outside = true;
-
-	//	glm::vec3 localP = getPointOnRay(rt, distance);
-	//	glm::vec3 localNormal = triangle.n1 * uv.x + triangle.n2 * uv.y + triangle.n3 * (1.f - uv.x - uv.y);
-
-	//	intersectionPoint = multiplyMV(geo.transform, glm::vec4(localP, 1.f));
-	//	normal = glm::normalize(multiplyMV(geo.invTranspose, glm::vec4(localNormal, 0.f)));
-	//	//tangent = glm::normalize(multiplyMV(geo.transform, glm::vec4(localTangent, 0.0f)));
-
-	//	return distance;
-	//}
-
 	return -1.f;
 }

@@ -104,6 +104,16 @@ REFRIOR     0
 EMITTANCE   0
 TRANSLUCENCE .75
 
+// Back light
+MATERIAL 10
+RGB         1 1 1
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   8
+
 // Film
 FILM
 GAMMA			2.2
@@ -116,11 +126,11 @@ VIGNETTE_END	1.0
 CAMERA
 RES         960 408
 FOVY        10
-ITERATIONS  1000
-DEPTH       8
+ITERATIONS  2000
+DEPTH       5
 FILE        cornell
-APERTURE    0.85
-DISTANCE	25.0
+APERTURE    .85
+DISTANCE	24.2
 BOKEH       ../scenes/resources/bokeh/chromatic.png
 EYE         15 -10 18.5
 LOOKAT      .5 3.5 -2
@@ -129,7 +139,7 @@ UP          0 1 0
 // Ceiling light
 OBJECT 0
 cube
-material 0
+material 10
 TRANS       0 15 -5
 ROTAT       -35 0 0
 SCALE       15 .3 5
@@ -154,7 +164,7 @@ SCALE       .01 20 20
 OBJECT 3
 mesh
 FILE 		../scenes/resources/meshes/origami.obj
-material 4
+material 7
 TRANS       0 0 0
 ROTAT       0 0 0
 SCALE       3 3 3
@@ -173,17 +183,17 @@ OBJECT 5
 mesh
 FILE 		../scenes/resources/meshes/origami.obj
 material 5
-TRANS       -3 0 0
-ROTAT       0 -5.6 0
+TRANS       -3 0 .5
+ROTAT       0 -32.6 0
 SCALE       3.1 2.8 2.9
 
 // Origami
 OBJECT 6
 mesh
-FILE 		../scenes/resources/meshes/origami.obj
+FILE 		../scenes/resources/meshes/origami_alt.obj
 material 5
 TRANS       -5.0 0 0
-ROTAT       0 7.5 0
+ROTAT       0 12.5 0
 SCALE       3 3 3
 
 // Origami
@@ -191,7 +201,7 @@ OBJECT 7
 mesh
 FILE 		../scenes/resources/meshes/origami.obj
 material 9
-TRANS       -9.0 0 0
+TRANS       -9.0 0 .5
 ROTAT       0 25 0
 SCALE       3 3 3
 
@@ -199,9 +209,9 @@ SCALE       3 3 3
 // Origami
 OBJECT 8
 mesh
-FILE 		../scenes/resources/meshes/origami.obj
+FILE 		../scenes/resources/meshes/origami_alt.obj
 material 8
-TRANS       4.0 0 0
+TRANS       4.0 0 .5
 ROTAT       0 -5 0
 SCALE       3 3 3
 
@@ -226,8 +236,8 @@ SCALE       40 .75 20
 // Origami
 OBJECT 11
 mesh
-FILE 		../scenes/resources/meshes/origami.obj
-material 5
+FILE 		../scenes/resources/meshes/origami_alt.obj
+material 7
 TRANS       0 0 -4.3
 ROTAT       0 23.0 0
 SCALE       3.25 3.5 3.25
@@ -236,16 +246,16 @@ SCALE       3.25 3.5 3.25
 OBJECT 12
 mesh
 FILE 		../scenes/resources/meshes/origami.obj
-material 5
+material 8
 TRANS       4.1 0 -4.6
-ROTAT       0 17.5 0
+ROTAT       0 -27.5 0
 SCALE       3.35 3.35 3.45
 
 // Origami
 OBJECT 13
 mesh
 FILE 		../scenes/resources/meshes/origami.obj
-material 5
+material 8
 TRANS       -4 0 -4
 ROTAT       0 15 0
 SCALE       3 3 3
@@ -253,7 +263,7 @@ SCALE       3 3 3
 // Origami
 OBJECT 14
 mesh
-FILE 		../scenes/resources/meshes/origami.obj
+FILE 		../scenes/resources/meshes/origami_alt.obj
 material 5
 TRANS       -7 0 -4
 ROTAT       0 15 0
@@ -262,7 +272,7 @@ SCALE       3 3 3
 // Origami
 OBJECT 15
 mesh
-FILE 		../scenes/resources/meshes/origami.obj
+FILE 		../scenes/resources/meshes/origami_alt.obj
 material 7
 TRANS       -.5 0 -11.2
 ROTAT       0 15 0
@@ -298,20 +308,20 @@ SCALE       3 3 3
 // Origami
 OBJECT 19
 mesh
-FILE 		../scenes/resources/meshes/origami.obj
+FILE 		../scenes/resources/meshes/origami_alt.obj
 material 4
 TRANS       8 0 -4.0
 ROTAT       0 -25 0
-SCALE       3 3 3
+SCALE       3.1 3.5 3
 
 // Origami
 OBJECT 20
 mesh
-FILE 		../scenes/resources/meshes/origami.obj
+FILE 		../scenes/resources/meshes/origami_alt.obj
 material 9
 TRANS       -13.5 0 0
 ROTAT       0 -17.5 0
-SCALE       3 3 3
+SCALE       -2.6 3 3.3
 
 // Origami
 OBJECT 21
@@ -334,11 +344,11 @@ SCALE       3.05 3.2 3.1
 // Origami
 OBJECT 23
 mesh
-FILE 		../scenes/resources/meshes/origami.obj
+FILE 		../scenes/resources/meshes/origami_alt.obj
 material 4
 TRANS       12.5 0 -4
 ROTAT       0 35 0
-SCALE       3 3 3
+SCALE       -3.3 3 3
 
 // Origami
 OBJECT 24
