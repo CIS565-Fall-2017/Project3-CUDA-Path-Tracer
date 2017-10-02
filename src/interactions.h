@@ -2,7 +2,6 @@
 
 #include "intersections.h"
 
-// CHECKITOUT
 /**
  * Computes a cosine-weighted random direction in a hemisphere.
  * Used for diffuse lighting.
@@ -50,7 +49,7 @@ glm::vec3 calculateRandomDirectionInHemisphere(
  * 
  * The visual effect you want is to straight-up add the diffuse and specular
  * components. You can do this in a few ways. This logic also applies to
- * combining other types of materias (such as refractive).
+ * combining other types of materials (such as refractive).
  * 
  * - Always take an even (50/50) split between a each effect (a diffuse bounce
  *   and a specular bounce), but divide the resulting color of either branch
@@ -73,7 +72,26 @@ void scatterRay(
         glm::vec3 normal,
         const Material &m,
         thrust::default_random_engine &rng) {
-    // TODO: implement this.
-    // A basic implementation of pure-diffuse shading will just call the
-    // calculateRandomDirectionInHemisphere defined above.
+
+	// When bouncing the ray, move the new origin to the old intersection point.
+	pathSegment.ray.origin = getPointOnRay(pathSegment.ray, intersect.t);
+	pathSegment.ray.origin += normal * EPSILON;
+
+	// A basic implementation of pure-diffuse shading will just call the
+	// calculateRandomDirectionInHemisphere defined above.
+	if (!m.hasReflective && !m.hasRefractive) {
+		pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
+		pathSegment.ray.direction = glm::normalize(pathSegment.ray.direction);
+
+	// A perfect specular surface scatters in the reflected ray direction
+	} else if (m.hasReflective && !m.hasRefractive) {
+		pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
+		pathSegment.ray.direction = glm::normalize(pathSegment.ray.direction);
+	}
+
+	// Color the path.
+	pathSegment.color *= m.color;
+
+	// This ray has lost a bounce.
+	pathSegment.remainingBounces--;
 }
