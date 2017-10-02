@@ -15,7 +15,7 @@ In this project, I implemented a CUDA-based path tracer capable of rendering glo
 * Ideal Diffuse surfaces
 * Perfectly specular-reflective surfaces
 * Stream Compaction
-	* By using stream compaction, we can remove the path that has terminated;
+	* By using stream compaction, we can remove the paths that have terminated;
 * Material sort
 	* Sort the rays/path segments so that rays/paths interacting with the same material are contiguous in memory before shading;
 * First bounce intersection cache
@@ -27,21 +27,19 @@ In this project, I implemented a CUDA-based path tracer capable of rendering glo
 * Stochastic Sampled Antialiasing
 	* Make the image smoother by add rays for sub-pixel sampling;
 * Motion blur
-	* Some method of defining object motion, and motion blur by averaging samples at different times of iterations;
+	* Defining object motion, and motion blur by averaging samples at different times of iterations;
 
 ## Results
 
 All the images below are rendered with 5000 samples and 8 depths if there is no special statement.
 
-### Basic Features
+### Diffuse and specular-reflective surfaces
 
 ![](img/cornell.2017-10-01_19-39-04z.5000samp.png)
 
-### Extra Features
+I adjust the emittance of emissive material of the light in the following images to be larger to show the features better.
 
-I adjust the emittance of emissive material to be larger to better show the features.
-
-#### Refraction with Frensel effects
+### Refraction with Frensel effects
 
 (Reference: https://graphics.stanford.edu/courses/cs148-10-summer/docs/2006--degreve--reflection_refraction.pdf)
 
@@ -49,7 +47,7 @@ I adjust the emittance of emissive material to be larger to better show the feat
 
 From left to right: Full Diffuse, Full Reflection, Full Refraction
 
-##### Refractive index
+#### Refractive index
 
 ![](img/cornell_prob.2017-10-01_17-17-39z.5000samp.png)
 
@@ -57,7 +55,7 @@ From left to right(Refractive index): Water(1.33), Olive oil(1.47), Flint glass(
 
 (Reference for data from https://en.wikipedia.org/wiki/Refractive_index)
 
-##### Probablity for different materials:
+#### Probablity for different materials:
 
 ![](img/cornell_prob.2017-10-01_16-28-23z.5000samp.png)
 
@@ -71,7 +69,7 @@ From left to right(Diffuse/refractive): 1/0, 0.75/0.25/, 0.5/0.5, 0.25/0.75, 0/1
 
 From left to right(Reflective/Diffuse): 1/0, 0.75/0.25/, 0.5/0.5, 0.25/0.75, 0/1
 
-#### Physically-based depth-of-field
+### Physically-based depth-of-field
 
 (Reference for DOF from Physically Based Rendering, Third Edition p374)
 
@@ -87,7 +85,7 @@ For the image above: focal distance = 3, lensradius = 0.1;
 
 For the image with dof above: focal distance = 10.5, lensradius = 0.5;
 
-#### Stochastic Sampled Antialiasing
+### Stochastic Sampled Antialiasing
 
 ![](img/aacontrast.png)
 
@@ -97,7 +95,7 @@ Left: Without Stochastic Sampled Antialiasing; Right: With Stochastic Sampled An
 |------|------|
 |![](img/cornell2.2017-10-01_17-45-29z.5000samp.png) | ![](img/cornell2.2017-10-01_17-34-12z.5000samp.png) |
 
-#### Motion Blur
+### Motion Blur
 
 |no Motion Blur | With Motion Blur |
 |------|------|
@@ -111,11 +109,11 @@ First, let's see the time used per iteration from the start to the end of the wh
 
 ![](img/Different_optimizations.png)
 
-| Optimization     | NOTHING | CACHE_FIRST_BOUNDE | STREAM_COMPACTION | SORT_MATERIAL |
+| Optimization     | NOTHING | CACHE_FIRST_BOUNCE | STREAM_COMPACTION | SORT_MATERIAL |
 |:-----------------|:--------|:-------------------|:------------------|:--------------|
 | ms per iteration | 50.1653 | 50.116             | 84.8758           | 319.047       |
 
-We can see from the data above that only CACHE_FIRST_BOUNDE optimization is faster than the original one. When we cache the first bounce intersections for re-use across all subsequent iterations, it did save a little time but not so obvious. As for STREAM_COMPACTION and SORT_MATERIAL optimization, the sort and remove_if function cost way more time than the time saved in 
+We can see from the data above that only CACHE_FIRST_BOUNCE optimization is faster than the original one. When we cache the first bounce intersections for re-use across all subsequent iterations, it did save a little time but not so obvious. As for STREAM_COMPACTION and SORT_MATERIAL optimization, the sort and remove_if function cost way more time than the time saved in 
 ShadeMaterial function, which leads to the more time wasted in per interation.
 
 Next, let's see the time used in shadematerial function for the first interation as the depth become larger, compared with stream compaction is used or not and the box is open or not.
@@ -146,4 +144,4 @@ Next, let's see the time used in shadematerial function for the first interation
 | 7               | 1.65968           | 1.69434              |
 | 8               | 1.62579           | 1.6759               |
 
-We can see from the data above that as the path that terminated has been removed by using stream compaction, time used in ShadeMaterial function is less compared to the one that not using stream compaction. Though the time used is less, as I mentioned above, the remove_if function cost way more time than the time saved in ShadeMaterial function, which makes the each interation way slower. However, when compared with open box and close box, we can see that the time used in open box becomes much less as the depth becomes larger, that's because light can't excape from a close room, which makes the path harder to terminate, so the stream compaction will not obvious effect in close room compared with open room.
+We can see from the data above that as the path that terminated has been removed by using stream compaction, time used in ShadeMaterial function is less compared to the one that not using stream compaction. Though the time used is less, as I mentioned above, the remove_if function cost way more time than the time saved in ShadeMaterial function, which makes the each interation way slower. However, when compared with open box and close box, we can see that the time used in open box becomes much less as the depth becomes larger, that's because light can't excape from a close room, which makes the path harder to terminate, so the stream compaction will not  have obvious effect in close room compared with the open one.
