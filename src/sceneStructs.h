@@ -10,7 +10,8 @@
 enum GeomType {
     SPHERE,
     CUBE,
-	OCTREE,
+	TRIANGLE,
+	MESH, // not used for intersections, only loading
 };
 
 struct Ray {
@@ -27,6 +28,7 @@ struct Geom {
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+	glm::vec3 points[3];
 };
 
 // the world space min and max of a geometry

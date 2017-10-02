@@ -97,8 +97,6 @@ void pathtraceInit(Scene *scene) {
 	const Camera &cam = hst_scene->state.camera;
 	const int pixelcount = cam.resolution.x * cam.resolution.y;
 
-
-
 	cudaMalloc(&dev_image, pixelcount * sizeof(glm::vec3));
 	cudaMemset(dev_image, 0, pixelcount * sizeof(glm::vec3));
 
@@ -272,6 +270,9 @@ __global__ void computeIntersectionsOctree(
 				{
 					t = sphereIntersectionTest(geom, pathSegment.ray, temp_intersect, temp_normal, outside);
 				}
+				else if (geom.type == TRIANGLE) {
+					t = triangleIntersectionTest(geom, pathSegment.ray, temp_intersect, temp_normal, outside);
+				}
 
 				// Compute the minimum t from the intersection tests to determine what
 				// scene geometry object was hit first.
@@ -289,8 +290,6 @@ __global__ void computeIntersectionsOctree(
 
 		// see if there are any remaining children
 		if (remainingChildrenStack[stackDepthPtr] == 0) {
-
-
 
 			// back up stack, set current to its parent
 			stackDepthPtr -= 1;
@@ -378,6 +377,10 @@ __global__ void computeIntersections(
 			{
 				t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
 			}
+			else if (geom.type == TRIANGLE) {
+				t = triangleIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+			}
+
 			// TODO: add more intersection tests here... triangle? metaball? CSG?
 
 			// Compute the minimum t from the intersection tests to determine what

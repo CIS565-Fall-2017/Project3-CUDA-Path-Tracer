@@ -89,6 +89,55 @@ __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
     return -1;
 }
 
+// Moller-Trumbore algorithm, wikipedia
+__host__ __device__ float triangleIntersectionTest(
+	Geom tri, Ray r, glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) 
+{
+	const float EPS = 0.00001f;
+	Ray q;
+	q.origin = multiplyMV(tri.inverseTransform, glm::vec4(r.origin, 1.0f));
+	q.direction = glm::normalize(multiplyMV(tri.inverseTransform, glm::vec4(r.direction, 0.0f)));
+	
+	glm::vec3 v0 = tri.points[0];
+	glm::vec3 v1 = tri.points[1];
+	glm::vec3 v2 = tri.points[2];
+	glm::vec3 e1 = v1 - v0;
+	glm::vec3 e2 = v2 - v0;
+	glm::vec3 h = glm::cross(q.direction, e2);
+	float a = glm::dot(e1, h);
+	if (a > -EPS && a < EPS) return -1;
+
+	a = 1.0f/a;
+	glm::vec3 s = q.origin - v0;
+	float u = a * glm::dot(s, h);
+	if (u < 0 || u > 1) return -1;
+
+	glm::vec3 o = glm::cross(s, e1);
+	float v = a * glm::dot(q.direction, o);
+	if (v < 0 || (u + v) > 1) return -1;
+
+	float t = a * glm::dot(e2, o);
+	if (t < EPS) return -1;
+
+	glm::vec3 norm = glm::normalize(glm::cross(e1, e2));
+
+	outside = glm::dot(norm, q.direction) < 0.0f;
+	intersectionPoint = multiplyMV(tri.transform, glm::vec4(getPointOnRay(q, t), 1.0f));
+	normal = glm::normalize(multiplyMV(tri.transform, glm::vec4(norm, 0.0f)));
+
+	return glm::length(r.origin - intersectionPoint);
+	
+	/*
+	glm::vec3 baryPos;
+	glm::intersectRayTriangle(q.origin, q.direction, tri.points[0], tri.points[1], tri.points[2], baryPos);
+
+	float t = baryPos.z;
+	intersectionPoint = multiplyMV(tri.transform, glm::vec4(getPointOnRay(q, t), 1.0f));
+	normal = glm::normalize(multiplyMV(tri.transform, glm::vec4(glm::cross(tri.points[2] - tri.points[0], tri.points[1] - tri.points[0]), 0.0f)));
+	outside = glm::dot(normal, r.direction) < 0;
+
+	return t;*/
+}
 
 __host__ __device__ float aabbIntersectionTest(
 	glm::vec3 translation,
@@ -98,17 +147,9 @@ __host__ __device__ float aabbIntersectionTest(
 	glm::vec3 &normal, bool &outside) 
 {
 	Ray q;
-	//glm::mat4 aabbTransform = glm::inverse(utilityCore::buildTransformationMatrix(translation, glm::vec3(0), halfSideLength * 2.0f));
+	// inverse
 	halfSideLength *= 2.0f;
 	halfSideLength = glm::vec3(1.0f) / halfSideLength;
-	/*glm::mat4 aabbs = glm::mat4(
-		glm::vec4(halfSideLength.x, 0, 0, 0),
-		glm::vec4(0, halfSideLength.y, 0, 0),
-		glm::vec4(0, 0, halfSideLength.z, 0),
-		glm::vec4(translation.x, translation.y, translation.z, 1)
-		);
-
-	glm::mat4 aabbTransform = glm::inverse(aabbs); */
 	glm::mat4 aabbTransform = glm::mat4(
 		glm::vec4(halfSideLength.x, 0, 0, 0),
 		glm::vec4(0, halfSideLength.y, 0, 0),

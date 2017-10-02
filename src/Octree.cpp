@@ -2,28 +2,47 @@
 
 AxisBoundingBox geomBoundingBox(Geom g) {
 	AxisBoundingBox abb;
-	std::vector<glm::vec4> cubePts;
-	cubePts.push_back(g.transform * glm::vec4(0.5f, 0.5f, 0.5f, 1.0f));
-	cubePts.push_back(g.transform * glm::vec4(0.5f, 0.5f, -0.5f, 1.0f));
-	cubePts.push_back(g.transform * glm::vec4(0.5f, -0.5f, 0.5f, 1.0f));
-	cubePts.push_back(g.transform * glm::vec4(0.5f, -0.5f, -0.5f, 1.0f));
-	cubePts.push_back(g.transform * glm::vec4(-0.5f, 0.5f, 0.5f, 1.0f));
-	cubePts.push_back(g.transform * glm::vec4(-0.5f, 0.5f, -0.5f, 1.0f));
-	cubePts.push_back(g.transform * glm::vec4(-0.5f, -0.5f, 0.5f, 1.0f));
-	cubePts.push_back(g.transform * glm::vec4(-0.5f, -0.5f, -0.5f, 1.0f));
-	glm::vec3 minimums = glm::vec3(FLT_MAX);
-	glm::vec3 maximums = glm::vec3(-FLT_MAX);
-	for (int i = 0; i < 8; i++) {
-		glm::vec4 pos = cubePts[i];
-		minimums.x = minimums.x < pos.x ? minimums.x : pos.x;
-		minimums.y = minimums.y < pos.y ? minimums.y : pos.y;
-		minimums.z = minimums.z < pos.z ? minimums.z : pos.z;
-		maximums.x = maximums.x > pos.x ? maximums.x : pos.x;
-		maximums.y = maximums.y > pos.y ? maximums.y : pos.y;
-		maximums.z = maximums.z > pos.z ? maximums.z : pos.z;
+	if (g.type == TRIANGLE) {
+		glm::vec4 t0 = g.transform * glm::vec4(g.points[0], 1.0f);
+		glm::vec4 t1 = g.transform * glm::vec4(g.points[1], 1.0f);
+		glm::vec4 t2 = g.transform * glm::vec4(g.points[2], 1.0f);
+		abb.minXYZ = glm::vec3(
+			min(min(t0.x, t1.x), t2.x),
+			min(min(t0.y, t1.y), t2.y),
+			min(min(t0.z, t1.z), t2.z)
+			);
+		abb.maxXYZ = glm::vec3(
+			max(max(t0.x, t1.x), t2.x),
+			max(max(t0.y, t1.y), t2.y),
+			max(max(t0.z, t1.z), t2.z)
+			);
 	}
-	abb.minXYZ = minimums;
-	abb.maxXYZ = maximums;
+	else {
+		// need to do tighter bounds for sphere...
+		std::vector<glm::vec4> cubePts;
+		cubePts.push_back(g.transform * glm::vec4(0.5f, 0.5f, 0.5f, 1.0f));
+		cubePts.push_back(g.transform * glm::vec4(0.5f, 0.5f, -0.5f, 1.0f));
+		cubePts.push_back(g.transform * glm::vec4(0.5f, -0.5f, 0.5f, 1.0f));
+		cubePts.push_back(g.transform * glm::vec4(0.5f, -0.5f, -0.5f, 1.0f));
+		cubePts.push_back(g.transform * glm::vec4(-0.5f, 0.5f, 0.5f, 1.0f));
+		cubePts.push_back(g.transform * glm::vec4(-0.5f, 0.5f, -0.5f, 1.0f));
+		cubePts.push_back(g.transform * glm::vec4(-0.5f, -0.5f, 0.5f, 1.0f));
+		cubePts.push_back(g.transform * glm::vec4(-0.5f, -0.5f, -0.5f, 1.0f));
+		glm::vec3 minimums = glm::vec3(FLT_MAX);
+		glm::vec3 maximums = glm::vec3(-FLT_MAX);
+		for (int i = 0; i < 8; i++) {
+			glm::vec4 pos = cubePts[i];
+			minimums.x = minimums.x < pos.x ? minimums.x : pos.x;
+			minimums.y = minimums.y < pos.y ? minimums.y : pos.y;
+			minimums.z = minimums.z < pos.z ? minimums.z : pos.z;
+			maximums.x = maximums.x > pos.x ? maximums.x : pos.x;
+			maximums.y = maximums.y > pos.y ? maximums.y : pos.y;
+			maximums.z = maximums.z > pos.z ? maximums.z : pos.z;
+		}
+		abb.minXYZ = minimums;
+		abb.maxXYZ = maximums;
+	}
+
 	return abb;
 }
 
