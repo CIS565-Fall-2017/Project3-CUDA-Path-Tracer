@@ -26,6 +26,11 @@ struct Geom {
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+    glm::vec3 motion;
+    int startVertex;
+    int verticesCount;
+    glm::vec3 boundingBoxMin;
+    glm::vec3 boundingBoxMax;
 };
 
 struct Material {
@@ -38,6 +43,12 @@ struct Material {
     float hasRefractive;
     float indexOfRefraction;
     float emittance;
+};
+
+struct Vertex {
+  glm::vec3 position;
+  glm::vec3 normal;
+
 };
 
 struct Camera {
@@ -64,6 +75,11 @@ struct PathSegment {
 	glm::vec3 color;
 	int pixelIndex;
 	int remainingBounces;
+	bool isRefract;
+
+	__host__ __device__ bool isDone() const {
+	return (remainingBounces <= 0);
+	}
 };
 
 // Use with a corresponding PathSegment to do:
@@ -73,4 +89,5 @@ struct ShadeableIntersection {
   float t;
   glm::vec3 surfaceNormal;
   int materialId;
+  glm::vec3 point;
 };
