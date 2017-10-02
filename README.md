@@ -11,7 +11,8 @@ ___
 
 ### Final Path Tracer:
 ___
-![](./results/test1.2017-10-01_06-21-18z.3507samp.png "5000 samples/ cornell")
+***3507 Samples | 800 x 800***
+![](./results/test1.2017-10-01_06-21-18z.3507samp.png "3507 samples/ cornell")
 ### Detailed Features:
 ___
 * **Anti-Aliasing**: Realized by Stochastic *Sampled Antialiasing*, just jitter a little bit when create Camera ray, this will cause a little blur on the image, which can solve the aliasing problems.</br>
