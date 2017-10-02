@@ -12,6 +12,7 @@ Ju Yang
   ### 1. naive BRDF of reflection
 I modified the scatterRay function in interaction.h to implement the basic BRDF
 ![cornell](pic/cornell.2017-10-02_07-42-05z.1009samp.png)
+
 This picture is rendered with about 1000 iterations. 
 Reflection parameter in scene files now has a meaning. 
 If REFL is 0, that means it does not color any light. 
@@ -21,5 +22,14 @@ I also modified the scene file "cornell.txt", adding numbers to the REFL from ma
   ### 2. naive Refraction
 I added a branch in scatterray function to implement the refraction. 
 ![cornell](pic/cornell.2017-10-02_07-17-23z.2422samp.png)
+
 This picture is rendered with about 1000 iterations, in cornell2.txt, with an additional glass ball. 
+Refraction parameter in scene file now determines how "refractive" the material is. 
+In basic path-tracing, there's only 1 ray we could have for each pixel in each iteration. So when hitting the surface, we must decide whether it should refract or reflect. 
+
+float a = u01(rng)*m.hasReflective / m.hasRefractive; //decide whether this time it will bounce or travel through the glass
+
+If a is larger than 0.5, then the light should go reflective. Or otherwise, it should go refractive. 
+
+Besides, about Snell Law, 
 
