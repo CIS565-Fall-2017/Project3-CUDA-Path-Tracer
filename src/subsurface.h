@@ -19,7 +19,7 @@ __host__ __device__ float smootherstep(float& x)
 	return 6.0f*glm::pow(x, 5) - 15.0f*glm::pow(x,4) + 10.0f*glm::pow(x,3);
 }
 
-__host__ __device__ float sampleScatterDistance(float& samplePoint, float& scatteringCoefficient)
+__host__ __device__ float sampleScatterDistance(float& samplePoint, const float& scatteringCoefficient)
 {
 	//scattering coefficient scales up the distance by a good deal
 	//-logf of samplePoint would be a value b/w 2 and 0
@@ -100,7 +100,7 @@ __host__ __device__ Vector3f axisAngletoEuler(Vector3f& vec, float& angle)
 	return eulerangles;
 }
 
-__host__ __device__ Vector3f generateDisplacedOrigin(Vector3f& normal, Vector3f& intersectionPoint,
+__host__ __device__ Vector3f generateDisplacedOrigin(const Vector3f& normal, Vector3f& intersectionPoint,
 													 Vector2f& sample, float& sampledDistance)
 {
 	//sample the squareToConcentricDiscExponentialFallOffDistribution function to generate a sample in a radial disc 
@@ -133,14 +133,14 @@ __host__ __device__ Vector3f generateDisplacedOrigin(Vector3f& normal, Vector3f&
 	return newRayOrigin;
 }
 
-__host__ __device__ Color3f f_Subsurface(Material &m, float& samplePoint, float& scatteringCoefficient)
+__host__ __device__ Color3f f_Subsurface(const Material &m, float& samplePoint)
 {
-	float sampledDistance = sampleScatterDistance(samplePoint, scatteringCoefficient);
+	float sampledDistance = sampleScatterDistance(samplePoint, m.scatteringCoefficient);
 	float expColorDecay = 1 / (1 + sampledDistance); // same as expDistRadialCoeff
 	return m.color*expColorDecay;
 }
 
-__host__ __device__ float pdf_Subsurface(Vector3f& wo, Vector3f& wi, float& thetaMin)
+__host__ __device__ float pdf_Subsurface(const Vector3f& wo, Vector3f& wi, const float& thetaMin)
 {
 	float normalizedthetaMin = thetaMin / 180.0f;
 	float g = smootherstep(normalizedthetaMin);
@@ -149,10 +149,9 @@ __host__ __device__ float pdf_Subsurface(Vector3f& wo, Vector3f& wi, float& thet
 	return pdf;
 }
 
-__host__ __device__ bool sample_f_Subsurface(Vector3f& wo, Vector3f& sample, 
-											Material& m, Geom& geom,
-											Vector3f& normal, Vector3f& intersectionPoint,
-											float& scatteringCoefficient, float& thetaMin,
+__host__ __device__ bool sample_f_Subsurface(const Vector3f& wo, Vector3f& sample, 
+											const Material& m, Geom& geom,
+											const Vector3f& normal, Vector3f& intersectionPoint,											
 											Color3f& sampledColor, Vector3f& wi, float& pdf)
 {
 	//determine the sampleDistance
@@ -164,6 +163,9 @@ __host__ __device__ bool sample_f_Subsurface(Vector3f& wo, Vector3f& sample,
 	//ie set the pdf back to zero and and color to zero and sample another bxdf
 	//else shift the exit point to the surface of the object, ie make sampledDistance = t
 	//set the color to a scaled down value colorised by the material and set the pdf and wi
+
+	float scatteringCoefficient = m.scatteringCoefficient;
+	float thetaMin = m.thetaMin;
 
 	Ray ray;
 	Vector2f sample2f = Vector2f(sample2f[0], sample2f[1]);

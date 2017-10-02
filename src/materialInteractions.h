@@ -3,6 +3,7 @@
 #include "sampling.h"
 #include "lambert.h"
 #include "specular.h"
+#include "subsurface.h"
 
 __host__ __device__ bool MatchesFlags(const BxDFType sampledbxdf)
 {
@@ -71,16 +72,15 @@ __host__ __device__ BxDFType chooseBxDF(const Material &m, thrust::default_rando
 }
 
 __host__ __device__ Color3f sample_f(const Material &m, thrust::default_random_engine &rng,
+									const Vector3f& woW, const Vector3f& normal,
+									Geom& geom, Vector3f intersectPoint,
 									Color3f& sampledColor, Vector3f& wiW, float& pdf)
 {
-
-	//TODO
-
+	BxDFType sampledType;
 	thrust::uniform_real_distribution<float> u01(0, 1);
-	thrust::uniform_real_distribution<float> u02(0, 1);
 
 	float xi0 = u01(rng);
-	float xi1 = u02(rng);
+	float xi1 = u01(rng);
 
 	//----------------------------------------------
 
@@ -118,27 +118,43 @@ __host__ __device__ Color3f sample_f(const Material &m, thrust::default_random_e
 
 	//Sample chosen BxDF
 	pdf = 0.0f;
-	if (sampledType)
+	Color3f Color = Color3f(0.0f);
+	bool possibleToSubSurface = false;
+
+	if (bxdf == BxDF_SUBSURFACE)
 	{
-		//this is because its a recurring call; we are shooting a ray that bounces off
-		//many materials on its, journey, so if it was sampled before, then sampledType
-		//will exist and we have to reequate it to the type of the material hit
-		sampledType = BSDF_ALL;
+		//if subsurface stuff cant happen calculate color, pdf, and wi using another bxDF
+		Vector3f sample = Vector3f(u01(rng), u01(rng), u01(rng));
+		possibleToSubSurface = sample_f_Subsurface(woW, sample, m, geom, normal, intersectPoint, sampledColor, wiW, pdf);
+
+		if (!possibleToSubSurface)
+		{
+			//change bxDF to another bxDF;
+			count = comp;
+			for (int i = 0; i<m.numBxDFs; ++i)
+			{
+				// count is only decremented when a bxdfs[i] == mathcing flag
+				if (MatchesFlags(m.bxdfs[i]) && count-- == 0 && m.bxdfs[i] != BxDF_SUBSURFACE)
+				{
+					bxdf = m.bxdfs[i];
+					break;
+				}
+			}
+		}
 	}
 
-	Color3f Color = Color3f(0.0f);
-	if (bxdf == BSDF_SPECULAR_BRDF)
+	if (bxdf == BSDF_SPECULAR_BRDF && !possibleToSubSurface)
 	{
 		sampledColor = f_Specular(m);
 		pdf = pdf_Specular();
-		wiW = glm::reflect(wo, normal);
+		wiW = glm::reflect(woW, normal);
 	}
-	else if (bxdf == BSDF_LAMBERT)
+	else if (bxdf == BSDF_LAMBERT && !possibleToSubSurface)
 	{
 		//sample functions return a color, calculate pdf, and set a new wiW
 		wiW = glm::normalize(calculateRandomDirectionInHemisphere(normal, rng));
-		pdf = pdf_Lambert(wo, wiW, normal);
-		sampledColor = f_Lambert(m, wo, wiW);
+		pdf = pdf_Lambert(woW, wiW, normal);
+		sampledColor = f_Lambert(m, woW, wiW);
 	}
 
 	if (pdf == 0)
@@ -160,11 +176,15 @@ __host__ __device__ Color3f sample_f(const Material &m, thrust::default_random_e
 				//different bxdfs and average it out for the bsdf
 				if (bxdf == BSDF_SPECULAR_BRDF)
 				{
-					pdf += pdf_Specular(wo, wiW);
+					pdf += pdf_Specular();
 				}
 				else if (bxdf == BSDF_LAMBERT)
 				{
-					pdf += pdf_Lambert(wo, wiW);
+					pdf += pdf_Lambert(woW, wiW, normal);
+				}
+				else if (bxdf == BxDF_SUBSURFACE)
+				{
+					pdf += pdf_Subsurface(woW, wiW, m.thetaMin);
 				}
 			}
 		}
@@ -187,11 +207,16 @@ __host__ __device__ Color3f sample_f(const Material &m, thrust::default_random_e
 			{
 				if (bxdf == BSDF_SPECULAR_BRDF)
 				{
-					Color += f_Specular(wo, wiW);
+					Color += f_Specular(m);
 				}
 				else if (bxdf == BSDF_LAMBERT)
 				{
-					Color += f_Lambert(m, wo, wiW);
+					Color += f_Lambert(m, woW, wiW);
+				}
+				else if (bxdf == BxDF_SUBSURFACE)
+				{
+					float samplePoint = u01(rng);
+					Color += f_Subsurface(m, samplePoint);
 				}
 			}
 		}

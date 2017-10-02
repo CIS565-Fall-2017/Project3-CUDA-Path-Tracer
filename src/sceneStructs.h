@@ -19,12 +19,14 @@ enum LightType
 	AREALIGHT
 };
 
-enum BxDFType {
-	BSDF_LAMBERT = 1 << 0,      // This BxDF represents diffuse energy scattering, which is uniformly random
-	BSDF_SPECULAR_BRDF = 1 << 1,     // This BxDF handles specular energy scattering, which has no element of randomness
-	BSDF_SPECULAR_BTDF = 1 << 2,
-	BSDF_GLASS = 1 << 3,
-	BSDF_ALL = BSDF_LAMBERT | BSDF_SPECULAR_BRDF | BSDF_SPECULAR_BTDF | BSDF_GLASS
+enum BxDFType 
+{
+	BSDF_LAMBERT = 1 << 0,       // This BxDF represents diffuse energy scattering, which is uniformly random
+	BSDF_SPECULAR_BRDF = 1 << 1, // This BxDF handles specular energy scattering, which has no element of randomness
+	BxDF_SUBSURFACE = 1 << 2,    // Needs a second material for it to be used
+	BSDF_SPECULAR_BTDF = 1 << 3,
+	BSDF_GLASS = 1 << 4,
+	BSDF_ALL = BSDF_LAMBERT | BSDF_SPECULAR_BRDF | BxDF_SUBSURFACE | BSDF_SPECULAR_BTDF | BSDF_GLASS
 };
 
 struct Ray 
@@ -64,6 +66,10 @@ struct Material
     float hasRefractive;
     float indexOfRefraction;
     float emittance;
+
+	//properties for subsurface
+	float scatteringCoefficient; //determines the distance throught the material the ray will travel on single scattering
+	float thetaMin; //determines the forward scattering lobe
 
 	int numBxDFs; // How many BxDFs this BSDF currently contains (init. 0)
 	const static int MaxBxDFs = 8; // How many BxDFs a single BSDF can contain
