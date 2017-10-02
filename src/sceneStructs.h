@@ -10,6 +10,7 @@
 enum GeomType {
     SPHERE,
     CUBE,
+	SQUARE
 };
 
 struct Ray {
@@ -35,9 +36,11 @@ struct Material {
         glm::vec3 color;
     } specular;
     float hasReflective;
-    float hasRefractive;
+	float hasRefractive;
     float indexOfRefraction;
-    float emittance;
+	float hasSubsurface;
+	float density;
+	float emittance;
 };
 
 struct Camera {
@@ -49,6 +52,9 @@ struct Camera {
     glm::vec3 right;
     glm::vec2 fov;
     glm::vec2 pixelLength;
+	// Thin Lens properties for Depth of Field
+	float lensRadius;
+	float focalDistance;
 };
 
 struct RenderState {
@@ -71,6 +77,7 @@ struct PathSegment {
 // 2) BSDF evaluation: generate a new ray
 struct ShadeableIntersection {
   float t;
+  glm::vec3 intersectPoint;
   glm::vec3 surfaceNormal;
   int materialId;
 };

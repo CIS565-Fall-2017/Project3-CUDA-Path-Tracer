@@ -142,3 +142,21 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
 
     return glm::length(r.origin - intersectionPoint);
 }
+
+__host__ __device__ float squareIntersectionTest(Geom square, Ray r,
+	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside)
+{
+	Ray q;
+	q.origin = multiplyMV(square.inverseTransform, glm::vec4(r.origin, 1.0f));
+	q.direction = glm::normalize(multiplyMV(square.inverseTransform, glm::vec4(r.direction, 0.0f)));
+
+	float t = glm::dot(glm::vec3(0, 0, 1), (glm::vec3(0.5f, 0.5f, 0) - q.origin)) / glm::dot(glm::vec3(0, 0, 1), q.direction);
+
+	glm::vec3 P(t * q.direction + q.origin);
+	if (t > 0 && P.x >= -0.5f && P.x <= 0.5f && P.y >= -0.5f && P.y <= 0.5f) {
+		return glm::length(r.origin - intersectionPoint);
+	}
+	
+	// Didn't hit
+	return -1;
+}

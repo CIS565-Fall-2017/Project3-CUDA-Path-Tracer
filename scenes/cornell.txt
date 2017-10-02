@@ -7,6 +7,8 @@ REFL        0
 REFR        0
 REFRIOR     0
 EMITTANCE   5
+SUBSURF     0
+DENSITY     0
 
 // Diffuse white
 MATERIAL 1
@@ -17,6 +19,8 @@ REFL        0
 REFR        0
 REFRIOR     0
 EMITTANCE   0
+SUBSURF     0
+DENSITY     0
 
 // Diffuse red
 MATERIAL 2
@@ -27,6 +31,8 @@ REFL        0
 REFR        0
 REFRIOR     0
 EMITTANCE   0
+SUBSURF     0
+DENSITY     0
 
 // Diffuse green
 MATERIAL 3
@@ -37,6 +43,8 @@ REFL        0
 REFR        0
 REFRIOR     0
 EMITTANCE   0
+SUBSURF     0
+DENSITY     0
 
 // Specular white
 MATERIAL 4
@@ -47,6 +55,8 @@ REFL        1
 REFR        0
 REFRIOR     0
 EMITTANCE   0
+SUBSURF     0
+DENSITY     0
 
 // Camera
 CAMERA
@@ -55,18 +65,20 @@ FOVY        45
 ITERATIONS  5000
 DEPTH       8
 FILE        cornell
-EYE         0.0 5 10.5
+EYE         0.0 5 4
 LOOKAT      0 5 0
 UP          0 1 0
+LENSRADIUS  0
+FOCALDIST   5
 
 
 // Ceiling light
 OBJECT 0
 cube
 material 0
-TRANS       0 10 0
+TRANS       0 9.75 0
 ROTAT       0 0 0
-SCALE       3 .3 3
+SCALE       3 .01 3
 
 // Floor
 OBJECT 1
@@ -111,7 +123,15 @@ SCALE       .01 10 10
 // Sphere
 OBJECT 6
 sphere
-material 4
+material 1
 TRANS       -1 4 -1
 ROTAT       0 0 0
 SCALE       3 3 3
+
+// Back wall
+OBJECT 7
+cube
+material 1
+TRANS       0 5 -5
+ROTAT       0 -90 0
+SCALE       .01 10 10
