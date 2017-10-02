@@ -6,22 +6,28 @@ CUDA Path Tracer
 * LINSHEN XIAO
 * Tested on: Windows 10, Intel(R) Core(TM) i7-6700HQ CPU @ 2.60GHz, 16.0GB, NVIDIA GeForce GTX 970M (Personal computer)
 
-## Features
+## Overview
 
-### Core Features
+In this project, I implemented a CUDA-based path tracer capable of rendering globally-illuminated images very quickly. Path tracing is a computer graphics Monte Carlo method of rendering images of three-dimensional scenes such that the global illumination is faithful to reality (reference: https://en.wikipedia.org/wiki/Path_tracing). Basially, for every pixel of the image, we shoot a ray from the camera, find an intersection, and return a color based on the material, position of the objects & lightsource and so on after a few depths. As this process for every pixel is relatively similar, we can use GPU to run the programs simultaneously to make the path tracer faster.
+
+## Features
 
 * Ideal Diffuse surfaces
 * Perfectly specular-reflective surfaces
 * Stream Compaction
+	* By using stream compaction, we can remove the path that has terminated;
 * Material sort
+	* Sort the rays/path segments so that rays/paths interacting with the same material are contiguous in memory before shading;
 * First bounce intersection cache
-
-### Extra Features
-
+	* Cache the first bounce intersections for re-use across all subsequent iterations;
 * Refraction with Frensel effects
+	* Refraction (e.g. glass/water) with Frensel effects using Schlick's approximation or more accurate methods;
 * Physically-based depth-of-field
+	* Physically-based depth-of-field by jittering rays within an aperture;
 * Stochastic Sampled Antialiasing
+	* Make the image smoother by add rays for sub-pixel sampling;
 * Motion blur
+	* Some method of defining object motion, and motion blur by averaging samples at different times of iterations;
 
 ## Results
 
@@ -73,13 +79,11 @@ From left to right(Reflective/Diffuse): 1/0, 0.75/0.25/, 0.5/0.5, 0.25/0.75, 0/1
 
 ![](img/cornell3.2017-09-29_19-28-18z.5000samp.png)
 
-For the image above: focal distance = 9, lensradius = 1;
+For the image above: focal distance = 3, lensradius = 0.1;
 
 |no DOF | With DOF |
 |------|------|
 |![](img/cornell2.2017-10-01_17-34-12z.5000samp.png) | ![](img/cornell2.2017-10-01_17-40-31z.5000samp.png) |
-
-Left: Without Depth of Field; Right: With Depth of Field;
 
 For the image with dof above: focal distance = 10.5, lensradius = 0.5;
 
@@ -99,9 +103,7 @@ Left: Without Stochastic Sampled Antialiasing; Right: With Stochastic Sampled An
 |------|------|
 |![](img/cornell2.2017-10-01_23-40-15z.5000samp.png) | ![](img/cornell2.2017-10-01_23-35-37z.5000samp.png) |
 
-Left: Without Motion Blur; Right: With Motion Blur;
-
-For the image with Motion Blur above: for the cube on the left side, its original translation is [-2.8 5 0], rotation is[45 0 45], and its final translation is [-1.8 6 1], rotation is[45,45,45];
+For the image with Motion Blur above: for the cube on the left side, its original translation is [-2.8 5 0], original rotation is[45 0 45], and its final translation is [-1.8 6 1], final rotation is[45,45,45];
 
 ## Performance Analysis
 
