@@ -115,7 +115,7 @@ Performance Analysis
 
 ## BLOOPERS
 
-* It looks like motion blur! But actually it a problem with my random number generator :)
+* It looks like motion blur! But actually it was a problem with my random number generator :)
 
     ![b1](img/Bloopers/MB.png)    
 
