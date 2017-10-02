@@ -37,7 +37,7 @@ GPU Features:
 
 ### Naive Lighting 
 
-![](Renders/Naive/cornell.2017-10-01_15-15-21z.5000samp.png)
+![](Renders/Naive/cornell.2017-10-01_15-15-21z.5000samp.png =400x400)
 ###### (Run with 5000 samples)
 
 
