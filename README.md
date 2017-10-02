@@ -9,13 +9,13 @@ CUDA Path Tracer
 Project Features
 ================
 #### Final Renders (5000 samples per pixel) :
-![](img/5000samp_cornell.png) |  ![](img/5000samp_cornell_mesh.png)
+![](img/5000samp_cornell2.png) |  ![](img/5000samp_cornell_mesh.png)
 ------------ | -------------
-cornell.txt | cornell_mesh.txt
+cornell2.txt | cornell_mesh.txt
 ![](img/5000samp_cornell_thin_lens.png) |  ![](img/5000samp_cornell_wahoo.png)
 cornell.txt with thin lens | cornell_wahoo.txt with BVH
-![](img/70_DirctLighting_5000samp.png) |
-cornell.txt (Direct Lighting)|
+![](img/70_DirctLighting_5000samp.png) | ![](img/5000samp_cornell.png)
+cornell.txt (Direct Lighting) | cornell2.txt
 
 
 #### Part 1 : Core Features
@@ -61,9 +61,9 @@ cornell.txt (Direct Lighting)|
 
 ### Project Analysis (Under x64 Release mode)
 - #### Shading(Diffuse, reflection, refraction, glass)
-  ![](img/analysis_0.png)
+  ![](img/analysis_3.png)
 
-  As we can see, there are four types of materials, ideal diffuse, pure reflection, pure refractive and glass(reflection + refraction, use **Schlick's approximation** to generate Frensel effects)
+  As we can see, there are different types of materials, diffuse + reflection, diffuse + refraction, pure reflection, pure refractive and glass(reflection + refraction, use **Schlick's approximation** to generate Frensel effects)
 
 ![](img/analysis_1.jpg) |  ![](img/analysis_2.jpg)
 -------------|------------

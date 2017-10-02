@@ -175,57 +175,10 @@ void scatterRay(
 	glm::vec3 incidentDirection = pathSegment.ray.direction;
 	glm::vec3 newDirection;
 
-	// ----------------- Pure Specular reflection -------------------------
-	if (m.hasReflective == 1.f && m.hasRefractive == 0.f) {
-		newDirection = Reflect(-incidentDirection, normal);
-		newDirection = glm::normalize(newDirection);
-		pathSegment.ray.direction = newDirection;
-		pathSegment.ray.origin = intersect;
-
-#ifndef ENABLE_DIR_LIGHTING
-		pathSegment.color *= m.specular.color; 
-#else
-#ifdef ENABLE_MIS_LIGHTING
-		pathSegment.color *= m.specular.color;
-#endif
-#endif
-	}
-
-	// ----------------- Pure Specular refraction ----------------------------
-	else if (m.hasReflective == 0.f && m.hasRefractive == 1.f) {
-
-		bool entering = glm::dot(incidentDirection, normal) < 0;
-		float indexOfRefraction = m.indexOfRefraction;
-		float eta = entering ? (1.0f / indexOfRefraction) : indexOfRefraction;
-
-		//glm::vec3 newDirection = glm::refract(incidentDirection, normal, eta);
-		//pathSegment.ray.direction = newDirection;
-		//pathSegment.ray.origin = intersect + 0.0002f * newDirection;
-		//pathSegment.color *= m.specular.color;
-
-		glm::vec3 wt;
-		if (!Refract(-incidentDirection, Faceforward(normal, -incidentDirection), eta, &wt)) {
-			newDirection = Reflect(-incidentDirection, Faceforward(normal, -incidentDirection));
-			newDirection = glm::normalize(newDirection);
-			pathSegment.ray.direction = newDirection;
-			pathSegment.ray.origin = intersect;
-		}
-		else {
-			pathSegment.ray.direction = glm::normalize(wt);
-			pathSegment.ray.origin = intersect + 0.0002f * incidentDirection + 0.0002f * Faceforward(normal, incidentDirection);
-		}
-
-#ifndef ENABLE_DIR_LIGHTING
-		pathSegment.color *= m.specular.color;  
-#else
-#ifdef ENABLE_MIS_LIGHTING
-		pathSegment.color *= m.specular.color;
-#endif
-#endif
-	}
 
 	// ------------------- Glass : Specular reflection & refraction-------------------
-	else if (m.hasReflective != 0.f && m.hasRefractive != 0.f) {
+	bool isGlass = (m.hasReflective != 0.f && m.hasRefractive != 0.f);
+	if (isGlass) {
 		float specularSum = m.hasReflective + m.hasRefractive;
 		float reflecProb = m.hasReflective / specularSum;
 		float refractProb = 1.0f - reflecProb;
@@ -279,6 +232,57 @@ void scatterRay(
 		}
 	}
 
+	// ----------------- Pure Specular reflection -------------------------
+	//else if (m.hasReflective == 1.f && m.hasRefractive == 0.f) {
+	else if (probability < m.hasReflective) {
+		newDirection = Reflect(-incidentDirection, normal);
+		newDirection = glm::normalize(newDirection);
+		pathSegment.ray.direction = newDirection;
+		pathSegment.ray.origin = intersect;
+
+#ifndef ENABLE_DIR_LIGHTING
+		pathSegment.color *= m.specular.color; 
+#else
+#ifdef ENABLE_MIS_LIGHTING
+		pathSegment.color *= m.specular.color;
+#endif
+#endif
+	}
+
+	// ----------------- Pure Specular refraction ----------------------------
+	//else if (m.hasReflective == 0.f && m.hasRefractive == 1.f) {
+	else if (probability < m.hasRefractive) {
+
+		bool entering = glm::dot(incidentDirection, normal) < 0;
+		float indexOfRefraction = m.indexOfRefraction;
+		float eta = entering ? (1.0f / indexOfRefraction) : indexOfRefraction;
+
+		//glm::vec3 newDirection = glm::refract(incidentDirection, normal, eta);
+		//pathSegment.ray.direction = newDirection;
+		//pathSegment.ray.origin = intersect + 0.0002f * newDirection;
+		//pathSegment.color *= m.specular.color;
+
+		glm::vec3 wt;
+		if (!Refract(-incidentDirection, Faceforward(normal, -incidentDirection), eta, &wt)) {
+			newDirection = Reflect(-incidentDirection, Faceforward(normal, -incidentDirection));
+			newDirection = glm::normalize(newDirection);
+			pathSegment.ray.direction = newDirection;
+			pathSegment.ray.origin = intersect;
+		}
+		else {
+			pathSegment.ray.direction = glm::normalize(wt);
+			pathSegment.ray.origin = intersect + 0.0002f * incidentDirection + 0.0002f * Faceforward(normal, incidentDirection);
+		}
+
+#ifndef ENABLE_DIR_LIGHTING
+		pathSegment.color *= m.specular.color;  
+#else
+#ifdef ENABLE_MIS_LIGHTING
+		pathSegment.color *= m.specular.color;
+#endif
+#endif
+	}
+
 	// ------------------- Non-specular / Diffuse Part ---------------------
 	else 
 	{
@@ -286,7 +290,7 @@ void scatterRay(
 		if (pathSegment.remainingBounces == 0) {
 			return;
 		}
-
+		probability = u01(rng);
 		// Select a light based on surface area
 		int selectLightIdx = 0;
 		while (true) {
