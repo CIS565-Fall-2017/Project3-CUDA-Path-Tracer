@@ -412,7 +412,7 @@ void scatterRay(
 	else {
 		wi = glm::normalize(calculateRandomDirectionInHemisphere(intersection.surfaceNormal, rng));
 
-		//pdf = getPdf(wo, wi, normal);
+		//pdf = getPdf(wo, wi, intersection.surfaceNormal);
 		//color *= INVPI;
 		//if (pdf > 0.f) {
 		//	pathSegment.color /= pdf;

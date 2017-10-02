@@ -505,8 +505,8 @@ __global__ void shadeMaterialNaive(
 		}
 
 		// Use this without stream compaction
-		thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
-		//thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
+		//thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
+		thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
 		thrust::uniform_real_distribution<float> u01(0, 1);
 
 		// See what kind of object the ray hit.
@@ -710,6 +710,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	//   for you.
 
 	// TODO: perform one iteration of path tracing
+	StreamCompaction::Common::PerformanceTimer timer;
 
 	generateRayFromCamera << <blocksPerGrid2d, blockSize2d >> >(cam, iter, traceDepth, dev_paths);
 	checkCUDAError("generate camera ray");
@@ -728,6 +729,9 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	// --- PathSegment Tracing Stage ---
 	// Shoot ray into scene, bounce between objects, push shading chunks
 
+	// Timer for closed/open scene
+	//timer.startGpuTimer();
+
 	bool iterationComplete = false;
 	//while (depth < traceDepth || numActivePaths > 0) {
 	while (!iterationComplete) {
@@ -740,9 +744,11 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		// tracing
 		dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
 
-#define CACHE false	
+#define CACHE false
 #define SORTBYMATERIAL false
 #define DIRECTLIGHTING false
+
+		//timer.startGpuTimer();
 
 		// Store the very first bounce into dev_intersections_cached.
 		if (CACHE && depth == 0 && iter == 1) {
@@ -769,6 +775,10 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 			checkCUDAError("trace one bounce");
 		}
 
+
+		//timer.endGpuTimer();
+		//printf("Intersection time: %f\n", timer.getGpuElapsedTimeForPreviousOperation());
+	
 		cudaDeviceSynchronize();
 
 		// TODO:
@@ -780,8 +790,10 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		// TODO: compare between directly shading the path segments and shading
 		// path segments that have been reshuffled to be contiguous in memory.
 
+		//timer.startGpuTimer();
+
 		// At each iteration on the first bounce, use the cached intersection.
-		if (CACHE && depth == 0 && iter == 1) {
+		if (CACHE && depth == 0) {
 			// Sort paths by material
 			if (SORTBYMATERIAL) {
 				sortByMaterial << < numblocksPathSegmentTracing, blockSize1d >> > (num_paths, dev_intersections_cached, dev_pathIndicesByMaterial, dev_intersectionIndicesByMaterial);
@@ -815,15 +827,21 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 			}
 		}
 
+		//timer.endGpuTimer();
+		//printf("Shading time: %f\n", timer.getGpuElapsedTimeForPreviousOperation());
+
 		// Compact paths
 		// Puts all the paths with bounces > 0 towards the front of the array
 		PathSegment *activePaths = thrust::partition(thrust::device, dev_paths, dev_paths + numActivePaths, endPath());
 		// Update the number of active paths so we can only operate on those the next loop.
 		numActivePaths = activePaths - dev_paths;
-		
+
 		depth++;
 		iterationComplete = (depth >= traceDepth || numActivePaths == 0);
 	}
+
+	//timer.endGpuTimer();
+	//printf("Scene: %f\n", timer.getGpuElapsedTimeForPreviousOperation());
 
 	// Assemble this iteration and apply it to the image
 	dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;

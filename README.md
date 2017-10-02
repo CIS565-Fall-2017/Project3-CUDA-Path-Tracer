@@ -8,7 +8,7 @@ CUDA Path Tracer
 
 # Overview
 
-In this project, I was able to implement a basic Path Tracer in CUDA.
+In this project, I was able to implement a basic Path Tracer in CUDA. Path Tracing is a method of rendering images by determining how the light interacts with the material of each object in the scene. 
 
 100,000 samples, 8 bounces (~1h30m)
 ![](img/materials100000samp.png)
@@ -31,9 +31,11 @@ Features:
 
 [Analysis](#analysis)
 
+[Bloopers](#bloopers)
+
 (*) denotes required features.
 
-# Results and Renders
+# Results 
 
 ## Depth of Field
 
@@ -63,15 +65,23 @@ Refractive Index: 1.55    |  Refractive Index: 5
 :-------------------------:|:-------------------------:
 ![](img/1.55iorcornell.2017-10-01_07-24-56z.5000samp.png)      | ![](img/ior5cornell.2017-10-01_07-17-22z.5000samp.png)  |
 
+Schlick's Approximation was used in place of the Fresnel coefficient. This was used to determine whether or not a ray is reflected or refracted.
 
+### Subsurface Scattering
 
-|   |Subsurface Scattering |  |
+|   |Density: 0.9 |  |
 | ------------- |:-------------:| -----:|
 | ![](img/subsurface/backleft.png)      | ![](img/subsurface/backright.png) | ![](img/subsurface/frontright.png) |
 
-Density: .9
-
 At each ray intersection with the object, the ray gets scattered through the object causing a random direction for the next bounce. A direction is chosen by spherical sampling. A distance is also sampled using `-log(rand(0, 1)) / density`.
+
+When a ray hits an object, the ray gets scattered through the object causing a random direction for the next bounce. The ray gets offset based on this randomly sampled direction and is used to create an intersection.
+
+A distance is sampled using `-log(rand(0, 1)) / density`. This is to approximate the `distanceTraveled` of a photon.
+
+The newly computed ray's length is compared to this distance and if the sampled distance is less than the ray's distance to the intersection point then we offset the ray again and attenuate the color and transmission (`exp(-density * distanceTraveled)`).
+
+The only downside to this is that it takes a lot of samples to achieve a smooth surface. 
 
 ![](img/cornell.2017-10-01_15-40-44z.50000samp.png)
 
@@ -93,8 +103,34 @@ When a ray hits an object in the scene, we sample its BSDF and shoot a second ra
 
 # Analysis
 
-# Future Work
+## Stream Compaction
+Stream compaction was used to remove rays that have terminated from `dev_paths` so that there would be less kernel function calls. I implemented `thrust::partition` and a helper function `endPath()`. 
 
+Here are some tests using 5 bounces per ray on a single iteration.
+
+![](img/charts/stream_compaction.png)
+
+There is a significant drop in computing intersections when stream compaction is used since there are less rays to compute intersections for. 
+
+![](img/charts/open_vs_closed.png)
+
+An second test was an open vs. closed scene. To create the closed scene, I added a fourth wall to the Cornell Box and moved the camera inside the scene. I believe that the open scene is significantly faster because rays can terminate faster after bouncing around. Having the closed scene gives more of a chance to hit the fourth wall (to account for global illumination) on a bounce even though it's not directly visible.
+
+However, caching the first bounce is still faster in both scenarios.
+
+## First Bounce Caching
+![](img/charts/caching.png)
+
+After through several bounces, caching the first intersection helped decrease the time since you won't have to cast a ray to the same intersection. 
+
+## Material Sorting
+![](img/charts/naive_vs_direct.png)
+
+Material sorting seems to not make a lot of sense in a scene where there are a few materials, especially if they're the same. The Cornell Box that I tested with only had to be tested against red, green, and white, diffuse materials. I don't think that this step is necessary unless the scene is using a lot of different materials and textures. 
+
+Also, there is an overhead for direct lighting. Even though there is only 1 bounce, you still have to shoot a second ray to the light in direct lighting. With the naive shader, we just had to account for the BSDF at that bounce.  
+
+# Future Work
 - Full Lighting/MIS
 - Photon Mapping
 - Acceleration Structures
@@ -107,6 +143,9 @@ When a ray hits an object in the scene, we sample its BSDF and shoot a second ra
     - [http://www.davepagurek.com/blog/volumes-subsurface-scattering/]()
     - [https://computergraphics.stackexchange.com/questions/5214/a-recent-approach-for-subsurface-scattering]()
 - [https://www.scratchapixel.com/]()
+- Fresnel
+    - [Schlick's Approximation](https://en.wikipedia.org/wiki/Schlick%27s_approximation)
+    -   [How to use Schlick's Approximation](https://computergraphics.stackexchange.com/questions/2494/in-a-physically-based-brdf-what-vector-should-be-used-to-compute-the-fresnel-co)
 
 # Bloopers
 
