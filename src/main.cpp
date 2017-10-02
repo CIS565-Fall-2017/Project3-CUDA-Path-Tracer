@@ -35,6 +35,9 @@ int main(int argc, char** argv) {
 
     if (argc < 2) {
         printf("Usage: %s SCENEFILE.txt\n", argv[0]);
+
+		system("pause");
+
         return 1;
     }
 
@@ -47,8 +50,10 @@ int main(int argc, char** argv) {
     iteration = 0;
     renderState = &scene->state;
     Camera &cam = renderState->camera;
+	
     width = cam.resolution.x;
     height = cam.resolution.y;
+
 
     glm::vec3 view = cam.view;
     glm::vec3 up = cam.up;
@@ -65,6 +70,9 @@ int main(int argc, char** argv) {
     theta = glm::acos(glm::dot(glm::normalize(viewZY), glm::vec3(0, 1, 0)));
     ogLookAt = cam.lookAt;
     zoom = glm::length(cam.position - ogLookAt);
+
+	cout << '\n' << width;
+	cout << '\n' << height;
 
     // Initialize CUDA and GL components
     init();

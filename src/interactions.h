@@ -67,13 +67,65 @@ glm::vec3 calculateRandomDirectionInHemisphere(
  * You may need to change the parameter list for your purposes!
  */
 __host__ __device__
-void scatterRay(
+bool scatterRay(
 		PathSegment & pathSegment,
         glm::vec3 intersect,
         glm::vec3 normal,
         const Material &m,
-        thrust::default_random_engine &rng) {
+        thrust::default_random_engine &rng
+		) 
+{
     // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
+
+	thrust::uniform_real_distribution<float> u01(0, 1);
+
+	const float snell = 0.7f;// Snell parameter
+
+	if (m.emittance) //we hit the light, stops here! 
+	{
+		pathSegment.color *= m.color * m.emittance;
+		pathSegment.remainingBounces = 0;
+		return true;
+	}
+
+	else if (m.hasRefractive>0) // if the material is refractive
+	{
+		float a = u01(rng)*m.hasReflective / m.hasRefractive; //decide whether this time it will bounce or travel through the glass
+
+		if (a > 0.5f) //go reflect
+		{
+			pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
+		}
+		else // go refract
+		{
+			if (pathSegment.isinglass) //if the ray is from glass to air
+			{
+				pathSegment.ray.direction = glm::refract(pathSegment.ray.direction, normal, 1.0f/snell);
+				pathSegment.isinglass = false;
+			}
+			else //if the ray is from air into glass
+			{
+				pathSegment.ray.direction = glm::refract(pathSegment.ray.direction, normal, snell);
+				pathSegment.isinglass = true;
+			}
+		}
+
+		pathSegment.ray.origin = intersect + glm::normalize(pathSegment.ray.direction)*0.01f; //add a small forward vector
+		//pathSegment.ray.origin = intersect;
+
+		pathSegment.color *= m.color;
+		pathSegment.remainingBounces--;
+		return false;
+	}
+	else // if the material is reflective only
+	{
+		pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
+		pathSegment.ray.origin = intersect + glm::normalize(pathSegment.ray.direction)*0.01f;
+		pathSegment.color *= m.color*m.hasReflective;
+		pathSegment.remainingBounces--;
+		return false;
+	}
+	
 }
