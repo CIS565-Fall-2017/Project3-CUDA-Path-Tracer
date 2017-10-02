@@ -38,16 +38,24 @@ GPU Optimization Features:
 ### Naive Lighting 
 
 ![](Renders/Naive/cornell.2017-10-01_15-15-21z.5000samp.png)
+
+<img src="https://github.com/MegSesh/Project3-CUDA-Path-Tracer/blob/master/Renders/Naive/cornell.2017-10-01_15-15-21z.5000samp.png" width="400" height="400">
+
 ###### (Run with 5000 samples)
 
 
 ### Direct Lighting 
+
+In this method, we directly sample the light from each intersection in the scene. Each intersection can be seen as long as it's not in shadow and is visible to the light.
 
 ![](Renders/Direct/transmissiveCube.2017-10-02_01-16-13z.3860samp.png)
 ###### (Run with 3860 samples)
 
 
 ### Anti Aliasing 
+
+Anti-aliasing is the jittering or offsetting of a ray within each pixel. Without AA, rays are shot from the camera and through a screen, generally at the center of each pixel. The result (as seen below) show images where lines and edges seem to be more jagged. By offsetting where within the pixel we first shoot the ray into the scene, we can achieve smoother results.
+
 
 ![](Renders/AntiAliasing/transmissiveCube.2017-10-01_21-02-37z.5000samp_AAcheck_noAA.png)
 ###### (No AA, Run with 5000 samples)
@@ -150,3 +158,5 @@ Here we are caching first bounce intersections in the scene to be used across al
 
 
 ## Bloopers
+
+To be added soon!
