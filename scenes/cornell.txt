@@ -48,6 +48,26 @@ REFR        0
 REFRIOR     0
 EMITTANCE   0
 
+// Transparent white
+MATERIAL 5
+RGB         .7 .6 .6
+SPECEX      0
+SPECRGB     .7 .6 .6
+REFL        0
+REFR        1.5
+REFRIOR     1.4
+EMITTANCE   0
+
+// Diffuse red
+MATERIAL 6
+RGB         .1 .5 .9
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+
 // Camera
 CAMERA
 RES         800 800
@@ -112,6 +132,38 @@ SCALE       .01 10 10
 OBJECT 6
 sphere
 material 4
-TRANS       -1 4 -1
+TRANS       -1 1.5 -1
 ROTAT       0 0 0
 SCALE       3 3 3
+
+// Sphere
+OBJECT 7
+sphere
+material 5
+TRANS       3 1.5 -1
+ROTAT       0 0 0
+SCALE       2 2 2
+
+// right wall light
+OBJECT 8
+cube
+material 0
+TRANS       5 5 0
+ROTAT       0 0 0
+SCALE       .3 3 3
+
+// cube
+//OBJECT 9
+//cube
+//material 4
+//TRANS       0 1 -2
+//ROTAT       0 30 30
+//SCALE       2 2 2
+
+// cube
+OBJECT 9
+cube
+material 6
+TRANS       -3 0 1
+ROTAT       30 0 0
+SCALE       2 2 2
