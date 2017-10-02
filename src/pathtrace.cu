@@ -287,7 +287,6 @@ __global__ void computeIntersectionsOctree(
 			testedGeometryStack[stackDepthPtr] = true; // mark as finished
 		}
 
-
 		// see if there are any remaining children
 		if (remainingChildrenStack[stackDepthPtr] == 0) {
 
@@ -334,10 +333,7 @@ __global__ void computeIntersectionsOctree(
 
 }
 
-// TODO:
-// computeIntersections handles generating ray intersections ONLY.
-// Generating new rays is handled in your shader(s).
-// Feel free to modify the code below.
+
 __global__ void computeIntersections(
 	int depth
 	, int num_paths
@@ -381,8 +377,6 @@ __global__ void computeIntersections(
 				t = triangleIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
 			}
 
-			// TODO: add more intersection tests here... triangle? metaball? CSG?
-
 			// Compute the minimum t from the intersection tests to determine what
 			// scene geometry object was hit first.
 			if (t > 0.0f && t_min > t)
@@ -408,10 +402,16 @@ __global__ void computeIntersections(
 	}
 }
 
-__device__ glm::vec3 schlickFresnel(float VdotH, glm::vec3 reflect0, glm::vec3 reflect90)
-{
-	VdotH = min(1.0f, max(0.0f, 1.0f - VdotH));
-	return reflect0 + (reflect90 - reflect0) * pow(VdotH, 5.0f);
+__device__ glm::vec3 refract(const glm::vec3 i, const glm::vec3 n, const float ior, glm::vec3& origin) {
+	glm::vec3 nrefr = n;
+	float cost = glm::dot(n, i);
+	origin = origin + nrefr * 0.0001f;
+	float eta = ior;
+
+	float k = 1 - eta * eta * (1 - cost * cost);
+	return k < 0 ? glm::reflect(-i, nrefr) :
+	eta * -i + (eta * cost - sqrt(k)) * nrefr;
+
 }
 
 __global__ void shadeMaterialBasic(
@@ -437,42 +437,34 @@ __global__ void shadeMaterialBasic(
 		glm::vec3 isxPoint = isx.t * pathSegments[idx].ray.direction + pathSegments[idx].ray.origin;
 		pathSegments[idx].ray.origin = isxPoint + isx.surfaceNormal * 0.0001f;
 		glm::vec3 rayOut = glm::normalize(pathSegments[idx].ray.direction); // from eye to intersection
-
+		
 		if (mat.emittance > 0.0f) {
 			pathSegments[idx].color *= (mat.emittance * mat.color);
 			pathSegments[idx].remainingBounces = 0;
 		}
 		else {
-			
-			if (0) {// temp disabled(mat.hasRefractive) {
-				// calculate base fresnel to decide whether to refract or reflect
-				bool external = glm::dot(isx.surfaceNormal, rayOut) < 0.0f;
-				float NdotV = glm::abs(glm::dot(-rayOut, isx.surfaceNormal));
-				glm::vec3 f0 = glm::vec3(0.04f);
-				glm::vec3 f90 = glm::vec3(1.0f);
-				glm::vec3 F = schlickFresnel(NdotV, f0, f90);
-				float chance = u01(rng);
-				if (0){// (chance < F.x && external) {
-					// reflected ray
-					glm::vec3 reflected = glm::reflect(rayOut, isx.surfaceNormal);
-					pathSegments[idx].color *= (mat.specular.color / F.x); // divide by probability
-					pathSegments[idx].remainingBounces = pathSegments[idx].remainingBounces - 1;
-					pathSegments[idx].ray.direction = reflected;
+			if (mat.hasRefractive) {
+				glm::vec3 fromEye = glm::normalize(pathSegments[idx].ray.direction);
+				glm::vec3 normRefr = glm::normalize(isx.surfaceNormal);
+				bool inside = glm::dot(fromEye, normRefr) > 0;
+				float eta = !inside ? 1.0f / mat.indexOfRefraction : mat.indexOfRefraction;
+				normRefr = inside ? -normRefr : normRefr;
+				pathSegments[idx].ray.origin = isxPoint - normRefr * 0.001f;
+
+				glm::vec3 refracted = glm::refract(fromEye, normRefr, eta);
+
+				if (glm::dot(refracted, refracted) < 0.001f) {
+					//pathSegments[idx].color = glm::vec3(0);
+					pathSegments[idx].ray.direction = glm::reflect(fromEye, normRefr);
+					pathSegments[idx].remainingBounces -= 1;
 				}
 				else {
-					// refracted ray		
-					float eta = external ? mat.indexOfRefraction : 1.0f / mat.indexOfRefraction;
-					glm::vec3 refracted = glm::refract(rayOut, (external? 1.0f : -1.0f) * isx.surfaceNormal, eta);
-					refracted = glm::normalize(refracted);
-					pathSegments[idx].color *= (external ? mat.color : glm::vec3(1.0f));
-					//pathSegments[idx].color *= abs(glm::dot(refracted, isx.surfaceNormal));
-					pathSegments[idx].remainingBounces -= external ? 1 : 0;
-					pathSegments[idx].ray.direction = refracted; //  totalInternal ? rayOut : refracted;
-					pathSegments[idx].ray.origin = isxPoint + isx.surfaceNormal * (external? -0.0001f : 0.0001f);
-					
+					pathSegments[idx].ray.direction = glm::normalize(refracted);
+					pathSegments[idx].color *= mat.color;
+					pathSegments[idx].remainingBounces -= 1;
 				}
 			}
-			if (mat.hasReflective) {
+			else if (mat.hasReflective) {
 				glm::vec3 reflected = glm::reflect(pathSegments[idx].ray.direction, isx.surfaceNormal);
 				pathSegments[idx].color *= mat.specular.color;
 				pathSegments[idx].remainingBounces = pathSegments[idx].remainingBounces - 1;

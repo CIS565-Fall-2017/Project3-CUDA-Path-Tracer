@@ -15,7 +15,6 @@ struct OctreeNodeGPU {
 	glm::vec3 center; // size determined at runtime
 };
 
-
 typedef struct OctreeNodeCPU {
 	OctreeNodeCPU* parent;
 	glm::vec3 center;
