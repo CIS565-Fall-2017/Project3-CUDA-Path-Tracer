@@ -2,46 +2,48 @@
 
 #include "intersections.h"
 #ifndef M_PI
-	#define M_PI 3.14159265358979323846f
+#define M_PI 3.14159265358979323846f
 #endif
 
 // CHECKITOUT
 /**
- * Computes a cosine-weighted random direction in a hemisphere.
- * Used for diffuse lighting.
- */
+* Computes a cosine-weighted random direction in a hemisphere.
+* Used for diffuse lighting.
+*/
 __host__ __device__
 glm::vec3 calculateRandomDirectionInHemisphere(
-        glm::vec3 normal, thrust::default_random_engine &rng) {
-    thrust::uniform_real_distribution<float> u01(0, 1);
+	glm::vec3 normal, thrust::default_random_engine &rng) {
+	thrust::uniform_real_distribution<float> u01(0, 1);
 
-    float up = sqrt(u01(rng)); // cos(theta)
-    float over = sqrt(1 - up * up); // sin(theta)
-    float around = u01(rng) * TWO_PI;
+	float up = sqrt(u01(rng)); // cos(theta)
+	float over = sqrt(1 - up * up); // sin(theta)
+	float around = u01(rng) * TWO_PI;
 
-    // Find a direction that is not the normal based off of whether or not the
-    // normal's components are all equal to sqrt(1/3) or whether or not at
-    // least one component is less than sqrt(1/3). Learned this trick from
-    // Peter Kutz.
+	// Find a direction that is not the normal based off of whether or not the
+	// normal's components are all equal to sqrt(1/3) or whether or not at
+	// least one component is less than sqrt(1/3). Learned this trick from
+	// Peter Kutz.
 
-    glm::vec3 directionNotNormal;
-    if (abs(normal.x) < SQRT_OF_ONE_THIRD) {
-        directionNotNormal = glm::vec3(1, 0, 0);
-    } else if (abs(normal.y) < SQRT_OF_ONE_THIRD) {
-        directionNotNormal = glm::vec3(0, 1, 0);
-    } else {
-        directionNotNormal = glm::vec3(0, 0, 1);
-    }
+	glm::vec3 directionNotNormal;
+	if (abs(normal.x) < SQRT_OF_ONE_THIRD) {
+		directionNotNormal = glm::vec3(1, 0, 0);
+	}
+	else if (abs(normal.y) < SQRT_OF_ONE_THIRD) {
+		directionNotNormal = glm::vec3(0, 1, 0);
+	}
+	else {
+		directionNotNormal = glm::vec3(0, 0, 1);
+	}
 
-    // Use not-normal direction to generate two perpendicular directions
-    glm::vec3 perpendicularDirection1 =
-        glm::normalize(glm::cross(normal, directionNotNormal));
-    glm::vec3 perpendicularDirection2 =
-        glm::normalize(glm::cross(normal, perpendicularDirection1));
+	// Use not-normal direction to generate two perpendicular directions
+	glm::vec3 perpendicularDirection1 =
+		glm::normalize(glm::cross(normal, directionNotNormal));
+	glm::vec3 perpendicularDirection2 =
+		glm::normalize(glm::cross(normal, perpendicularDirection1));
 
-    return up * normal
-        + cos(around) * over * perpendicularDirection1
-        + sin(around) * over * perpendicularDirection2;
+	return up * normal
+		+ cos(around) * over * perpendicularDirection1
+		+ sin(around) * over * perpendicularDirection2;
 }
 
 /** Square To Sphere Uniform Sample
@@ -60,7 +62,7 @@ glm::vec3 squareToSphereUniform(const glm::vec2 &sample)
 /** Sample Square
 */
 __host__ __device__
-glm::vec3 generateCubeSample(thrust::default_random_engine &rng) {
+glm::vec3 cubeSample(thrust::default_random_engine &rng) {
 	thrust::uniform_real_distribution<float> u01(0, 1);
 
 	float x = u01(rng) - 0.5f;
@@ -71,6 +73,28 @@ glm::vec3 generateCubeSample(thrust::default_random_engine &rng) {
 	return sampledPoint;
 }
 
+/** CUBE NORMAL
+*/
+__host__ __device__
+glm::vec3 getCubeNormal(const glm::vec3& P) {
+	float val = -1;
+	glm::vec3 N(0.0f);
+	int indexVal = 0;
+	int index;
+	for (int i = 0; i < 3; ++i) {
+		if (glm::abs(P[i]) > val) {
+			val = glm::abs(P[i]);
+			index = i;
+			if (P[i] < 0.0f)
+				indexVal = -1.0f;
+			else
+				indexVal = 1.0f;
+		}
+	}
+
+	N[index] = indexVal;
+	return N;
+}
 
 /**
 * Computes a cosine-weighted random direction in a hemisphere.
@@ -93,18 +117,6 @@ glm::vec3 CosineSampleHemisphere(thrust::default_random_engine &rng)
 	return glm::vec3(x, y, std::sqrt(std::max(0.0f, 1 - u1)));
 }
 
-
-// REMOVE BEFORE COMMIT
-///**
-//* Square to Disk Uniform mapping function
-//* Based on the implementation in PBRT and CIS460
-//*/
-//__host__ __device__
-//glm::vec2 squareToDiskUniform(const glm::vec2 point2D) {
-//	float r = std::sqrt(point2D[0]); //x-axis maps to the radius
-//	float theta = 2.0f * M_PI * point2D[1]; //y-axis maps to the angle on the disc
-//	return glm::vec2(r * std::cos(theta), r * std::sin(theta));
-//}
 
 /**
 * Square to Disk Concentric mapping function
@@ -157,100 +169,85 @@ glm::vec2 squareToDiskConcentric(const glm::vec2 point2D)
 	return glm::vec2(u, v);
 }
 
-/**
-*		FRESNEL
-*		Reference: Scratchapixel: https://www.scratchapixel.com/lessons/3d-basic-rendering/introduction-to-shading/reflection-refraction-fresnel
-*/
-__host__ __device__
-float fresnel(glm::vec3 incidentRay, glm::vec3 normal, const float ior) {
-	float cosi = glm::clamp(glm::dot(incidentRay, normal), -1.f, 1.f);
-	float etai = 1, etat = ior;
-	if (cosi > 0) { std::swap(etai, etat); }
-	// Compute sini using Snell's law
-	float sint = etai / etat * sqrtf(std::max(0.f, 1 - cosi * cosi));
-	// Total internal reflection
-	if (sint >= 1) {
-		return 1.f;
-	}
-	else {
-		float cost = sqrtf(std::max(0.f, 1 - sint * sint));
-		cosi = fabsf(cosi);
-		float Rs = ((etat * cosi) - (etai * cost)) / ((etat * cosi) + (etai * cost));
-		float Rp = ((etai * cosi) - (etat * cost)) / ((etai * cosi) + (etat * cost));
-		return (Rs * Rs + Rp * Rp) / 2.f;
-	}
-}
-
 /** REFRACTION
 *	Finds the reflected or refracted ray
 */
 __host__ __device__
 glm::vec3 refract(thrust::default_random_engine &rng, glm::vec3 normal, glm::vec3 intersect, PathSegment& pathSegment, const Material& material, glm::vec3 incidentRay, bool outside) {
 	glm::vec3 generatedRay;
-	float ior = material.indexOfRefraction;
-	float f = fresnel(incidentRay, normal, ior);
-	
+
+	float n1 = 1.f;							// AIR ~ VACCUME
+	float n2 = material.indexOfRefraction;	// GLASS MATERIAL
+
+	bool incomingRay = glm::dot(normal, pathSegment.ray.direction) > 0.f;
+	if (!incomingRay) {
+		n2 = 1.f / material.indexOfRefraction;
+	}
+
+	// Schlick's Approximation
+	float r0 = powf((n1 - n2) / (n1 + n2), 2.f);
+	float rTheta = r0 + (1 - r0) * powf((1 - glm::abs(glm::dot(normal, pathSegment.ray.direction))), 5.f);
+
 	thrust::uniform_real_distribution<float> u01(0, 1);
-	if (f > u01(rng)) {
-		generatedRay = glm::normalize(glm::reflect(incidentRay, normal));
+	if (rTheta < u01(rng)) {
+		generatedRay = glm::normalize(glm::refract(pathSegment.ray.direction, normal, n2));
 	}
 	else {
-		float eta = (outside) ? 1.f / ior : ior;
-		generatedRay = glm::normalize(glm::refract(incidentRay, normal, eta));
+		generatedRay = glm::normalize(glm::reflect(pathSegment.ray.direction, normal));
 	}
-	
+
 	return generatedRay;
 }
 
 /**
- * Scatter a ray with some probabilities according to the material properties.
- * For example, a diffuse surface scatters in a cosine-weighted hemisphere.
- * A perfect specular surface scatters in the reflected ray direction.
- * In order to apply multiple effects to one surface, probabilistically choose
- * between them.
- * 
- * The visual effect you want is to straight-up add the diffuse and specular
- * components. You can do this in a few ways. This logic also applies to
- * combining other types of materias (such as refractive).
- * 
- * - Always take an even (50/50) split between a each effect (a diffuse bounce
- *   and a specular bounce), but divide the resulting color of either branch
- *   by its probability (0.5), to counteract the chance (0.5) of the branch
- *   being taken.
- *   - This way is inefficient, but serves as a good starting point - it
- *     converges slowly, especially for pure-diffuse or pure-specular.
- * - Pick the split based on the intensity of each material color, and divide
- *   branch result by that branch's probability (whatever probability you use).
- *
- * This method applies its changes to the Ray parameter `ray` in place.
- * It also modifies the color `color` of the ray in place.
- *
- * You may need to change the parameter list for your purposes!
- */
+* Scatter a ray with some probabilities according to the material properties.
+* For example, a diffuse surface scatters in a cosine-weighted hemisphere.
+* A perfect specular surface scatters in the reflected ray direction.
+* In order to apply multiple effects to one surface, probabilistically choose
+* between them.
+*
+* The visual effect you want is to straight-up add the diffuse and specular
+* components. You can do this in a few ways. This logic also applies to
+* combining other types of materias (such as refractive).
+*
+* - Always take an even (50/50) split between a each effect (a diffuse bounce
+*   and a specular bounce), but divide the resulting color of either branch
+*   by its probability (0.5), to counteract the chance (0.5) of the branch
+*   being taken.
+*   - This way is inefficient, but serves as a good starting point - it
+*     converges slowly, especially for pure-diffuse or pure-specular.
+* - Pick the split based on the intensity of each material color, and divide
+*   branch result by that branch's probability (whatever probability you use).
+*
+* This method applies its changes to the Ray parameter `ray` in place.
+* It also modifies the color `color` of the ray in place.
+*
+* You may need to change the parameter list for your purposes!
+*/
 __host__ __device__
 void scatterRay(
-		PathSegment & pathSegment,
-        glm::vec3 intersect,
-        glm::vec3 normal,
-        const Material &m,
-        thrust::default_random_engine &rng, 
-		bool outside) {
-    // TODO: implement this.
-    // A basic implementation of pure-diffuse shading will just call the
-    // calculateRandomDirectionInHemisphere defined above.
+	PathSegment & pathSegment,
+	glm::vec3 intersect,
+	glm::vec3 normal,
+	const Material &m,
+	thrust::default_random_engine &rng,
+	bool outside) {
+	// TODO: implement this.
+	// A basic implementation of pure-diffuse shading will just call the
+	// calculateRandomDirectionInHemisphere defined above.
 
 	// Implement the specular and the diffuse shading
 	// Update the color of the sample
 	// Generte new direction of the ray
-	
+
 	float probability = 1.0f; // Will be used later when slecting between refplection and refraction
 	glm::vec3 newRayDirection;
-	glm::vec3 finalColor = glm::vec3(1.0f,1.0f,1.0f);
+	glm::vec3 finalColor = glm::vec3(1.0f, 1.0f, 1.0f);
 
 	// SPECULAR REFLECTIVE
 	if (m.hasReflective) {
 		// Update direction 
-		newRayDirection = glm::reflect(pathSegment.ray.direction , normal);
+		newRayDirection = glm::reflect(pathSegment.ray.direction, normal);
 
 		// Update color
 		finalColor = m.specular.color * m.color;
@@ -270,12 +267,12 @@ void scatterRay(
 		float pdf = glm::dot(normal, newRayDirection) / M_PI;
 
 		// Update color
-		finalColor *= fabs(glm::dot(normal, newRayDirection)) * m.color / M_PI / pdf;
+		finalColor *= m.color;//fabs(glm::dot(normal, newRayDirection)) * m.color / M_PI / pdf;
 	}
 
 	pathSegment.ray.direction = newRayDirection;
 	pathSegment.ray.origin = intersect + 0.01f * newRayDirection;
-	pathSegment.color *= finalColor;
+	pathSegment.color *= finalColor * glm::abs(glm::dot(normal, newRayDirection));
 }
 
 /**
@@ -322,14 +319,28 @@ void ShadeDirectLighting(thrust::default_random_engine& rng, glm::vec3 intersect
 	// Randomly select one light and calculate a ray from the intersect point to the light based on the light polygon type sampling
 	int light_index = u01(rng) * no_of_lights;
 	Geom &lightGeom = geoms[light_indixes[light_index]];
+	glm::vec3 pointOnLight;
+	glm::vec3 normalOnLight;
 
-	// Gnerate a point on the light then generate a "reflected ray" and pdf for the selected light from point of intersection to point on light
-	glm::vec3 pointOnLight = squareToSphereUniform(glm::vec2(u01(rng), u01(rng)));
-	glm::vec3 normalOnLight = glm::vec3(glm::normalize(lightGeom.inverseTransform * glm::vec4(pointOnLight, 0.0f)));
-	// Transform the point on light with the transformation that are applied to the light
-	pointOnLight = glm::vec3(lightGeom.transform * glm::vec4(pointOnLight, 1.0f));
-	// Offsetting the point of intersection in order to avoid self interscetions
-	pointOnLight = pointOnLight + EPSILON * normalOnLight;
+	if (lightGeom.type == SPHERE) {
+		// Gnerate a point on the light then generate a "reflected ray" and pdf for the selected light from point of intersection to point on light
+		pointOnLight = squareToSphereUniform(glm::vec2(u01(rng), u01(rng)));
+		normalOnLight = glm::vec3(glm::normalize(lightGeom.inverseTransform * glm::vec4(pointOnLight, 0.0f)));
+		// Transform the point on light with the transformation that are applied to the light
+		pointOnLight = glm::vec3(lightGeom.transform * glm::vec4(pointOnLight, 1.0f));
+		// Offsetting the point of intersection in order to avoid self interscetions
+		pointOnLight = pointOnLight + EPSILON * normalOnLight;
+	}
+	else if (lightGeom.type == CUBE) {
+		// Gnerate a point on the light then generate a "reflected ray" and pdf for the selected light from point of intersection to point on light
+		pointOnLight = cubeSample(rng);
+		normalOnLight = getCubeNormal(pointOnLight);
+		normalOnLight = glm::vec3(glm::normalize(lightGeom.inverseTransform * glm::vec4(pointOnLight, 0.0f)));
+		// Transform the point on light with the transformation that are applied to the light
+		pointOnLight = glm::vec3(lightGeom.transform * glm::vec4(pointOnLight, 1.0f));
+		// Offsetting the point of intersection in order to avoid self interscetions
+		pointOnLight = pointOnLight + EPSILON * normalOnLight;
+	}
 
 	Ray r;
 	r.direction = glm::normalize(pointOnLight - intersectPoint);

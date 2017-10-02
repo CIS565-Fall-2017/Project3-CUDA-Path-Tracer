@@ -6,7 +6,7 @@ SPECRGB     0 0 0
 REFL        0
 REFR        0
 REFRIOR     0
-EMITTANCE   10
+EMITTANCE   5
 
 // Diffuse white
 MATERIAL 1
@@ -48,16 +48,6 @@ REFR        0
 REFRIOR     0
 EMITTANCE   0
 
-// Refractive Glass
-MATERIAL 5
-RGB         .98 .98 .98
-SPECEX      0
-SPECRGB     .98 .98 .98
-REFL        0
-REFR        1
-REFRIOR     1.55
-EMITTANCE   0
-
 // Camera
 CAMERA
 RES         800 800
@@ -68,27 +58,18 @@ FILE        cornell
 EYE         0.0 5 10.5
 LOOKAT      0 5 0
 UP          0 1 0
-FLENGTH		7.0
-LRADIUS		0.2
+
 
 // Ceiling light
 OBJECT 0
 cube
 material 0
-TRANS       1.8 10 0
+TRANS       0 10 0
 ROTAT       0 0 0
-SCALE       3 0.3 3
-
-// Ceiling light
-OBJECT 1
-cube
-material 0
-TRANS       -1.8 10 0
-ROTAT       0 0 0
-SCALE       3 0.3 3
+SCALE       3 .3 3
 
 // Floor
-OBJECT 2
+OBJECT 1
 cube
 material 1
 TRANS       0 0 0
@@ -96,7 +77,7 @@ ROTAT       0 0 0
 SCALE       10 .01 10
 
 // Ceiling
-OBJECT 3
+OBJECT 2
 cube
 material 1
 TRANS       0 10 0
@@ -104,15 +85,15 @@ ROTAT       0 0 90
 SCALE       .01 10 10
 
 // Back wall
-OBJECT 4
+OBJECT 3
 cube
-material 4
+material 1
 TRANS       0 5 -5
 ROTAT       0 90 0
 SCALE       .01 10 10
 
 // Left wall
-OBJECT 5
+OBJECT 4
 cube
 material 2
 TRANS       -5 5 0
@@ -120,25 +101,17 @@ ROTAT       0 0 0
 SCALE       .01 10 10
 
 // Right wall
-OBJECT 6
+OBJECT 5
 cube
 material 3
 TRANS       5 5 0
 ROTAT       0 0 0
 SCALE       .01 10 10
 
-// Sphere Refractive
-OBJECT 7
+// Sphere
+OBJECT 6
 sphere
-material 5
+material 4
 TRANS       -1 4 -1
-ROTAT       0 0 0
-SCALE       3 3 3
-
-// Sphere Diffuse
-OBJECT 8
-sphere
-material 1
-TRANS       3 2 3
 ROTAT       0 0 0
 SCALE       3 3 3

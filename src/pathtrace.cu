@@ -26,10 +26,13 @@
 #define AA	0
 #define DOF	0
 #define PATHCOMPACTION	0
-#define NAIVEDIRECTLIGHTING	0			// This implementation performs DL on the first Bounce and continues to the next iteration
+#define NAIVEDIRECTLIGHTING	0		// This implementation performs DL on the first Bounce and continues to the next iteration
 #define LASTBOUNCEDIRECTLIGHTING  0
 #define CACHEFIRSTBOUNCE 0
 #define SORTPATHSBYMATERIAL 0
+// Toggle for performance analysis
+#define PERITERATIONTIMER 0
+#define	PERDEPTHTIMER 0
 
 // Enums used for Material Sorting
 enum MaterialType { NO, DIFFUSE, REFLECTIVE, REFRACTIVE, LIGHT };
@@ -600,9 +603,15 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	// --- PathSegment Tracing Stage ---
 	// Shoot ray into scene, bounce between objects, push shading chunks
 
+#if PERITERATIONTIMER
+	auto startItr = std::chrono::high_resolution_clock::now();
+#endif
+
 	bool iterationComplete = false;
 	while (!iterationComplete) {
-
+#if PERDEPTHTIMER
+		auto startDepth = std::chrono::high_resolution_clock::now();
+#endif
 		// clean shading chunks
 		cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 		dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
@@ -689,7 +698,18 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 #endif
 
 		depth--;
+#if PERDEPTHTIMER
+		auto endDepth = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<double, std::milli> diffDepth = endDepth - startDepth;
+		std::cout << "Elapsed Timer for Iteration " << iter << ", Depth " << depth << " : "<< diffDepth.count() << " ms \n";
+#endif
 	}
+
+#if PERITERATIONTIMER
+	auto endItr = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double, std::milli> diffItr = endItr - startItr;
+	std::cout << "Elapsed Timer for Iteration " << iter << " : " << diffItr.count() << " ms \n";
+#endif
 
 	int original_num_path_size = dev_path_end - dev_paths;
 
