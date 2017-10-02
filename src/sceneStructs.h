@@ -73,9 +73,9 @@ struct Camera {
     glm::vec3 right;
     glm::vec2 fov;
     glm::vec2 pixelLength;
-	bool dof = true;
-	float lensrad;
-	float focal_dist;
+	bool dof = 1;
+	float lensrad = 10.0f;
+	float focal_dist = 5.5f;
 };
 
 struct RenderState {

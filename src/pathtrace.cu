@@ -24,7 +24,7 @@
 #define ERRORCHECK 1
 
 #define COMPACT 1
-#define MATSORT 1
+#define MATSORT 0
 #define CACHE_CAMERA_RAYS 0
 #define AA_JITTER 1
 #define BVH_DEPTH 16 /*
@@ -618,7 +618,6 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	const int traceDepth = hst_scene->state.traceDepth;
 	const Camera &cam = hst_scene->state.camera;
 	const int pixelcount = cam.resolution.x * cam.resolution.y;
-
 	// 2D block for generating ray from camera
 	const dim3 blockSize2d(8, 8);
 	const dim3 blocksPerGrid2d(

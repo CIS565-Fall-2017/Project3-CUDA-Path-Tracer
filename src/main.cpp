@@ -47,8 +47,8 @@ int main(int argc, char** argv) {
     renderState = &scene->state;
     Camera &cam = renderState->camera;
 	cam.dof = false;
-	cam.lensrad = 5.f;
-	cam.focal_dist = 10.5f;
+	cam.lensrad = 1.5f;
+	cam.focal_dist = 10.0f;
     width = cam.resolution.x;
     height = cam.resolution.y;
 

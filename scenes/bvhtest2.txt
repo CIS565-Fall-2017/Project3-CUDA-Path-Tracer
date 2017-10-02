@@ -108,12 +108,19 @@ TRANS       5 5 0
 ROTAT       0 0 0
 SCALE       .01 10 10
 
+// Right wall
+OBJECT 6
+cube
+material 3
+TRANS       0 3 5
+ROTAT       0 0 0
+SCALE       2 2 2
 
 // OBJ
-OBJECT 6
+OBJECT 7
 obj
 ..\scenes\loris_combine_unwrap.obj
-material 4
+material 1
 TRANS       0 6.5 0
 ROTAT       0 0 0
 SCALE       1 1 1
