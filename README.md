@@ -103,6 +103,22 @@ Left: Without Stochastic Sampled Antialiasing; Right: With Stochastic Sampled An
 
 For the image with Motion Blur above: for the cube on the left side, its original translation is [-2.8 5 0], original rotation is[45 0 45], and its final translation is [-1.8 6 1], final rotation is[45,45,45];
 
+Format for moving objects:
+
+```
+OBJECT 6
+cube
+material 4
+TRANS       -2.8 5 0
+ROTAT       45 0 45
+SCALE       2 2 2
+ATRANS      1 1 1
+AROTAT      0 45 0
+```
+
+ATRANS: the object translate [1,1,1] from the original translation.
+AROTAT: the object rotate [0 45 0] from the original rotation.
+
 ## Performance Analysis
 
 First, let's see the time used per iteration from the start to the end of the whole rendering process for different optimizations of the path tracer:
