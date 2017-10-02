@@ -22,7 +22,7 @@ __host__ __device__ Ray spawnNewRay(ShadeableIntersection& intersection, Vector3
 
 __host__ __device__ void naiveIntegrator(PathSegment & pathSegment,
 										 ShadeableIntersection& intersection,
-										 Material &m, Geom& geom,
+										 Material &m, Geom& geom, Geom * geoms, int numGeoms,
 										 thrust::default_random_engine &rng)
 {
 	// Update the ray and color associated with the pathSegment
@@ -33,7 +33,7 @@ __host__ __device__ void naiveIntegrator(PathSegment & pathSegment,
 	float pdf = 0.0f;
 
 	//sampleMaterials(m, wo, normal, sampledColor, wi, pdf, rng);
-	sample_f(m, rng, wo, normal, geom, intersection.intersectPoint, sampledColor, wi, pdf);
+	sample_f(m, rng, wo, normal, geom, intersection, pathSegment, geoms, numGeoms, sampledColor, wi, pdf);
 
 	if (pdf != 0.0f)
 	{

@@ -64,9 +64,11 @@ __host__ __device__ void generateScatteredDirectionandPDF(const Point2f &sample,
 	//translate the thetaMin into a g value
 	float normalizedthetaMin = thetaMin / 180.0f;
 	float g = smootherstep(normalizedthetaMin);
-
+	
 	Vector3f scatteredDirection = squareToSphereCapUniform(sample, thetaMin);
 	wi = scatteredDirection;
+	//wi = wo;
+	//printf("%f %f %f \n", wi.x, wi.y, wi.z);
 	pdf = HenyeyGreensteinPhaseFunction(wo, wi, g);
 }
 
@@ -100,6 +102,41 @@ __host__ __device__ Vector3f axisAngletoEuler(Vector3f& vec, float& angle)
 	return eulerangles;
 }
 
+__host__ __device__ glm::mat4 buildTransformationMatrix(glm::vec3 translation, glm::vec3 rotation, glm::vec3 scale) 
+{
+	glm::mat4 translationMat = glm::mat4();
+	translationMat[3] = glm::vec4(translation, 1.0f);
+	
+	glm::mat4 rotationMat = glm::mat4();
+	glm::mat4 rx = glm::mat4();
+	glm::mat4 ry = glm::mat4();
+	glm::mat4 rz = glm::mat4();
+
+	rx[1][1] = glm::cos(rotation.x);
+	rx[2][1] = -glm::sin(rotation.x);
+	rx[1][2] = glm::sin(rotation.x);
+	rx[2][2] = glm::cos(rotation.x);
+
+	ry[0][0] = glm::cos(rotation.y);
+	ry[2][0] = glm::sin(rotation.y);
+	ry[0][2] = -glm::sin(rotation.y);
+	ry[2][2] = glm::cos(rotation.y);
+
+	rz[0][0] = glm::cos(rotation.z);
+	rz[1][0] = -glm::sin(rotation.z);
+	rz[0][1] = glm::sin(rotation.z);
+	rz[1][1] = glm::cos(rotation.z);
+
+	rotationMat = rx*ry*rz;
+
+	glm::mat4 scaleMat = glm::mat4();
+	scaleMat[0][0] = scale.x;
+	scaleMat[1][1] = scale.y;
+	scaleMat[2][2] = scale.z;
+
+	return translationMat * rotationMat * scaleMat;
+}
+
 __host__ __device__ Vector3f generateDisplacedOrigin(const Vector3f& normal, Vector3f& intersectionPoint,
 													 Vector2f& sample, float& sampledDistance)
 {
@@ -109,7 +146,7 @@ __host__ __device__ Vector3f generateDisplacedOrigin(const Vector3f& normal, Vec
 	Point3f discPointExpDistribution = squareToConcentricDiscExponentialFallOffDistribution(sample, expDistRadialCoeff);
 
 	Vector3f local_up = Vector3f(0, 1, 0);
-	Vector3f world_normal = glm::normalize(normal);
+	Vector3f world_normal = glm::normalize(-normal);
 
 	//https://stackoverflow.com/questions/15101103/euler-angles-between-two-3d-vectors
 	//http://www.euclideanspace.com/maths/geometry/rotations/conversions/angleToEuler/index.htm
@@ -123,14 +160,14 @@ __host__ __device__ Vector3f generateDisplacedOrigin(const Vector3f& normal, Vec
 	Vector3f rotation = eulerangles;
 	Vector3f translation = intersectionPoint;
 	Vector3f scale = Vector3f(1.0f, 1.0f, 1.0f);
-	glm::mat4 transform = utilityCore::buildTransformationMatrix(translation, rotation, scale);
+	glm::mat4 transform = buildTransformationMatrix(translation, rotation, scale);
 
 	Vector3f newRayOrigin = glm::vec3(transform*glm::vec4(discPointExpDistribution, 1.0f));
 
 	//move newRayOrigin into the object
 	newRayOrigin += -glm::normalize(normal)*sampledDistance;
 
-	return newRayOrigin;
+	return Vector3f(0.0f); //newRayOrigin;
 }
 
 __host__ __device__ Color3f f_Subsurface(const Material &m, float& samplePoint)
@@ -151,6 +188,7 @@ __host__ __device__ float pdf_Subsurface(const Vector3f& wo, Vector3f& wi, const
 
 __host__ __device__ bool sample_f_Subsurface(const Vector3f& wo, Vector3f& sample, 
 											const Material& m, Geom& geom,
+											PathSegment& pathsegment, Geom * geoms,
 											const Vector3f& normal, Vector3f& intersectionPoint,											
 											Color3f& sampledColor, Vector3f& wi, float& pdf)
 {
@@ -179,7 +217,8 @@ __host__ __device__ bool sample_f_Subsurface(const Vector3f& wo, Vector3f& sampl
 
 	if (sampledDistance < isx.t)
 	{
-		//have the material sampler sample another bxdf instead
+		//return black
+		sampledColor = Color3f(0.0f);
 		return false;
 	}
 
@@ -202,9 +241,82 @@ __host__ __device__ bool sample_f_Subsurface(const Vector3f& wo, Vector3f& sampl
 	}
 
 	float expColorDecay = 1 / (1 + sampledDistance); // same as expDistRadialCoeff
-	sampledColor = m.color*expColorDecay;
+	sampledColor = m.color* expColorDecay*sampledDistance;
 	//wi -- already set in generateScatteredDirectionandPDF
 	//pdf -- already set in generateScatteredDirectionandPDF
+
+	return true;
+}
+
+__host__ __device__ bool sample_f_Subsurface_second(const Vector3f& wo, Vector3f& sample,
+											const Material& m, Geom& geom,
+											PathSegment& pathSegment, Geom * geoms, int numGeoms,
+											const Vector3f& normal, ShadeableIntersection& intersection,
+											Color3f& sampledColor, Vector3f& wi, float& pdf,
+											thrust::default_random_engine &rng)
+{
+	Ray nextRay;
+	nextRay.origin = intersection.intersectPoint + EPSILON * pathSegment.ray.direction;
+	nextRay.direction = pathSegment.ray.direction;
+
+	PathSegment offsetPath = pathSegment;
+	offsetPath.ray = nextRay;
+	offsetPath.color = glm::vec3(0.f);
+
+	float density = m.density;
+
+	ShadeableIntersection prevIsect = intersection;
+	ShadeableIntersection final;
+
+	int	 maxBounce = 5;
+	while (maxBounce > 0) {
+		// Get the end point of the path 
+		// This should still be the same object
+		ShadeableIntersection end;
+		computeIntersectionsForASingleRay(offsetPath, geoms, numGeoms, end);
+
+		// Should always be the case.
+		if (end.t > 0.f) {
+			glm::vec3 path = end.intersectPoint - nextRay.origin;
+
+			thrust::uniform_real_distribution<float> u01(0, 1);
+			thrust::uniform_real_distribution<float> u(-1, 1);
+
+			// Sample the medium for distance
+			float ln = logf(u01(rng));
+			float distanceTraveled = -ln / density;
+
+			// If the sampled distance is less than the ray then we want to 
+			// get a new direction for the next ray and add to the color.
+			if (distanceTraveled < path.length()) {
+
+				nextRay.origin = nextRay.origin + glm::normalize(path) * distanceTraveled;
+				// Sample the medium for a direction
+				nextRay.direction = SphereSample(rng);
+				offsetPath.ray = nextRay;
+
+				float transmission = expf(-density * distanceTraveled);
+
+				// Color gets more muted as we go further along the ray.
+				offsetPath.color += m.color * transmission*50000.0f;
+
+				prevIsect = end;
+			}
+			else {
+				final = end;
+				break;
+			}
+		}
+		else {
+			final = prevIsect;
+			break;
+		}
+
+		maxBounce--;
+	}
+
+	pathSegment.ray = nextRay;
+	pathSegment.color = offsetPath.color;
 
 	return true;
 }

@@ -74,7 +74,8 @@ __host__ __device__ BxDFType chooseBxDF(const Material &m, thrust::default_rando
 
 __host__ __device__ Color3f sample_f(const Material &m, thrust::default_random_engine &rng,
 									const Vector3f& woW, const Vector3f& normal,
-									Geom& geom, Vector3f intersectPoint,
+									Geom& geom, ShadeableIntersection& intersection,
+									PathSegment pathsegment, Geom * geoms, int numGeoms,
 									Color3f& sampledColor, Vector3f& wiW, float& pdf)
 {
 	BxDFType sampledType;
@@ -126,22 +127,26 @@ __host__ __device__ Color3f sample_f(const Material &m, thrust::default_random_e
 	{
 		//if subsurface stuff cant happen calculate color, pdf, and wi using another bxDF
 		Vector3f sample = Vector3f(u01(rng), u01(rng), u01(rng));
-		possibleToSubSurface = sample_f_Subsurface(woW, sample, m, geom, normal, intersectPoint, sampledColor, wiW, pdf);
+		possibleToSubSurface = sample_f_Subsurface(woW, sample, m, geom, pathsegment, geoms,
+			normal, intersection.intersectPoint, sampledColor, wiW, pdf);
+		//possibleToSubSurface = sample_f_Subsurface_second(woW, sample, m, geom, pathsegment, geoms, numGeoms,
+		//										normal, intersection, sampledColor, wiW, pdf, rng);
 
-		if (!possibleToSubSurface)
-		{
-			//change bxDF to another bxDF;
-			count = comp;
-			for (int i = 0; i<m.numBxDFs; ++i)
-			{
-				// count is only decremented when a bxdfs[i] == mathcing flag
-				if (MatchesFlags(m.bxdfs[i]) && count-- == 0 && m.bxdfs[i] != BxDF_SUBSURFACE)
-				{
-					bxdf = m.bxdfs[i];
-					break;
-				}
-			}
-		}
+		//printf("\nwi: %f %f %f", wiW.x, wiW.y , wiW.z);
+		//printf("\npdf: %f", pdf);
+		//printf("\nsampledColor: %f %f %f", sampledColor.x, sampledColor.y, sampledColor.z);
+
+		//if (!possibleToSubSurface)
+		//{
+		//	//change bxDF to another bxDF;
+
+		//	bxdf = BSDF_LAMBERT;
+		//	//sampledColor = Color3f(0.0f);
+		//}
+		//else
+		//{
+		//	wiW = glm::normalize(calculateRandomDirectionInHemisphere(normal, rng));
+		//}
 	}
 
 	if (bxdf == BSDF_SPECULAR_BRDF && !possibleToSubSurface)

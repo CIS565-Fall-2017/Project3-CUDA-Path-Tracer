@@ -308,7 +308,7 @@ int Scene::loadMaterial(string materialid)
 		int bxdfcounter = 0;
 
 		//load static properties
-		for (int i = 0; i < 9; i++) 
+		for (int i = 0; i < 12; i++) 
 		{
 			string line;
 			utilityCore::safeGetline(fp_in, line);
@@ -343,6 +343,18 @@ int Scene::loadMaterial(string materialid)
 			{
 				newMaterial.emittance = atof(tokens[1].c_str());
 			}
+			else if (strcmp(tokens[0].c_str(), "SCATTERING_COEFF") == 0)
+			{
+				newMaterial.scatteringCoefficient = atof(tokens[1].c_str());
+			}
+			else if (strcmp(tokens[0].c_str(), "THETA_MIN") == 0)
+			{
+				newMaterial.thetaMin = atof(tokens[1].c_str());
+			}
+			//else if (strcmp(tokens[0].c_str(), "DENSITY") == 0)
+			//{
+			//	newMaterial.density = atof(tokens[1].c_str());
+			//}
 			else if (strcmp(tokens[0].c_str(), "LAMBERT") == 0) 
 			{
 				if (atoi(tokens[1].c_str()) > 0)
@@ -356,6 +368,14 @@ int Scene::loadMaterial(string materialid)
 				if (atoi(tokens[1].c_str()) > 0)
 				{
 					newMaterial.bxdfs[bxdfcounter] = BSDF_SPECULAR_BRDF;
+					bxdfcounter++;
+				}
+			}
+			else if (strcmp(tokens[0].c_str(), "SUBSURFACE") == 0)
+			{
+				if (atoi(tokens[1].c_str()) > 0)
+				{
+					newMaterial.bxdfs[bxdfcounter] = BxDF_SUBSURFACE;
 					bxdfcounter++;
 				}
 			}

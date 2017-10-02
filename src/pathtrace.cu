@@ -70,12 +70,6 @@ void printTimerDetails(int iteration, int depth, float time)
 }
 //------------------------------------------------
 
-__host__ __device__ thrust::default_random_engine makeSeededRandomEngine(int iter, int index, int depth) 
-{
-    int h = utilhash((1 << 31) | (depth << 22) | iter) ^ utilhash(index);
-    return thrust::default_random_engine(h);
-}
-
 // Kernel that writes the image to the OpenGL PBO directly.
 __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm::vec3* image) 
 {
@@ -282,6 +276,7 @@ __global__ void computeIntersections(int numActiveRays, PathSegment * pathSegmen
 			intersections[path_index].intersectPoint = intersect_point;
 			intersections[path_index].materialId = geoms[hit_geom_index].materialid;
 			intersections[path_index].surfaceNormal = glm::normalize(normal);
+			intersections[path_index].hitGeomIndex = hit_geom_index;
 		}
 	}
 }
@@ -297,7 +292,7 @@ __global__ void sortIndicesByMaterial(int numActiveRays, ShadeableIntersection *
 }
 
 __global__ void shadeMaterialsNaive(int iter, int numActiveRays, ShadeableIntersection * shadeableIntersections,
-									PathSegment * pathSegments, Geom * geoms, Material * materials)
+									PathSegment * pathSegments, Geom * geoms, int numGeoms, Material * materials)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (idx < numActiveRays)
@@ -331,7 +326,9 @@ __global__ void shadeMaterialsNaive(int iter, int numActiveRays, ShadeableInters
 
 		// if the intersection exists and the itersection is not a light then
 		//deal with the material and end up changing the pathSegment color and its ray direction
-		naiveIntegrator(pathSegments[idx], intersection, material, geoms[idx], rng);
+		naiveIntegrator(pathSegments[idx], intersection, material, 
+						geoms[shadeableIntersections[idx].hitGeomIndex], 
+						geoms, numGeoms, rng);
 	}
 }
 
@@ -467,7 +464,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 		{
 			computeIntersections <<<numblocksPathSegmentTracing, blockSize1d>>> (activeRays, dev_paths, dev_geoms,
 																				 hst_scene->geoms.size(), dev_intersections);
-			checkCUDAError("trace one bounce");
+			checkCUDAError("compute Intersections Failed");
 			cudaDeviceSynchronize();
 
 			//Copy cached intersections
@@ -483,13 +480,13 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 		{
 			computeIntersections <<<numblocksPathSegmentTracing, blockSize1d>>> (activeRays, dev_paths, dev_geoms,
 																				hst_scene->geoms.size(), dev_intersections);
-			checkCUDAError("trace one bounce");
+			checkCUDAError("compute Intersections Failed");
 			cudaDeviceSynchronize();
 		}
 #else
 		computeIntersections <<<numblocksPathSegmentTracing, blockSize1d>>> (activeRays, dev_paths, dev_geoms,
 																			 hst_scene->geoms.size(), dev_intersections);
-		checkCUDAError("trace one bounce");
+		checkCUDAError("compute Intersections Failed");
 		cudaDeviceSynchronize();
 #endif
 		
@@ -517,7 +514,10 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 																			 dev_lights, hst_scene->lights.size());
 #else // NAIVE_INTEGRATOR
 		shadeMaterialsNaive <<<numblocksPathSegmentTracing, blockSize1d>>> (iter, activeRays, dev_intersections, 
-																			dev_paths, dev_geoms, dev_materials);
+																			dev_paths, dev_geoms, hst_scene->geoms.size(),
+																			dev_materials);
+		checkCUDAError("Naive Integration Scheme Failed");
+		cudaDeviceSynchronize();
 #endif
 
 #if INACTIVE_RAY_CULLING		

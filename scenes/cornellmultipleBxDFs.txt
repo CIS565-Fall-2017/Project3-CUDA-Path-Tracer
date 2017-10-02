@@ -25,7 +25,7 @@ EMITTANCE         0
 SCATTERING_COEFF  0
 THETA_MIN         0
 LAMBERT           1
-SPECULAR_BRDF     0
+SPECULAR_BRDF     1
 SUBSURFACE        0
 
 // Diffuse red
@@ -40,7 +40,7 @@ EMITTANCE         0
 SCATTERING_COEFF  0
 THETA_MIN         0
 LAMBERT           1
-SPECULAR_BRDF     0
+SPECULAR_BRDF     1
 SUBSURFACE        0
 
 // Diffuse green
@@ -55,7 +55,7 @@ EMITTANCE         0
 SCATTERING_COEFF  0
 THETA_MIN         0
 LAMBERT           1
-SPECULAR_BRDF     0
+SPECULAR_BRDF     1
 SUBSURFACE        0
 
 // Specular white
@@ -72,21 +72,6 @@ THETA_MIN         0
 LAMBERT           0
 SPECULAR_BRDF     1
 SUBSURFACE        0
-
-// Subsurface Lambertian dark violet
-MATERIAL 5
-RGB               .4 .25 .7
-SPECEX            0
-SPECRGB           0 0 0
-REFL              0
-REFR              0
-REFRIOR           0
-EMITTANCE         0
-SCATTERING_COEFF  300
-THETA_MIN         160
-LAMBERT           1
-SPECULAR_BRDF     0
-SUBSURFACE        1
 
 // Camera
 CAMERA
@@ -155,13 +140,5 @@ OBJECT 6
 sphere
 material 4
 TRANS       -5 4 -1
-ROTAT       0 0 0
-SCALE       3 3 3
-
-// Subsurface Cube
-OBJECT 7
-sphere
-material 5
-TRANS       2 4 -1
 ROTAT       0 0 0
 SCALE       3 3 3

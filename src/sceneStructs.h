@@ -69,6 +69,7 @@ struct Material
 
 	//properties for subsurface
 	float scatteringCoefficient; //determines the distance throught the material the ray will travel on single scattering
+	float density; //determines the density of the material 
 	float thetaMin; //determines the forward scattering lobe
 
 	int numBxDFs; // How many BxDFs this BSDF currently contains (init. 0)
