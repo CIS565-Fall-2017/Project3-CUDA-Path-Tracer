@@ -53,6 +53,8 @@ In this method, we directly sample the light from each intersection in the scene
 
 Anti-aliasing is the jittering or offsetting of a ray within each pixel. Without AA, rays are shot from the camera and through a screen, generally at the center of each pixel. The result (as seen below) show images where lines and edges seem to be more jagged. By offsetting where within the pixel we first shoot the ray into the scene, we can achieve smoother results.
 
+Something to note here is that first bounce caching does not work if anti-aliasing has been implemented (first bounce caching talked about further below in the `Performance Analysis` section). If you offset the rays, then the first bounce intersections will be different.
+
 
 ![](Renders/AntiAliasing/InkedtransmissiveCube.2017-10-01_21-02-37z.5000samp_AAcheck_noAA_LI.jpg)
 ###### (No AA, Run with 5000 samples)
@@ -68,11 +70,16 @@ Anti-aliasing is the jittering or offsetting of a ray within each pixel. Without
 
 ### Depth of field
 
+With depth of field, interesting effects can be achieved that emulate changing focus on an actual camera. Imagine there's a lens that has a certain radius and is a certain focal distance away from the camera - both of which determine what will be and not be in focus in the scene. For each ray shot from the camera, we find an intersection with a random point on the focal plane (the lens) using disk sampling. Then, shoot a new ray into the scene which has been offsetted by a certain amount. Objects in the focal plane will appear in focus.
+
+
 ![](Renders/dof_images/USEtransmissiveCube.2017-10-02_00-54-15z.2518samp_dof_0pt2rad_20focal.png)
 ###### (Run with 2518 samples, 0.2 radius, 20 focal length)
 
 
 ### Tranmission 
+
+This is a specular refraction with Fresnel effects using [Schlick's approximation](https://en.wikipedia.org/wiki/Schlick's_approximation).
 
 ![](Renders/transmissive/USEtransmissiveCube.2017-10-01_23-22-21z.1558samp.png)
 ###### (Run with 1558 samples)
@@ -93,8 +100,16 @@ Anti-aliasing is the jittering or offsetting of a ray within each pixel. Without
 
 All of the following charts and graphs have been tested on one sample with varying ray depths. The scene used is the "TransmissiveCube" scene with the following schematics:
 
-* Naive lighting
 * 8 objects (1 transmissive, 1 emissive, 2 reflective, 4 diffuse)
+
+
+### Feature Analysis 
+
+The following 2 charts compare the various path tracing and GPU optimization features that have been implemented. 
+
+![](Renders/Charts/features-chart.PNG)
+
+![](Renders/Charts/features-graph.PNG)
 
 
 ### Stream Compaction 
@@ -140,7 +155,6 @@ Here we are caching first bounce intersections in the scene to be used across al
 
 
 ### More analysis to be added:
-* Analysis on each individual path tracing feature explained above
 * Targeted analysis on specific kernels 
 * Analysis on stream compaction performance between an open and closed scene 
 
@@ -156,4 +170,31 @@ Here we are caching first bounce intersections in the scene to be used across al
 
 ## Bloopers
 
-To be added soon!
+Looney Tunes Throwback
+
+![](Renders/bloopers/transmissiveCube.2017-10-01_22-44-12z.183samp.png)
+
+
+Let there be (too much) light
+
+![](Renders/bloopers/cornell.2017-09-24_01-54-29z.112samp_lettherebetoomuchlight.png)
+
+
+It's a purple disco
+
+![](Renders/bloopers/transmissiveCube.2017-10-01_23-00-30z.32samp.png)
+
+
+When diffuse and specular don't act nicely with one another
+
+![](Renders/bloopers/cornell.2017-09-23_22-22-55z.117samp_notnegatedraydir_differentspeccalculation.png)
+
+
+The future
+
+![](Renders/bloopers/cornell.2017-09-22_18-49-02z.89samp_didntstopatnobounces.png)
+
+
+Watermelons!
+
+![](Renders/bloopers/cornell.2017-09-24_02-41-38z.700samp_depth2withpdfcalculations.png)

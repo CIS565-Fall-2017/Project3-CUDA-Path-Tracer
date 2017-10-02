@@ -559,7 +559,10 @@ __global__ void shadeNaiveMaterial(
 		// if the intersection exists...
 		if (intersection.t > 0.0f)
 		{
-			thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
+			thrust::default_random_engine rng;
+			if (STREAM_COMPACTION)		rng = makeSeededRandomEngine(iter, idx, 0);
+			else						rng = makeSeededRandomEngine(iter, idx, depth);
+			
 			thrust::uniform_real_distribution<float> u01(0, 1);
 
 			Material material = materials[intersection.materialId];
@@ -616,7 +619,9 @@ __global__ void shadeNaiveAndDirectMaterial(
 		// if the intersection exists...
 		if (intersection.t > 0.0f)
 		{
-			thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
+			thrust::default_random_engine rng;
+			if (STREAM_COMPACTION)		rng = makeSeededRandomEngine(iter, idx, 0);
+			else						rng = makeSeededRandomEngine(iter, idx, depth);
 			thrust::uniform_real_distribution<float> u01(0, 1);
 
 			Material material = materials[intersection.materialId];
@@ -944,7 +949,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 
 	// TODO: perform one iteration of path tracing
 
-	//startCpuTimer();
+	startCpuTimer();
 
 	generateRayFromCamera<<<blocksPerGrid2d, blockSize2d>>>(cam, iter, traceDepth, dev_paths);
 	checkCUDAError("generate camera ray");
@@ -1141,8 +1146,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 
 	}//end while
 
-	//endCpuTimer();
-	//printCPUTimer(iter);
+	endCpuTimer();
+	printCPUTimer(iter);
 
 	  // Assemble this iteration and apply it to the image
 	dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
