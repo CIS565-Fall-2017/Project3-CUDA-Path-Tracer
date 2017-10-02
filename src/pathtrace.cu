@@ -185,7 +185,8 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f));
 #endif
 #if DOF
-    glm::vec3 focal_point = getPointOnRay(segment.ray, cam.focalLength);
+    float f_dist = cam.focalLength / glm::dot(segment.ray.direction, cam.view);
+    glm::vec3 focal_point = getPointOnRay(segment.ray, f_dist);
     float t = u01(rng);
     float s = u01(rng);
     segment.origin = segment.origin + cam.right*sqrt(t)*cos(2*PI*s) * cam.lensDiameter +
