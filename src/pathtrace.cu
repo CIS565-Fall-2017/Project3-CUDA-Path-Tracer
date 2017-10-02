@@ -170,19 +170,38 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		int index = x + (y * cam.resolution.x);
 		PathSegment & segment = pathSegments[index];
 
-		segment.ray.origin = cam.position;
-    segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
+		//segment.ray.origin = cam.position;
+		//Naive
+		//segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
+		
+		//MIS
+		segment.color = glm::vec3(0.f);
+		segment.beta_loop = glm::vec3(1.0f, 1.0f, 1.0f);
 
 		// TODO: implement antialiasing by jittering the ray
 		thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
 		thrust::uniform_real_distribution<float> u01(0.f, 1.f);
 		x += u01(rng);
 		y += u01(rng);
-
-		segment.ray.direction = glm::normalize(cam.view
+		
+		//depth field.
+		glm::vec3 dir = glm::normalize(cam.view
 			- cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
 			- cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
 			);
+		float ft = cam.Focus / glm::dot(cam.view, dir);
+		glm::vec3 FocuspPoint = cam.position + ft * dir;
+		float lensU, lensV;
+		shapeSample::concentricSamplingDisk(u01(rng), u01(rng), lensU, lensV);
+		glm::vec3 origin = cam.position + lensU * cam.LenRadius * cam.right + lensV * cam.LenRadius * cam.up;
+		
+		segment.ray.origin = origin;
+		segment.ray.direction = glm::normalize(FocuspPoint - origin);
+
+		//segment.ray.direction = glm::normalize(cam.view
+		//	- cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
+		//	- cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
+		//	);
 
 		segment.pixelIndex = index;
 		segment.remainingBounces = traceDepth;
@@ -236,10 +255,8 @@ __global__ void computeIntersections(
 
 		float t_min;
 		glm::vec3 normal;
-		glm::vec3 tan;
-		glm::vec3 bit;
 		int hit_geom_index = -1;
-		SearchIntersection::BruteForceSearch(t_min, hit_geom_index, normal, tan, bit, pathSegment.ray, geoms, geoms_size);
+		SearchIntersection::BruteForceSearch(t_min, hit_geom_index, normal, pathSegment.ray, geoms, geoms_size);
 
 		if (hit_geom_index == -1)
 		{
@@ -252,13 +269,7 @@ __global__ void computeIntersections(
 			intersections[path_index].t = t_min;
 			intersections[path_index].materialId = m_ID;
 			intersections[path_index].surfaceNormal = normal;
-			intersections[path_index].tan = tan;
-			intersections[path_index].bit = bit;
-			intersections[path_index].WorldToTangent = glm::transpose(glm::mat3(tan, bit, normal));
-			intersections[path_index].TangentToWorld = glm::mat3(tan, bit, normal);
-			dev_materialID[idx] = m_ID;
-			
-			
+			dev_materialID[idx] = m_ID;	
 		}
 	}
 }
@@ -323,11 +334,13 @@ void compressedPath(int& num_paths, PathSegment *paths, bool *flag)
 	num_paths = thrust::count_if(dev_bool, dev_bool + num_paths, thrust::identity<bool>());
 }
 __global__ void shakeBSDFMaterail(
-	int iter
+	int iter,
+	int depth
 	, int num_paths
-	, int numLights
 	, const Geom *dev_geoms
+	, int geo_size
 	, const Geom **dev_lights
+	,int numLights
 	, ShadeableIntersection * shadeableIntersections
 	, PathSegment * pathSegments
 	, Material * materials
@@ -356,7 +369,8 @@ __global__ void shakeBSDFMaterail(
 
 			// If the material indicates that the object was a light, "light" the ray
 			if (material.emittance > 0.0f) {
-				curPath.color *= (materialColor * material.emittance);
+				//curPath.color *= (materialColor * material.emittance);
+				curPath.color += curPath.beta_loop*materialColor * material.emittance;
 				dev_flag[pathIndex] = false;
 				img[curPath.pixelIndex] += curPath.color;
 			}
@@ -364,10 +378,39 @@ __global__ void shakeBSDFMaterail(
 			// like what you would expect from shading in a rasterizer like OpenGL.
 			// TODO: replace this! you should be able to start with basically a one-liner
 			else {
-				scatterRay(curPath, dev_geoms,dev_lights,intersection.t * curPath.ray.direction + curPath.ray.origin,
-					intersection.surfaceNormal, intersection.WorldToTangent,intersection.TangentToWorld, material, rng);
-				curPath.remainingBounces--;
-				dev_flag[pathIndex] = curPath.remainingBounces ? true : false;
+				//Russian roulette
+				if (depth >= 3) {
+					float temp = curPath.beta_loop.x>curPath.beta_loop.y? curPath.beta_loop.x: curPath.beta_loop.y;
+					float max_componenet = temp>curPath.beta_loop.z? temp: curPath.beta_loop.z;
+					float q = 0.05 > (1.0f - max_componenet)? 0.05:(1.0f - max_componenet);
+					float random_num = u01(rng);
+					if (random_num < q)
+					{
+						curPath.remainingBounces = 0;;
+						dev_flag[pathIndex] = false;
+						img[curPath.pixelIndex] += curPath.color;
+					}
+					curPath.beta_loop /= (1.0f - q);
+				}
+				if (curPath.remainingBounces >0) {
+					scatterRay(curPath,
+						dev_geoms,
+						geo_size,
+						dev_lights,
+						numLights,
+						getPointOnRay(curPath.ray, intersection.t),
+						intersection.surfaceNormal,
+						material,
+						materials,
+						rng,
+						u01);
+					curPath.remainingBounces--;
+					dev_flag[pathIndex] = curPath.remainingBounces >0 ? true : false;
+					if (!dev_flag[pathIndex]) {
+						img[curPath.pixelIndex] += curPath.color;
+					}
+				}
+				
 			}
 			// If there was no intersection, color the ray black.
 			// Lots of renderers use 4 channel color, RGBA, where A = alpha, often
@@ -455,10 +498,16 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	bool iterationComplete = false;
 	while (!iterationComplete) {
 
+		//cout << depth << "  " << num_paths;
 		// clean shading chunks
 		cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 		// tracing
 		dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
+		float time = 0;
+		//cudaEvent_t start, stop;
+		//cudaEventCreate(&start);
+		//cudaEventCreate(&stop);
+		//cudaEventRecord(start);
 		UpdatePathIdx << < numblocksPathSegmentTracing, blockSize1d >> >(num_paths, dev_pathIndices);
 		computeIntersections <<<numblocksPathSegmentTracing, blockSize1d>>> (
 			depth
@@ -490,10 +539,12 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		MaterialIDSort(num_paths);
 		shakeBSDFMaterail << <numblocksPathSegmentTracing, blockSize1d >> > (
 			iter,
+			depth,
 			num_paths,
-			numLights,
 			dev_geoms,
+			hst_scene->geoms.size(),
 			dev_lights,
+			numLights,
 			dev_intersections,
 			dev_paths,
 			dev_materials,
@@ -511,6 +562,13 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
 		depth++;
 		compressedPath(num_paths, dev_paths, dev_flag);
+
+
+		//cudaEventRecord(stop);
+		//cudaEventSynchronize(stop);
+		//cudaEventElapsedTime(&time, start, stop);
+
+		//cout<< "   " << time << "   " << endl;
 		if(!num_paths)
 			iterationComplete = true; 
 	}

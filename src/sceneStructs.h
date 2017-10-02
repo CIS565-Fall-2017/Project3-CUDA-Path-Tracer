@@ -53,6 +53,8 @@ public:
     glm::vec3 right;
     glm::vec2 fov;
     glm::vec2 pixelLength;
+	float LenRadius=0.2f;
+	float Focus=8;
 };
 
 class RenderState {
@@ -80,9 +82,5 @@ class ShadeableIntersection {
 public:
   float t;
   glm::vec3 surfaceNormal;
-  glm::vec3 tan;
-  glm::vec3 bit;
-  glm::mat3 WorldToTangent;
-  glm::mat3 TangentToWorld;
   int materialId;
 };

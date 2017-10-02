@@ -26,6 +26,10 @@ int iteration;
 int width;
 int height;
 
+
+//Timer
+float totalTime = 0.0;
+float iterTimer = 0.0;
 //-------------------------------
 //-------------MAIN--------------
 //-------------------------------
@@ -134,8 +138,15 @@ void runCuda() {
 
         // execute the kernel
         int frame = 0;
+		cudaEvent_t start, stop;
+		cudaEventCreate(&start);
+		cudaEventCreate(&stop);
+		cudaEventRecord(start);
         pathtrace(pbo_dptr, frame, iteration);
-
+		cudaEventRecord(stop);
+		cudaEventSynchronize(stop);
+		cudaEventElapsedTime(&iterTimer, start, stop);
+		totalTime += iterTimer;
         // unmap buffer object
         cudaGLUnmapBufferObject(pbo);
     } else {
