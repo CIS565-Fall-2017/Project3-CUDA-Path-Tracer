@@ -15,7 +15,7 @@ CUDA Path Tracer
 - Resolution : 1024 x 1024
 - Iteration : 5000
 
-* Phsically-based BRDF shading
+* Physically-based BRDF shading
 * Texture mapping
 * Infinite area light
 * Depth of field
