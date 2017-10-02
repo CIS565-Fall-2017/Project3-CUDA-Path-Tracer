@@ -37,48 +37,48 @@ GPU Features:
 
 ### Naive Lighting 
 
-![](build/Renders/Naive/cornell.2017-10-01_15-15-21z.5000samp.png)
+![](Renders/Naive/cornell.2017-10-01_15-15-21z.5000samp.png)
 ###### (Run with 5000 samples)
 
 
 ### Direct Lighting 
 
-![](build/Renders/Direct/transmissiveCube.2017-10-02_01-16-13z.3860samp.png)
+![](Renders/Direct/transmissiveCube.2017-10-02_01-16-13z.3860samp.png)
 ###### (Run with 3860 samples)
 
 
 ### Anti Aliasing 
 
 
-![](build/Renders/AntiAliasing/transmissiveCube.2017-10-01_21-02-37z.5000samp_AAcheck_noAA.png)
-![](build/Renders/AntiAliasing/transmissiveCube.2017-10-01_21-33-01z.5000samp_AAcheck_AA.png)
+![](Renders/AntiAliasing/transmissiveCube.2017-10-01_21-02-37z.5000samp_AAcheck_noAA.png)
+![](Renders/AntiAliasing/transmissiveCube.2017-10-01_21-33-01z.5000samp_AAcheck_AA.png)
 ###### (Both images run with 5000 samples)
 
-![](build/Renders/AntiAliasing/cornell.2017-09-28_16-23-12z.67samp_AAcheck_noAA.png)
+![](Renders/AntiAliasing/cornell.2017-09-28_16-23-12z.67samp_AAcheck_noAA.png)
 ###### (Run with 67 samples)
-![](build/Renders/AntiAliasing/cornell.2017-09-28_16-24-41z.324samp_AAcheck_AA.png)
+![](Renders/AntiAliasing/cornell.2017-09-28_16-24-41z.324samp_AAcheck_AA.png)
 ###### (Run with 324 samples)
 
 
 ### Depth of field
 
-![](build/Renders/dof_images/USEtransmissiveCube.2017-10-02_00-54-15z.2518samp_dof_0pt2rad_20focal.png)
+![](Renders/dof_images/USEtransmissiveCube.2017-10-02_00-54-15z.2518samp_dof_0pt2rad_20focal.png)
 ###### (Run with 2518 samples, 0.2 radius, 20 focal length)
 
 
 ### Tranmission 
 
-![](build/Renders/transmissive/USEtransmissiveCube.2017-10-01_23-22-21z.1558samp.png)
+![](Renders/transmissive/USEtransmissiveCube.2017-10-01_23-22-21z.1558samp.png)
 ###### (Run with 1558 samples)
 
 
-![](build/Renders/transmissive/USEtransmissiveCube.2017-10-01_23-35-26z.2364samp_1pt5ior.png)
+![](Renders/transmissive/USEtransmissiveCube.2017-10-01_23-35-26z.2364samp_1pt5ior.png)
 ###### (Run with 2364 samples, 1.5 index of refraction)
 
-![](build/Renders/transmissive/USEtransmissiveCube.2017-10-01_23-56-06z.2801samp_2pt5ior.png)
+![](Renders/transmissive/USEtransmissiveCube.2017-10-01_23-56-06z.2801samp_2pt5ior.png)
 ###### (Run with 2801 samples, 2.5 index of refraction)
 
-![](build/Renders/transmissive/USEtransmissiveCube.2017-10-01_23-46-43z.2442samp_5pt5ior.png)
+![](Renders/transmissive/USEtransmissiveCube.2017-10-01_23-46-43z.2442samp_5pt5ior.png)
 ###### (Run with 2442 samples, 5.5 index of refraction)
 
 
@@ -93,23 +93,23 @@ All of the following charts and graphs have been tested on one sample with varyi
 
 ### Stream Compaction 
 
-![](build/Renders/Charts/sc-chart.PNG)
+![](Renders/Charts/sc-chart.PNG)
 
-![](build/Renders/Charts/sc-graph.PNG)
+![](Renders/Charts/sc-graph.PNG)
 
 
 ### Material Sorting
 
-![](build/Renders/Charts/ms-chart.PNG)
+![](Renders/Charts/ms-chart.PNG)
 
-![](build/Renders/Charts/ms-graph.PNG)
+![](Renders/Charts/ms-graph.PNG)
 
 
 ### First Bounce Caching 
 
-![](build/Renders/Charts/cache-chart.PNG)
+![](Renders/Charts/cache-chart.PNG)
 
-![](build/Renders/Charts/cache-graph.PNG)
+![](Renders/Charts/cache-graph.PNG)
 
 
 ## Features to be implemented in the future
