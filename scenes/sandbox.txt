@@ -17,6 +17,7 @@ REFL        0
 REFR        0
 REFRIOR     0
 EMITTANCE   0
+TEX_DIFFUSE ../scenes/resources/textures/checker_g.png
 
 // Diffuse red
 MATERIAL 2
@@ -46,8 +47,8 @@ RGB         .98 .98 .98
 SPECEX      0
 SPECRGB     .98 .98 .98
 REFL        1
-REFR        0
-REFRIOR     0
+REFR        1
+REFRIOR     1.33
 EMITTANCE   0
 
 // Film
@@ -65,7 +66,7 @@ FOVY        45
 ITERATIONS  1000
 DEPTH       8
 FILE        cornell
-APERTURE    0.25
+APERTURE    0.2
 DISTANCE	4.0
 BOKEH       ../scenes/resources/bokeh/chromatic.png
 EYE         2.5 7.3 10.5

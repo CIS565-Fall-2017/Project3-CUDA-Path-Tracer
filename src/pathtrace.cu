@@ -56,7 +56,6 @@ __host__ __device__ glm::vec3 FilmicTonemapping(glm::vec3 x)
 	return ((x*(0.15f*x + 0.10f*0.50f) + 0.20f*0.02f) / (x*(0.15f*x + 0.50f) + 0.20f*0.30f)) - 0.02f / 0.30f;
 }
 
-
 __global__ void tonemapKernel(glm::vec4 * rawImage, glm::vec4 * resultImage, glm::ivec2 resolution, Film film)
 {
 	int x = (blockIdx.x * blockDim.x) + threadIdx.x;
@@ -128,8 +127,6 @@ static PathSegment * dev_paths = NULL;
 static SampledPath * dev_prefiltered = NULL;
 
 static ShadeableIntersection * dev_intersections = NULL;
-// TODO: static variables for device memory, any extra info you need, etc
-// ...
 
 void pathtraceInit(Scene *scene) {
     hst_scene = scene;
@@ -218,14 +215,6 @@ __host__ __device__ glm::vec3 sampleTexture(glm::vec3 * dev_textures, glm::vec2 
 	}
 }
 
-/**
-* Generate PathSegments with rays from the camera through the screen into the
-* scene, which is the first bounce of rays.
-*
-* Antialiasing - add rays for sub-pixel sampling
-* motion blur - jitter rays "in time"
-* lens effect - jitter ray origin positions based on a lens
-*/
 __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, PathSegment* pathSegments, SampledPath * pathSamples, glm::vec3 * dev_textures)
 {
 	int x = (blockIdx.x * blockDim.x) + threadIdx.x;
@@ -342,6 +331,81 @@ __global__ void computeIntersections(int depth, int num_paths, PathSegment * pat
 	}
 }
 
+__forceinline__
+__host__ __device__ glm::vec3 BxDF_Diffuse(glm::vec3 & normal, glm::vec2 & uv, glm::vec3 wo, glm::vec2 sample, glm::vec3 & wi, float & pdf, Material material, glm::vec3 * textureArray)
+{
+	wi = calculateRandomDirectionInHemisphere(normal, sample);
+	float cosTheta = glm::max(0.0f, glm::dot(normal, wi));
+	pdf = cosTheta / glm::pi<float>();
+	
+	glm::vec3 result = material.color;
+
+	if (material.diffuseTexture.valid == 1)
+		result *= sampleTexture(textureArray, uv, material.diffuseTexture);
+
+	return result * cosTheta * glm::one_over_pi<float>();
+}
+
+__forceinline__
+__host__ __device__ float FresnelSchlick(float eI, float eT, float HdotV)
+{
+	float R0 = glm::pow((eI - eT) / (eI + eT), 2.f);
+	return R0 + (1.0f - R0) * pow(1.f - HdotV, 5.f);
+}
+
+__forceinline__
+__host__ __device__ glm::vec3 BxDF_Perfect_Specular_Reflection(glm::vec3 &normal, glm::vec2 &uv, glm::vec3& wo, glm::vec2& sample, glm::vec3 & wi, float & pdf, Material &material, glm::vec3 * textureArray)
+{
+	wi = glm::reflect(-wo, normal);
+	pdf = 1.f;
+
+	glm::vec3 result = material.specular.color;
+
+	if (material.specularTexture.valid == 1)
+		result *= sampleTexture(textureArray, uv, material.specularTexture);
+
+	return result;
+}
+
+//__forceinline__
+__host__ __device__ glm::vec3 BxDF_Perfect_Specular_Refraction(glm::vec3 &normal, glm::vec2 &uv, glm::vec3& wo, glm::vec2& sample, glm::vec3 & wi, float & pdf, Material &material, glm::vec3 * textureArray)
+{
+	float VdotN = glm::dot(wo, normal);
+	bool leaving = VdotN < 0.f;
+	glm::vec3 n = normal  *(leaving ? -1.f : 1.f);
+	float eta = leaving ?  material.indexOfRefraction : (1.f / material.indexOfRefraction);
+	wi = glm::refract(-wo, n, eta);
+	pdf = 1.f;
+
+	// Total internal reflection
+	if (glm::length(wi) < .01f)
+		return glm::vec3(0.f);
+
+	glm::vec3 result = material.specular.color;
+
+	if (material.specularTexture.valid == 1)
+		result *= sampleTexture(textureArray, uv, material.specularTexture);
+	
+	return result;
+}
+
+__forceinline__
+__host__ __device__ glm::vec3 BxDF_Glass(glm::vec3 &normal, glm::vec2 &uv, glm::vec3& wo, glm::vec2& sample, glm::vec3 & wi, float & pdf, Material &material, glm::vec3 * textureArray)
+{
+	float VdotN = glm::dot(wo, normal);
+	bool leaving = VdotN < 0.f;
+	float eI = leaving ? material.indexOfRefraction : 1.f;
+	float eT = leaving ? 1.f : material.indexOfRefraction;
+
+	float HdotV = glm::abs(glm::dot(normal, wo));
+	float fresnel = FresnelSchlick(eI, eT, HdotV);
+
+	if (sample.x > 0.5f)
+		return BxDF_Perfect_Specular_Reflection(normal, uv, wo, sample, wi, pdf, material, textureArray) * fresnel;
+	else
+		return BxDF_Perfect_Specular_Refraction(normal, uv, wo, sample, wi, pdf, material, textureArray) * (1.f - fresnel);
+}
+
 // Uber shader for now...
 __global__ void shadeKernel(int iter, int num_paths, ShadeableIntersection * shadeableIntersections,
 	PathSegment * pathSegments, Material * materials, glm::vec3 * textureArray)
@@ -352,22 +416,34 @@ __global__ void shadeKernel(int iter, int num_paths, ShadeableIntersection * sha
 	{
 		ShadeableIntersection intersection = shadeableIntersections[idx];
 
-		if (intersection.t > 0.0f) 
-		{ 
-			thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegments[idx].remainingBounces);
+		glm::vec3 resultColor = pathSegments[idx].color;
+		int remainingBounces = pathSegments[idx].remainingBounces;
+
+		// By default, return black and stop
+		pathSegments[idx].color = glm::vec3(0.f);
+		pathSegments[idx].remainingBounces = 0;
+
+		if (intersection.t > 0.0f && glm::length(resultColor) > EPSILON)
+		{
+			thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, remainingBounces);
 			thrust::uniform_real_distribution<float> u01(0, 1);
 
 			Material material = materials[intersection.materialId];
-			glm::vec3 materialColor = material.color;
-
+			glm::vec2 sample = glm::vec2(u01(rng), u01(rng));
+			
 			// If the material indicates that the object was a light, "light" the ray
-			if (material.emittance > 0.0f) {
-				pathSegments[idx].color *= (materialColor * material.emittance);
+			if (material.emittance > 0.0f) 
+			{
+				pathSegments[idx].color = resultColor * (material.color * material.emittance);
 				pathSegments[idx].remainingBounces = 0; // It makes no sense to keep bouncing after a light
 			}
-			else if(pathSegments[idx].remainingBounces > 1)
+			else if(remainingBounces > 1)
 			{
+				glm::vec3 wo = pathSegments[idx].ray.direction * -1.f;
 				glm::vec3 n = intersection.normal;
+				glm::vec3 wi;
+				float pdf;
+				glm::vec3 bxdf = glm::vec3(1.f);
 
 				if (material.normalTexture.valid == 1)
 				{
@@ -378,81 +454,28 @@ __global__ void shadeKernel(int iter, int num_paths, ShadeableIntersection * sha
 					n = glm::normalize(tangent * texData.r + bitangent * texData.g + n * texData.b);
 				}
 
-				if (material.hasRefractive > 0.f)
-				{
-					glm::vec3 wo = pathSegments[idx].ray.direction;
-
-					float VdotN = glm::dot(wo, n);
-					bool leaving = VdotN > 0.f;
-					n *= leaving ? -1.f : 1.f;
-					float eta = leaving ? 1.f / material.indexOfRefraction : material.indexOfRefraction;
-
-					glm::vec3 wi = glm::refract(-wo, n, eta);
-
-					// Total internal reflection
-					if (glm::length(wi) < 0.01f)
-					{
-						pathSegments[idx].color = glm::vec3(0.0f);
-						pathSegments[idx].remainingBounces = 0;
-					}
-					else
-					{
-						Ray outRay;
-						outRay.origin = pathSegments[idx].ray.origin + pathSegments[idx].ray.direction * intersection.t - n * .001f;
-						outRay.direction = wi;
-
-						pathSegments[idx].ray = outRay;
-						pathSegments[idx].color *= materialColor;
-						pathSegments[idx].remainingBounces -= 1;
-					}
-				}
+				if (material.hasRefractive > 0.f && material.hasReflective > 0.f)
+					bxdf = BxDF_Glass(n, intersection.uv, wo, sample, wi, pdf, material, textureArray);
+				else if (material.hasRefractive > 0.f)
+					bxdf = BxDF_Perfect_Specular_Refraction(n, intersection.uv, wo, sample, wi, pdf, material, textureArray);
 				else if (material.hasReflective > 0.f)
-				{
-					glm::vec3 wo = pathSegments[idx].ray.direction;
-					glm::vec3 wi = glm::reflect(wo, n);
-
-					Ray outRay;
-					outRay.origin = pathSegments[idx].ray.origin + pathSegments[idx].ray.direction * intersection.t + n * .001f;
-					outRay.direction = wi;
-
-					materialColor = material.specular.color;
-
-					if (material.specularTexture.valid == 1)
-						materialColor *= sampleTexture(textureArray, intersection.uv, material.specularTexture);
-
-					pathSegments[idx].ray = outRay;
-					pathSegments[idx].color *= materialColor;
-					pathSegments[idx].remainingBounces -= 1;
-				}
+					bxdf = BxDF_Perfect_Specular_Reflection(n, intersection.uv, wo, sample, wi, pdf, material, textureArray);
 				else
-				{
-					//glm::vec3 wo = pathSegments[idx].ray.direction;
-					glm::vec3 wi = calculateRandomDirectionInHemisphere(n, rng);
-					float cosTheta = glm::max(0.0f, glm::dot(n, wi));
-					float pdf = cosTheta / glm::pi<float>();
-					float lambert = 1.f / glm::pi<float>();
+					bxdf = BxDF_Diffuse(n, intersection.uv, wo, sample, wi, pdf, material, textureArray);
 
-					Ray outRay;
-					outRay.origin = pathSegments[idx].ray.origin + pathSegments[idx].ray.direction * intersection.t + n * .001f;
-					outRay.direction = wi;
-					
-					if (material.diffuseTexture.valid == 1)
-						materialColor *= sampleTexture(textureArray, intersection.uv, material.diffuseTexture);
+				if (pdf == 0.f)
+					pdf = 1.f;
 
-					pathSegments[idx].ray = outRay;
-					pathSegments[idx].color *= materialColor * cosTheta * lambert / pdf;
-					pathSegments[idx].remainingBounces -= 1;
-				}
+				resultColor *= bxdf / pdf;
+
+				Ray outRay;
+				outRay.origin = pathSegments[idx].ray.origin + pathSegments[idx].ray.direction * intersection.t + wi * .001f;
+				outRay.direction = wi;
+
+				pathSegments[idx].ray = outRay;
+				pathSegments[idx].color = resultColor;
+				pathSegments[idx].remainingBounces = remainingBounces - 1;
 			}
-			else 
-			{
-				pathSegments[idx].color = glm::vec3(0.0f);
-				pathSegments[idx].remainingBounces = 0;
-			}
-		}
-		else {
-			pathSegments[idx].color = glm::vec3(0.0f);
-			pathSegments[idx].remainingBounces = 0;
 		}
 	}
 }
@@ -515,7 +538,7 @@ struct PathTerminationOperator
 	bool operator()(const PathSegment x)
 	{
 		// If there are no remaining bounces or the path does not contribute in any meaningful way.
-		return x.remainingBounces > 0;// && glm::length(x.color) > .001f;
+		return x.remainingBounces > 0 && glm::length(x.color) > .001f;
 	}
 };
 

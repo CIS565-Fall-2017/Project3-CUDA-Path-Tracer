@@ -9,12 +9,12 @@
  */
 __host__ __device__
 glm::vec3 calculateRandomDirectionInHemisphere(
-        glm::vec3 normal, thrust::default_random_engine &rng) {
+        glm::vec3 normal, glm::vec2 sample) {
     thrust::uniform_real_distribution<float> u01(0, 1);
 
-    float up = sqrt(u01(rng)); // cos(theta)
+    float up = sqrt(sample.x); // cos(theta)
     float over = sqrt(1 - up * up); // sin(theta)
-    float around = u01(rng) * TWO_PI;
+    float around = sample.y * TWO_PI;
 
     // Find a direction that is not the normal based off of whether or not the
     // normal's components are all equal to sqrt(1/3) or whether or not at
