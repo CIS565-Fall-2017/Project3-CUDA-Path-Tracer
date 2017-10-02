@@ -42,8 +42,6 @@ Open scene with motion blur
 
 ![](img/samples/motion2.PNG)
 
-![](img/samples/motion.PNG)
-
 Open scene with refraction
 
 ![](img/samples/refract2.png)
