@@ -32,7 +32,10 @@ CUDA Path Tracer
   <p align="center"><b>Cornell Box With Specular Material 5000 samples</b></p>
   
 ## Anti-aliasing
-![Sphere with anti-aliasing](/img/cornell.sphereWithAntiAliasing.2839samp.png) ![Sphere without anti-aliasing](/img/cornell.sphereWithoutAntiAliasing.2898samp.png)
+
+| No Anti-aliasing             |  With Anti-aliasing |
+:-------------------------:|:-------------------------:
+![Sphere without anti-aliasing](/img/cornell.sphereWithoutAntiAliasing.2898samp.png)  |  ![Sphere with anti-aliasing](/img/cornell.sphereWithAntiAliasing.2839samp.png)
   
 ## Performance Analysis
   * Cache the path first intersections
