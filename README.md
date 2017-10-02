@@ -17,11 +17,8 @@ CUDA Path Tracer
 * Please look for comments //============= START CUDA Timer==========// and //==================END CUDA Timer===========// to enable to right timer for performance analysis
 
 ## Basic Path Tracer
-![Cornell Box 5000 samples](/img/cornell.basic.5000samp.png)
+![Cornell Box 5000 samples](/img/cornell.basic.antialising.5000samp.png)
   <p align="center"><b>Cornell Box 5000 samples</b></p>
-  
-![Sphere Light 5000 samples](/img/sphere.basic.5000samp.png)
-  <p align="center"><b>Sphere Light 5000 samples</b></p>
   
 ## Depth of Field
 ![Cornell Box With Depth Of Field 5000 samples](/img/cornell.depthOfField.5000samp.png)
