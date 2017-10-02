@@ -49,21 +49,16 @@ GPU Optimization Features:
 
 ### Anti Aliasing 
 
-No AA
 ![](Renders/AntiAliasing/transmissiveCube.2017-10-01_21-02-37z.5000samp_AAcheck_noAA.png)
-###### (Run with 5000 samples)
-
-AA
+###### (No AA, Run with 5000 samples)
 ![](Renders/AntiAliasing/transmissiveCube.2017-10-01_21-33-01z.5000samp_AAcheck_AA.png)
-###### (Run with 5000 samples)
+###### (AA, Run with 5000 samples)
 
-No AA
+
 ![](Renders/AntiAliasing/cornell.2017-09-28_16-23-12z.67samp_AAcheck_noAA.png)
-###### (Run with 67 samples)
-
-AA
+###### (No AA, Run with 67 samples)
 ![](Renders/AntiAliasing/cornell.2017-09-28_16-24-41z.324samp_AAcheck_AA.png)
-###### (Run with 324 samples)
+###### (AA, Run with 324 samples)
 
 
 ### Depth of field
