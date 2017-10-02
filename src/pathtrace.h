@@ -2,7 +2,12 @@
 
 #include <vector>
 #include "scene.h"
+#include <stream_compaction\common.h>
 
-void pathtraceInit(Scene *scene);
-void pathtraceFree();
-void pathtrace(uchar4 *pbo, int frame, int iteration);
+namespace PathTracer {
+	StreamCompaction::Common::PerformanceTimer& timer();
+	void pathtraceInit(Scene *scene);
+	void pathtraceFree();
+	void pathtrace(uchar4 *pbo, int frame, int iteration, bool cacheFirstIntersect, bool depthOfField, float focalPoint, float lenseRadius, bool sort);
+}
+

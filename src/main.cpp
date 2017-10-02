@@ -1,6 +1,7 @@
 #include "main.h"
 #include "preview.h"
 #include <cstring>
+#include "testing_helpers.hpp"
 
 static std::string startTimeString;
 
@@ -25,6 +26,9 @@ int iteration;
 
 int width;
 int height;
+
+//Added by Yuxin to Store performance analysis data
+vector<pair<int, float>> pathTraceTimer;
 
 //-------------------------------
 //-------------MAIN--------------
@@ -98,6 +102,17 @@ void saveImage() {
     //img.saveHDR(filename);  // Save a Radiance HDR file
 }
 
+void savePerformanceAnalysis() {
+	std::ofstream outputFile;
+	std::string performanceFileName = "performanceAnalysis.csv";
+	outputFile.open(performanceFileName, std::ofstream::out);
+	for (int index = 0; index < pathTraceTimer.size(); index++) {
+		outputFile << pathTraceTimer [index].first<< "," << pathTraceTimer[index].second << std::endl;
+	}	
+	outputFile.close();
+}
+
+
 void runCuda() {
     if (camchanged) {
         iteration = 0;
@@ -123,8 +138,8 @@ void runCuda() {
     // No data is moved (Win & Linux). When mapped to CUDA, OpenGL should not use this buffer
 
     if (iteration == 0) {
-        pathtraceFree();
-        pathtraceInit(scene);
+        PathTracer::pathtraceFree();
+        PathTracer::pathtraceInit(scene);
     }
 
     if (iteration < renderState->iterations) {
@@ -134,13 +149,19 @@ void runCuda() {
 
         // execute the kernel
         int frame = 0;
-        pathtrace(pbo_dptr, frame, iteration);
-
+		//printDesc("1 iteration of path tracing");
+		//PARAMETER EXPLAIN
+		//pathtracer(uchar4* pbo_dptr, int frameNumber, int iteration, bool cacheFirstIntersection, bool enableDepthOfField, float focalPlaneZ, float lenseRadius, bool sortPathByMaterial)
+        PathTracer::pathtrace(pbo_dptr, frame, iteration, false, false, -5, 0.1, false);
+		//===============Uncomment to store performance analysis data of each iteration==============//
+		//pathTraceTimer.push_back(pair<int, float>(iteration-1, PathTracer::timer().getGpuElapsedTimeForPreviousOperation()));
         // unmap buffer object
         cudaGLUnmapBufferObject(pbo);
     } else {
         saveImage();
-        pathtraceFree();
+		//===============Uncomment to save performance analysis data==============//
+		//savePerformanceAnalysis();
+        PathTracer::pathtraceFree();
         cudaDeviceReset();
         exit(EXIT_SUCCESS);
     }
@@ -151,10 +172,14 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
       switch (key) {
       case GLFW_KEY_ESCAPE:
         saveImage();
+		//===============Uncomment to save performance analysis data==============//
+		//savePerformanceAnalysis();
         glfwSetWindowShouldClose(window, GL_TRUE);
         break;
       case GLFW_KEY_S:
         saveImage();
+		//===============Uncomment to save performance analysis data==============//
+		//savePerformanceAnalysis();
         break;
       case GLFW_KEY_SPACE:
         camchanged = true;
