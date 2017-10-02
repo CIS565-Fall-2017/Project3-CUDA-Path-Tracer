@@ -23,6 +23,10 @@ Scene *scene;
 RenderState *renderState;
 int iteration;
 
+double totalTimeMs = 0.0f;
+float iterationTimeMs;
+double totalElapsedTimeMs = 0.0;
+
 int width;
 int height;
 
@@ -134,8 +138,21 @@ void runCuda() {
 
         // execute the kernel
         int frame = 0;
+		cudaEvent_t start, stop;
+		cudaEventCreate(&start);
+		cudaEventCreate(&stop);
+		cudaEventRecord(start);
+
         pathtrace(pbo_dptr, frame, iteration);
 
+		cudaEventRecord(stop);
+		cudaEventSynchronize(stop);
+		cudaEventElapsedTime(&iterationTimeMs, start, stop);
+		totalElapsedTimeMs += iterationTimeMs;
+
+		if (iteration % 50 == 0) {
+			totalTimeMs = totalElapsedTimeMs;
+		}
         // unmap buffer object
         cudaGLUnmapBufferObject(pbo);
     } else {

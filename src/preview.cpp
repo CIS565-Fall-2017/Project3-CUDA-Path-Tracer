@@ -173,7 +173,8 @@ void mainLoop() {
         glfwPollEvents();
         runCuda();
 
-        string title = "CIS565 Path Tracer | " + utilityCore::convertIntToString(iteration) + " Iterations";
+        string title = "CIS565 Path Tracer | " + utilityCore::convertIntToString(iteration) + " Iterations "
+			+ utilityCore::convertIntToString(iterationTimeMs) + " ms " + utilityCore::convertIntToString(totalTimeMs) + " total ms";
         glfwSetWindowTitle(window, title.c_str());
 
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
