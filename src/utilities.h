@@ -15,9 +15,15 @@
 #define EPSILON				0.00001f
 
 #define RAY_EPSILON			0.000005f
+
+#define STREAM_COMPACTION	true
 #define SORT_BY_MATERIAL	true
 #define CACHE_FIRST_BOUNCE	true
-#define DIRECT_LIGHTING		true
+
+#define DIRECT_LIGHTING		false
+#define NAIVE_AND_DIRECT	false
+
+#define ANTI_ALIASING		false
 
 namespace utilityCore {
     extern float clamp(float f, float min, float max);

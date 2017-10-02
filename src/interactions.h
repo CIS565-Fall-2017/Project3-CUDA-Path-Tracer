@@ -79,28 +79,26 @@ glm::vec3 squareToDiskConocentric(const glm::vec2 &sample)
 
 
 __host__ __device__
-glm::vec3 sampleCube(const glm::vec3 &sample, const Geom &cube)
+glm::vec3 sampleCube(const glm::vec3 &sample, const Geom &cube, glm::vec3 &normal)
 {
 	//Local cube is centered at origin with radius 1
 	glm::vec4 localSpacePt = glm::vec4(sample[0] - 0.5f, sample[1] - 0.5f, sample[2] - 0.5f, 1.0f);
 	glm::vec4 worldSpacePt = glm::vec4(cube.transform * localSpacePt);
+	normal = glm::normalize(glm::vec3(cube.invTranspose * glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)));
 	return glm::vec3(worldSpacePt);
-
-	//normal = glm::normalize(glm::vec3(cube.invTranspose * glm::vec4(0.0f, 0.0f, 1.0f, 1.0f)));
 }
 
 
 __host__ __device__
-glm::vec3 sampleSphere(const glm::vec2 &sample, const Geom &sphere)
+glm::vec3 sampleSphere(const glm::vec2 &sample, const Geom &sphere, glm::vec3 &normal)
 {
 	float z = 1.0f - (2.0f * sample[0]);
 	float r = glm::sqrt(glm::max(0.0f, 1.0f - (z * z)));
 	float phi = 2.0f * PI * sample[1];
 	glm::vec4 localSpacePt = glm::vec4(r * glm::cos(phi), r * glm::sin(phi), z, 1.0f);
 	glm::vec4 worldSpacePt = glm::vec4(sphere.transform * localSpacePt);
+	normal = glm::normalize(glm::vec3(sphere.invTranspose * localSpacePt));
 	return glm::vec3(worldSpacePt);
-
-	//normal = glm::normalize(glm::vec3(sphere.invTranspose * localSpacePt));
 }
 
 
@@ -133,19 +131,25 @@ bool SameHemisphere(const glm::vec3 &w, const glm::vec3 &wp)
 	return w.z * wp.z > 0;
 }
 
-//__host__ __device__ 
-//glm::vec3 Refract(const glm::vec3 &wi, const glm::vec3 &normal, float eta)
-//{
-//	//Compute cos theta using Snell's law
-//	float cosThetaI = glm::dot(normal, wi);
-//	float sin2ThetaI = std::max(float(0), float(1 - cosThetaI * cosThetaI));
-//	float sin2ThetaT = eta * eta * sin2ThetaI;
-//
-//	//Handle total internal reflection for transmission
-//	if (sin2ThetaT >= 1)	return glm::vec3(0.0f);
-//	float cosThetaT = std::sqrt(1 - sin2ThetaT);
-//	return eta * -wi + (eta * cosThetaI - cosThetaT) * normal;
-//}
+__host__ __device__ 
+bool Refract(const glm::vec3 &wi, const glm::vec3 &normal, float eta, glm::vec3 &wt)
+{
+	//Compute cos theta using Snell's law
+	float cosThetaI = glm::dot(normal, wi);
+	float sin2ThetaI = std::max(float(0), float(1 - cosThetaI * cosThetaI));
+	float sin2ThetaT = eta * eta * sin2ThetaI;
+
+	//Handle total internal reflection for transmission
+	if (sin2ThetaT >= 1)	return false;
+	float cosThetaT = std::sqrt(1 - sin2ThetaT);
+	wt = eta * -wi + (eta * cosThetaI - cosThetaT) * normal;
+	return true;
+}
+
+glm::vec3 FaceForward(const glm::vec3 &n, const glm::vec3 &v)
+{
+	return (glm::dot(n, v) < 0.f) ? -n : n;
+}
 
 //FRESNEL 
 //__host__ __device__
@@ -154,7 +158,7 @@ bool SameHemisphere(const glm::vec3 &w, const glm::vec3 &wp)
 //	float clampedCTI = glm::clamp(cosThetaI, -1.0f, 1.0f);
 //
 //	//potentially swap indices of refraction
-//	float _etaI = etaI;     //without saving these private variables here, i got a "read only" error
+//	float _etaI = etaI;
 //	float _etaT = etaT;
 //	
 //	bool entering = clampedCTI > 0.0f;
@@ -248,51 +252,87 @@ void scatterRay(
 
 	glm::vec3 wo = pathSegment.ray.direction;
 	glm::vec3 wi = glm::vec3(0.0f);
-	glm::vec3 diffuseColor = glm::vec3(1.0f);
-	glm::vec3 specColor = glm::vec3(1.0f);
+	glm::vec3 totalColor = glm::vec3(1.0f);
 
-	//If specular material
-	if (glm::length(m.specular.color) > 0)
+
+	//If reflective
+	if (m.hasReflective > 0)
 	{
-		//If reflective
-		if (m.hasReflective > 0)
-		{
-			//Calculate wi
-			wi = glm::reflect(wo, normal);
-			specColor = m.specular.color;
-		}
-		//If refractive
-		else if (m.hasRefractive > 0)
-		{
-
-		}
-		//If both reflective and refractive
-		else
-		{
-
-		}
+		//Calculate wi
+		wi = glm::reflect(wo, normal);
+		totalColor *= m.specular.color;
 	}
-	
+
+	//If refractive
+	else if (m.hasRefractive > 0)
+	{
+		float etaA = 1.0f;
+		float etaB = m.indexOfRefraction;
+
+		//If cos theta is < 0, we're entering. Exiting if > 0
+
+		//bool entering = CosTheta(wo, normal) > 0.0f;
+		//float etaI = entering ? etaA : etaB;
+		//float etaT = entering ? etaB : etaA;
+		//float idxOfRefr = etaI / etaT;
+
+		////Schlick's approximation (https://en.wikipedia.org/wiki/Schlick's_approximation)
+		//float R0 = powf((etaI - etaT) / (etaI + etaT), 2.0f);
+		//float cos_theta = AbsDot(wo, normal);
+		//float R_theta = R0 + ((1 - R0) * powf(1.0f - cos_theta, 5.0f));
+
+		//thrust::uniform_real_distribution<float> u01(0, 1);
+		//if (R_theta < u01(rng))
+		//{
+		//	wi = glm::normalize(glm::refract(wo, normal, idxOfRefr));
+		//}
+		//else
+		//{
+		//	wi = glm::normalize(glm::reflect(wo, normal));
+		//}
+
+
+		bool entering = CosTheta(wo, normal) > 0.0f;
+		if (!entering)	etaB = 1.0f / etaB;
+		float R0 = powf((etaA - etaB) / (etaA + etaB), 2.0f);
+		float cos_theta = AbsDot(wo, normal);
+		float R_theta = R0 + ((1 - R0) * powf(1.0f - cos_theta, 5.0f));
+		thrust::uniform_real_distribution<float> u01(0, 1);
+		if (R_theta < u01(rng))		wi = glm::normalize(glm::refract(wo, normal, etaB));
+		else						wi = glm::normalize(glm::reflect(wo, normal));
+
+		totalColor *= m.specular.color;
+
+
+		//if (!Refract(wo, FaceForward(glm::vec3(0.0f, 0.0f, 1.0f), wo), idxOfRefr, wi))
+		//{
+		//	totalColor *= glm::vec3(0.0f);
+		//}
+		//totalColor *= m.specular.color;
+
+	}
+
+	//If both reflective and refractive
+	else if (m.hasReflective > 0 && m.hasRefractive > 0)
+	{
+
+	}
+
 	//If diffuse material
 	else
 	{
 		//Calculate wi
 		//Cosine sample the hemisphere and get a random direction 
 		wi = calculateRandomDirectionInHemisphere(normal, rng);
-		diffuseColor = m.color;
 	}
 
 	//Spawn a new ray
-	//glm::vec3 offset = normal * EPSILON;
-	//offset = (glm::dot(wi, normal) > 0) ? offset : -offset;
-	//pathSegment.ray.origin = intersect + offset;
-	//pathSegment.ray.direction = wi;
 	Ray newRay = spawnRay(intersect, normal, wi);
 	pathSegment.ray.origin = newRay.origin;
 	pathSegment.ray.direction = newRay.direction;
 
 	//TESTING
-	pathSegment.color *= diffuseColor * specColor;
+	pathSegment.color *= m.color * totalColor;
 }//end ScatterRay function
 
 
@@ -334,6 +374,33 @@ void scatterRay(
 //		//If refractive
 //		else if (m.hasRefractive > 0)
 //		{
+//			float etaA = 1.0f;
+//			float etaB = m.indexOfRefraction;
+//
+//			//If cos theta is < 0, we're entering. Exiting if > 0
+//			bool entering = CosTheta(pathSegment.ray.direction, normal) > 0.0f;
+//			float etaI = entering ? etaA : etaB;
+//			float etaT = entering ? etaB : etaA;
+//			float idxOfRefr = etaI / etaT;
+//
+//			//Schlick's approximation (https://en.wikipedia.org/wiki/Schlick's_approximation)
+//			float R0 = powf((etaI - etaT) / (etaI + etaT), 2.0f);
+//			float cos_theta = AbsDot(pathSegment.ray.direction, normal);
+//			float R_theta = R0 + ((1 - R0) * powf(1.0f - cos_theta, 5.0f));
+//
+//			thrust::uniform_real_distribution<float> u01(0, 1);
+//if (R_theta < u01(rng))
+//{
+//	wi = glm::normalize(glm::refract(pathSegment.ray.direction, normal, idxOfRefr));
+//}
+//else
+//{
+//	wi = glm::normalize(glm::reflect(pathSegment.ray.direction, normal));
+//}
+//
+//specColor = m.specular.color;
+//
+//			specPdf = 1.0f;
 //
 //		}
 //		//If both reflective and refractive
