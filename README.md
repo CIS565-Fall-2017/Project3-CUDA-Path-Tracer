@@ -111,7 +111,7 @@ CUDA Path Tracer
   
   * Error 3. Normalize the incoming light direction and surface normal wrongly when calculating the cosTheta between two direction.
   ![Normalize the incoming light direction and surface normal wrongly](/img/cornell.debug.transmissive.131samp.png)
-  <p align="center"><b>Insufficient Space Allocation for Stream Compaction</b></p>
+  <p align="center"><b>Normalize the incoming light direction and surface normal wrongly</b></p>
   In tranmissive material bsdf calculation, I needed to use Snell's Law to determine the refraction direction. The steps I took are taken referenced from University of Pennsylvania Spring 2017 CIS561 Advanced Computer Graphics Projects:
   
   Step1: Calculate the cosine angle between incoming light and surface normal
