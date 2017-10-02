@@ -63,9 +63,6 @@ Scene::Scene(string filename) {
 		accum_area += lights[i].SurfaceArea;
 		lights[i].selectedProb = accum_area / sum_area;
 	}
-
-	int pos = 1;
-
 }
 
 Scene::~Scene() {

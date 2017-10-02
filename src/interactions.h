@@ -3,16 +3,7 @@
 #include "intersections.h"
 
 
-// ----------------------------------------------------------------
-//----------------------- Toggle Here -----------------------------
-// ----------------------------------------------------------------
 
-// Uncomment to enable direct lighting
-//#define ENABLE_DIR_LIGHTING
-
-
-// ----------------------------------------------------------------
-// ----------------------------------------------------------------
 
 // CHECKITOUT
 /**
@@ -53,6 +44,83 @@ glm::vec3 calculateRandomDirectionInHemisphere(
         + sin(around) * over * perpendicularDirection2;
 }
 
+
+// Return hit_geom_index
+__host__ __device__ int intersectScene(
+	  const Ray& shadowFeelRay
+	, Geom * geoms
+	, Triangle * tris
+	, int geomSize
+#ifdef ENABLE_MESHWORLDBOUND
+	, Bounds3f * worldBounds
+#endif
+#ifdef ENABLE_BVH
+	, LinearBVHNode * nodes
+#endif
+) 
+{
+	float t = 0.f;
+	float t_min = FLT_MAX;
+	glm::vec2 tmp_uv;
+	glm::vec3 tmp_normal;
+	int hit_geom_index = -1;
+	bool outside;
+
+	for (int i = 0; i < geomSize; i++)
+	{
+		Geom & geom = geoms[i];
+
+		if (geom.type == CUBE)
+		{
+			t = boxIntersectionTest(geom, shadowFeelRay, tmp_uv, tmp_normal, outside);
+		}
+		else if (geom.type == SPHERE)
+		{
+			t = sphereIntersectionTest(geom, shadowFeelRay, tmp_uv, tmp_normal, outside);
+		}
+		// TODO: add more intersection tests here... triangle? metaball? CSG?
+		else if (geom.type == MESH)
+		{
+#ifdef ENABLE_MESHWORLDBOUND
+#ifdef ENABLE_BVH
+			ShadeableIntersection temp_isect;
+			temp_isect.t = FLT_MAX;
+			if (IntersectBVH(shadowFeelRay, &temp_isect, nodes, tris)) {
+				t = temp_isect.t;
+				tmp_uv = temp_isect.uv;
+				tmp_normal = temp_isect.surfaceNormal;
+			}
+			else {
+				t = -1.0f;
+			}
+#else
+			// Check geom related world bound first
+			float tmp_t;
+			if (worldBounds[geom.worldBoundIdx].Intersect(shadowFeelRay, &tmp_t)) {
+				t = meshIntersectionTest(geom, tris, shadowFeelRay, tmp_uv, tmp_normal, outside);
+			}
+			else {
+				t = -1.0f;
+			}
+#endif
+#else
+			// loop through all triangles in related mesh
+			t = meshIntersectionTest(geom, tris, shadowFeelRay, tmp_uv, tmp_normal, outside);
+#endif		
+		}
+		// Compute the minimum t from the intersection tests to determine what
+		// scene geometry object was hit first.
+		if (t > 0.0f && t_min > t)
+		{
+			t_min = t;
+			hit_geom_index = i;
+		}
+	}
+
+	return hit_geom_index;
+}
+
+
 /**
  * Scatter a ray with some probabilities according to the material properties.
  * For example, a diffuse surface scatters in a cosine-weighted hemisphere.
@@ -78,16 +146,17 @@ glm::vec3 calculateRandomDirectionInHemisphere(
  *
  * You may need to change the parameter list for your purposes!
  */
+
 __host__ __device__
 void scatterRay(
-		PathSegment & pathSegment,
+		PathSegment& pathSegment,
         glm::vec3 intersect,
         glm::vec3 normal,
         const Material &m,
         thrust::default_random_engine &rng
 #ifdef	ENABLE_DIR_LIGHTING
 		,const Light* lights
-		,const int& ligtsSize
+		,const int& lightSize
 		, Geom * geoms
 		, Triangle * tris
 		, int geomSize
@@ -115,6 +184,10 @@ void scatterRay(
 
 #ifndef ENABLE_DIR_LIGHTING
 		pathSegment.color *= m.specular.color; 
+#else
+#ifdef ENABLE_MIS_LIGHTING
+		pathSegment.color *= m.specular.color;
+#endif
 #endif
 	}
 
@@ -143,9 +216,12 @@ void scatterRay(
 		}
 
 #ifndef ENABLE_DIR_LIGHTING
-		pathSegment.color *= m.specular.color;  // divide the probability to counter the chance
+		pathSegment.color *= m.specular.color;  
+#else
+#ifdef ENABLE_MIS_LIGHTING
+		pathSegment.color *= m.specular.color;
 #endif
-
+#endif
 	}
 
 	// ------------------- Glass : Specular reflection & refraction-------------------
@@ -167,6 +243,10 @@ void scatterRay(
 			pathSegment.ray.origin = intersect;
 #ifndef ENABLE_DIR_LIGHTING
 			pathSegment.color *= (frenselCoefficient * m.specular.color / reflecProb); // divide the probability to counter the chance
+#else
+#ifdef ENABLE_MIS_LIGHTING
+			pathSegment.color *= (frenselCoefficient * m.specular.color / reflecProb); // divide the probability to counter the chance
+#endif
 #endif
 		}
 
@@ -191,6 +271,10 @@ void scatterRay(
 			}
 #ifndef ENABLE_DIR_LIGHTING
 			pathSegment.color *= ((1.f - frenselCoefficient) * m.specular.color / refractProb);  // divide the probability to counter the chance
+#else
+#ifdef ENABLE_MIS_LIGHTING
+			pathSegment.color *= ((1.f - frenselCoefficient) * m.specular.color / refractProb);  // divide the probability to counter the chance
+#endif
 #endif
 		}
 	}
@@ -198,11 +282,11 @@ void scatterRay(
 	// ------------------- Non-specular / Diffuse Part ---------------------
 	else 
 	{
-
 #ifdef ENABLE_DIR_LIGHTING
 		if (pathSegment.remainingBounces == 0) {
 			return;
 		}
+
 		// Select a light based on surface area
 		int selectLightIdx = 0;
 		while (true) {
@@ -214,81 +298,91 @@ void scatterRay(
 
 		// Sample a point on the light and get solid-angle related pdf
 		
-		float pdf = 0.f;
+		float pdf_direct = 0.f;
 		float random_x = u01(rng);
 		float random_y = u01(rng);
 		const Light& selectedLight = lights[selectLightIdx];
-		glm::vec3 pointOnLight = selectedLight.sample(random_x, random_y, &pdf);
+		glm::vec3 pointOnLight = selectedLight.sample(random_x, random_y, &pdf_direct);
 
 		float distanceSquared = glm::distance2(intersect, pointOnLight);
-		pdf *= distanceSquared / AbsDot(normal, glm::normalize(pointOnLight - intersect));
+		pdf_direct *= distanceSquared / AbsDot(normal, glm::normalize(pointOnLight - intersect));
+
+#ifndef ENABLE_MIS_LIGHTING
+		pdf_direct /= (float)lightSize;
+#endif
 
 		Ray shadowFeelRay;
 		shadowFeelRay.origin = intersect;
 		shadowFeelRay.direction = glm::normalize(pointOnLight - intersect);
 
-		// ----------------- Compute intersections -------------------
-		float t = 0.f;
-		float t_min = FLT_MAX;
-		glm::vec2 tmp_uv;
-		glm::vec3 tmp_normal;
-		int hit_geom_index = -1;
-		bool outside;
-		for (int i = 0; i < geomSize; i++)
-		{
-			Geom & geom = geoms[i];
-
-			if (geom.type == CUBE)
-			{
-				t = boxIntersectionTest(geom, shadowFeelRay, tmp_uv, tmp_normal, outside);
-			}
-			else if (geom.type == SPHERE)
-			{
-				t = sphereIntersectionTest(geom, shadowFeelRay, tmp_uv, tmp_normal, outside);
-			}
-			// TODO: add more intersection tests here... triangle? metaball? CSG?
-			else if (geom.type == MESH)
-			{
+#ifndef ENABLE_MIS_LIGHTING
+		if (intersectScene(shadowFeelRay, geoms, tris, geomSize
 #ifdef ENABLE_MESHWORLDBOUND
-#ifdef ENABLE_BVH
-				ShadeableIntersection temp_isect;
-				temp_isect.t = FLT_MAX;
-				if (IntersectBVH(shadowFeelRay, &temp_isect, nodes, tris)) {
-					t = temp_isect.t;
-					tmp_uv = temp_isect.uv;
-					tmp_normal = temp_isect.surfaceNormal;
-				}
-				else {
-					t = -1.0f;
-				}
-#else
-				// Check geom related world bound first
-				float tmp_t;
-				if (worldBounds[geom.worldBoundIdx].Intersect(shadowFeelRay, &tmp_t)) {
-					t = meshIntersectionTest(geom, tris, shadowFeelRay, tmp_uv, tmp_normal, outside);
-				}
-				else {
-					t = -1.0f;
-				}
+						   ,worldBounds
 #endif
-#else
-				// loop through all triangles in related mesh
-				t = meshIntersectionTest(geom, tris, shadowFeelRay, tmp_uv, tmp_normal, outside);
-#endif		
-			}
-			// Compute the minimum t from the intersection tests to determine what
-			// scene geometry object was hit first.
-			if (t > 0.0f && t_min > t)
-			{
-				t_min = t;
-				hit_geom_index = i;
-			}
-		}
-		// -------------------------------------------------------------------------------
+#ifdef ENABLE_BVH
+						   ,nodes
+#endif
+							) == selectedLight.geomIdx) {
 
-		if (hit_geom_index == selectedLight.geomIdx) {
-			pathSegment.color += (((m.color / PI) * selectedLight.emittance * AbsDot(normal, pathSegment.ray.direction) / pdf) / 2.f);
+			pathSegment.color += (((m.color / PI) * selectedLight.emittance * AbsDot(normal, shadowFeelRay.direction) / pdf_direct) / 2.f);
 		}
+#else
+
+		// ******************* MIS  START *************************
+		glm::vec3 throughputColor = pathSegment.ThroughputColor;
+		// ********** MIS Direct lighting part ********************
+		glm::vec3 OneLightColor(0.f);
+
+		float pdf_bsdf = 1.0f / PI;
+
+		// use power heuristic here 
+		float weigh_direct = (pdf_direct * pdf_direct) / (pdf_direct * pdf_direct + pdf_bsdf * pdf_bsdf);
+		float weigh_bsdf = 1.0f - weigh_direct;
+
+		if (intersectScene(shadowFeelRay, geoms, tris, geomSize
+#ifdef ENABLE_MESHWORLDBOUND
+						   , worldBounds
+#endif
+#ifdef ENABLE_BVH
+						   , nodes
+#endif
+						   ) == selectedLight.geomIdx) {
+			OneLightColor += ((m.color / PI) * selectedLight.emittance * AbsDot(normal, shadowFeelRay.direction) * weigh_direct / pdf_direct);
+			//OneLightColor += (((m.color / PI) * selectedLight.emittance * AbsDot(normal, shadowFeelRay.direction) / pdf_direct));
+		}
+
+		// ********** MIS Direct bsdf part ********************
+		newDirection = calculateRandomDirectionInHemisphere(normal, rng);
+		//shadowFeelRay.origin = intersect;
+		shadowFeelRay.direction = glm::normalize(newDirection);
+
+		if (intersectScene(shadowFeelRay, geoms, tris, geomSize
+#ifdef ENABLE_MESHWORLDBOUND
+						   , worldBounds
+#endif
+#ifdef ENABLE_BVH
+						   , nodes
+#endif
+						  ) == selectedLight.geomIdx) {
+			OneLightColor += ((m.color / PI) * selectedLight.emittance * AbsDot(normal, shadowFeelRay.direction) * weigh_bsdf / pdf_bsdf);
+		}
+
+		/*throughputColor *= ((float)lightSize * OneLightColor);
+		pathSegment.ThroughputColor = throughputColor;*/
+		pathSegment.color += throughputColor * ((float)lightSize * OneLightColor);
+
+		// ************** MIS set new ray ******************
+		newDirection = calculateRandomDirectionInHemisphere(normal, rng);
+		pathSegment.ray.direction = glm::normalize(newDirection);
+		pathSegment.ray.origin = intersect;
+		pathSegment.ThroughputColor = throughputColor * m.color * AbsDot(normal, glm::normalize(newDirection));
+
+		// ************** MIS  END *************************
+
+
+#endif
+
 
 
 #else

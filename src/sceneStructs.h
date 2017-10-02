@@ -8,6 +8,22 @@
 
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
 
+// ----------------------------------------------------------------
+//----------------------- Toggle Here -----------------------------
+// ----------------------------------------------------------------
+
+// Uncomment to enable direct lighting
+//#define ENABLE_DIR_LIGHTING
+
+
+// MIS is NOT finished yet Just ignore it!!!!!!!
+// Should uncomment dir lighting first to uncomment mis
+//#define ENABLE_MIS_LIGHTING
+
+
+// ----------------------------------------------------------------
+// ----------------------------------------------------------------
+
 enum GeomType {
     SPHERE,
     CUBE,
@@ -108,6 +124,9 @@ struct RenderState {
 struct PathSegment {
 	Ray ray;
 	glm::vec3 color;
+#ifdef ENABLE_MIS_LIGHTING
+	glm::vec3 ThroughputColor;
+#endif
 	int pixelIndex;
 	int remainingBounces;
 };

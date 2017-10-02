@@ -301,14 +301,17 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		float y_offset = u01(rng);
 #endif 
 
-
-		PathSegment & segment = pathSegments[index];
+		PathSegment& segment = pathSegments[index];
 		glm::vec3 pos = cam.position;
 		glm::vec3 dir;
 
 #ifdef ENABLE_DIR_LIGHTING
-		// Direct lighting or MIS need to accumulated color
 		segment.color = glm::vec3(0.0f, 0.0f, 0.0f);
+
+#ifdef ENABLE_MIS_LIGHTING
+		segment.ThroughputColor = glm::vec3(1.0f, 1.0f, 1.0f);
+#endif 
+
 #else
 		segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 #endif 
@@ -551,6 +554,8 @@ __global__ void shadeMaterialNaive(
 		ShadeableIntersection intersection = shadeableIntersections[idx];
 		PathSegment& pathSegment = pathSegments[idx];
 
+		if (pathSegment.remainingBounces == 0) return;
+
 		if (intersection.t > 0.0f) { // if the intersection exists...
 									 // Set up the RNG
 									 // LOOK: this is how you use thrust's RNG! Please look at
@@ -592,7 +597,7 @@ __global__ void shadeMaterialNaive(
 						  , nodes
 #endif
 #endif				
-				);
+						);
 
 				pathSegment.remainingBounces--;
 			}	
@@ -961,7 +966,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 #endif
 #endif 
 		);
-		
+		checkCUDAError("shadeMaterial error");
+
 		
 		// actually, for the last path tracing, there is not need to 
 		// conduct stream compaction, because there is no following path-tracing
@@ -985,13 +991,14 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 
 	glm::vec3 ambientColor = glm::vec3(0.1f, 0.1f, 0.1f);
 
-	//finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
 	finalGather << <numBlocksPixels, blockSize1d >> >(pixelcount, dev_image, dev_paths, ambientColor);
+	checkCUDAError("final Gather");
 
     ///////////////////////////////////////////////////////////////////////////
 
     // Send results to OpenGL buffer for rendering
     sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image);
+	checkCUDAError("sendImageToPBO");
 
     // Retrieve image from GPU
     cudaMemcpy(hst_scene->state.image.data(), dev_image,

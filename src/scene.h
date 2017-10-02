@@ -24,6 +24,7 @@ using namespace std;
 // So far, since our scene is relatively simple
 // all mesh(S) / all triangles -> one BVH tree
 #define ENABLE_BVH
+
 // ----------------------------------------------------------------
 // ----------------------------------------------------------------
 
