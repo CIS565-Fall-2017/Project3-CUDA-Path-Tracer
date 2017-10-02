@@ -26,6 +26,8 @@ int iteration;
 int width;
 int height;
 
+cudaEvent_t start, stop;
+
 //-------------------------------
 //-------------MAIN--------------
 //-------------------------------
@@ -68,6 +70,9 @@ int main(int argc, char** argv) {
 
     // Initialize CUDA and GL components
     init();
+
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
 
     // GLFW main loop
     mainLoop();
@@ -125,6 +130,7 @@ void runCuda() {
     if (iteration == 0) {
         pathtraceFree();
         pathtraceInit(scene);
+        cudaEventRecord(start);
     }
 
     if (iteration < renderState->iterations) {
@@ -139,8 +145,15 @@ void runCuda() {
         // unmap buffer object
         cudaGLUnmapBufferObject(pbo);
     } else {
+        cudaEventRecord(stop);
+
         saveImage();
         pathtraceFree();
+
+        cudaEventSynchronize(stop);
+        float elapsed;
+        cudaEventElapsedTime(&elapsed, start, stop);
+        printf("CUDA timer: %.3f ms\n", elapsed);
         cudaDeviceReset();
         exit(EXIT_SUCCESS);
     }
@@ -150,7 +163,12 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
     if (action == GLFW_PRESS) {
       switch (key) {
       case GLFW_KEY_ESCAPE:
+        cudaEventRecord(stop);
         saveImage();
+        cudaEventSynchronize(stop);
+        float elapsed;
+        cudaEventElapsedTime(&elapsed, start, stop);
+        printf("CUDA timer: %.3f ms\n", elapsed);
         glfwSetWindowShouldClose(window, GL_TRUE);
         break;
       case GLFW_KEY_S:

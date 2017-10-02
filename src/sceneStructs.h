@@ -10,6 +10,23 @@
 enum GeomType {
     SPHERE,
     CUBE,
+    MESH,
+};
+
+struct Vertex {
+  glm::vec3 pos;
+  glm::vec3 nor;
+};
+
+struct Triangle {
+  Vertex verts[3];
+};
+
+struct Mesh {
+  int triangleStartIdx;
+  int triangleEndIdx;
+  glm::mat4 bboxTransform;
+  glm::mat4 bboxInverseTransform;
 };
 
 struct Ray {
@@ -26,6 +43,7 @@ struct Geom {
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+    int meshIdx;
 };
 
 struct Material {
@@ -72,5 +90,6 @@ struct PathSegment {
 struct ShadeableIntersection {
   float t;
   glm::vec3 surfaceNormal;
+  glm::vec3 uv;
   int materialId;
 };

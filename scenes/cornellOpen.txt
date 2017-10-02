@@ -140,14 +140,6 @@ SCALE       3 3 3
 OBJECT 7
 cube
 material 5
-TRANS       0 5 11
+TRANS       90 5 11
 ROTAT       0 0 0
 SCALE       30 30 .01
-
-// Sphere
-OBJECT 8
-sphere
-material 6
-TRANS       1 2 3
-ROTAT       45 45 0
-SCALE       3 3 3

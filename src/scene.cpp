@@ -3,6 +3,10 @@
 #include <cstring>
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtx/string_cast.hpp>
+#include <glm/gtx/transform.hpp>
+
+#define TINYOBJLOADER_IMPLEMENTATION
+#include "tiny_obj_loader.h"
 
 Scene::Scene(string filename) {
     cout << "Reading scene from " << filename << " ..." << endl;
@@ -51,6 +55,9 @@ int Scene::loadGeom(string objectid) {
             } else if (strcmp(line.c_str(), "cube") == 0) {
                 cout << "Creating new cube..." << endl;
                 newGeom.type = CUBE;
+            } else if (strcmp(line.c_str(), "mesh") == 0) {
+                cout << "Creating new mesh..." << endl;
+                newGeom.type = MESH;
             }
         }
 
@@ -61,6 +68,8 @@ int Scene::loadGeom(string objectid) {
             newGeom.materialid = atoi(tokens[1].c_str());
             cout << "Connecting Geom " << objectid << " to Material " << newGeom.materialid << "..." << endl;
         }
+
+        std::string filename = ""; 
 
         //load transformations
         utilityCore::safeGetline(fp_in, line);
@@ -74,6 +83,8 @@ int Scene::loadGeom(string objectid) {
                 newGeom.rotation = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
             } else if (strcmp(tokens[0].c_str(), "SCALE") == 0) {
                 newGeom.scale = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+            } else if (strcmp(tokens[0].c_str(), "FILENAME") == 0) {
+                filename = tokens[1];
             }
 
             utilityCore::safeGetline(fp_in, line);
@@ -83,6 +94,100 @@ int Scene::loadGeom(string objectid) {
                 newGeom.translation, newGeom.rotation, newGeom.scale);
         newGeom.inverseTransform = glm::inverse(newGeom.transform);
         newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
+
+        // handle meshes differently
+        if (newGeom.type == MESH) {
+          if (filename.empty()) {
+            cout << "Please specify filename (.OBJ) for mesh" << endl;
+            return -1;
+          }
+          Mesh newMesh;
+          newGeom.meshIdx = meshes.size();
+
+          newMesh.triangleStartIdx = tris.size();
+          tinyobj::attrib_t attrib;
+          std::vector<tinyobj::shape_t> shapes;
+          std::vector<tinyobj::material_t> materials;
+          std::string err;
+
+          bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, filename.c_str());
+
+          if (!err.empty()) { // `err` may contain warning message.
+            std::cerr << err << std::endl;
+          }
+
+          if (!ret) {
+            return -1;
+          }
+
+          bool hasNormals = attrib.normals.size() > 0;
+
+          glm::vec3 bboxMax = glm::vec3(-FLT_MAX);
+          glm::vec3 bboxMin = glm::vec3(FLT_MAX);
+
+          // Loop over shapes
+          for (size_t s = 0; s < shapes.size(); s++) {
+            // Loop over faces(polygon)
+            size_t index_offset = 0;
+            for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
+              int fv = shapes[s].mesh.num_face_vertices[f];
+              if (fv > 3) {
+                cout << "not tri!" << endl;
+                return -1;
+              }
+
+              Triangle newTri;
+              // assume 3 verts per face?
+              // Loop over vertices in the face.
+              for (size_t v = 0; v < 3; v++) {
+                // access to vertex
+                tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
+                
+                newTri.verts[v].pos.x = attrib.vertices[3 * idx.vertex_index + 0];
+                newTri.verts[v].pos.y = attrib.vertices[3 * idx.vertex_index + 1];
+                newTri.verts[v].pos.z = attrib.vertices[3 * idx.vertex_index + 2];
+                if (hasNormals) {
+                  newTri.verts[v].nor.x = attrib.normals[3 * idx.normal_index + 0];
+                  newTri.verts[v].nor.y = attrib.normals[3 * idx.normal_index + 1];
+                  newTri.verts[v].nor.z = attrib.normals[3 * idx.normal_index + 2];
+                }
+              }
+              index_offset += fv;
+
+              if (!hasNormals) {
+                // compute normal manually
+                glm::vec3 normal = glm::normalize(glm::cross(newTri.verts[1].pos - newTri.verts[0].pos, newTri.verts[2].pos - newTri.verts[1].pos));
+                newTri.verts[0].nor = normal;
+                newTri.verts[1].nor = normal;
+                newTri.verts[2].nor = normal;
+              }
+
+              for (int v = 0; v < 3; v++) {
+                newTri.verts[v].pos = glm::vec3(newGeom.transform * glm::vec4(newTri.verts[v].pos, 1.0f));
+                newTri.verts[v].nor = glm::normalize(glm::vec3(newGeom.invTranspose * glm::vec4(newTri.verts[v].nor, 0.0f)));
+                bboxMax = glm::max(bboxMax, newTri.verts[v].pos);
+                bboxMin = glm::min(bboxMin, newTri.verts[v].pos);
+              }
+
+              tris.push_back(newTri);
+
+            }
+          }
+
+          // compute bbox transforms
+          // go from cube with dimensions in [-0.5, 0.5] to bbox
+          glm::vec3 bboxDims = bboxMax - bboxMin;
+          glm::vec3 bboxCenter = (bboxMax + bboxMin) * 0.5f;
+
+          newMesh.bboxTransform = glm::translate(bboxCenter) * glm::scale(bboxDims);
+          newMesh.bboxInverseTransform = glm::inverse(newMesh.bboxTransform);
+
+          newMesh.triangleEndIdx = tris.size();
+          cout << "start: " << newMesh.triangleStartIdx << endl;
+          cout << "end:   " << newMesh.triangleEndIdx << endl;
+          meshes.push_back(newMesh);
+
+        }
 
         geoms.push_back(newGeom);
         return 1;
