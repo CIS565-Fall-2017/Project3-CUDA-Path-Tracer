@@ -27,7 +27,7 @@
 #define DOF	0
 #define PATHCOMPACTION	0
 #define NAIVEDIRECTLIGHTING	0		// This implementation performs DL on the first Bounce and continues to the next iteration
-#define LASTBOUNCEDIRECTLIGHTING  0
+#define LASTBOUNCEDIRECTLIGHTING  1
 #define CACHEFIRSTBOUNCE 0
 #define SORTPATHSBYMATERIAL 0
 // Toggle for performance analysis

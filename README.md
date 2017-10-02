@@ -6,7 +6,7 @@ CUDA Path Tracer
 * (TODO) YOUR NAME HERE
 * Tested on: Windows 10, i7-7700HQ @ 2.80GHz 16GB, GTX 1050 4096MB (Personal Computer)
 
-![PATH TRACER IMAGE](img/)
+![PATH TRACER IMAGE](img/Renders/FRONT.png)
 
 ## Features
 
@@ -20,33 +20,33 @@ CUDA Path Tracer
     * First Bounce Direct Light based on PBRT
     * Last Bounce Direct Lighting
 * Performance Optimizations
-    * Stream Compacytion for Path Termination and Compaction
+    * Stream Compaction for Path Termination and Compaction
     * Material Compaction
     * First Bounce Caching
 
 ## Depth Of Field
 
-![DOF](img/renders/DOF)
+![DOF](img/Renders/DOF.png)
 
 ## Diffuse Sphere
 
-![DIFFUSE](img)
+![DIFFUSE](img/Renders/DIFFUSE.png)
 
 ## Specular
 
-![SPECULAR](img)
+![SPECULAR](img/Renders/SPECULAR.png)
 
 ## Transmissive
 
-![TRANSMISSIVE](img)
+![TRANSMISSIVE](img/Renders/TRANSMISSIVE.png)
 
 ## Scene With Direct Lighting (PBRT)
 
-![PBRT_DL](img)
+![PBRT_DL](img/Renders/DLPBRT.png)
 
 ## Last Bounce Direct Lighting
 
-![LB_DL](img)
+![LB_DL](img/Renders/DLLB.png)
 
 Performance Analysis
 ===================
@@ -57,7 +57,7 @@ Performance Analysis
 
 * In this test I ran 10 iterations each of depth 8 with the naive path tracer and with the caching for first bounce turned on. 
 
-    ![N_VS_CFB](img/charts/N_VS_CFB.png) ![N_VS_CFB](img/tables/N_VS_CFB.png)
+    ![N_VS_CFB](img/charts/N_VS_CFB.png) ![N_VS_CFB](img/tables/N_VS_CFB.PNG)
 
 * For enhancing performance we know that for each iteration we generate the same rays from the camera and they intersect the same geometry in the scene. If we store this first bounce intersection information and in the subsequent iteration start from the first bounce bypassing the camera ray generation and intersetion phase we can gain a performance inctrrease. 
 
@@ -69,7 +69,7 @@ Performance Analysis
 
     ![N_VS_PC](img/charts/N_VS_PC.png) 
     
-    ![N_VS_PC](img/tables/N_VS_PC.png)
+    ![N_VS_PC](img/tables/N_VS_PC.PNG)
 
 * The GPU runs kernels with 32 threads scheduled together called a `warp`. All threads in a warp start together and end together. our primary goal is to reduce branching in the code so as to reduce branches in a single warp there by efficiently dispaching the warps as fast as possible.
 
@@ -84,7 +84,7 @@ Performance Analysis
 * In this test I run the naive and the material coalescing version of the path tracer each for one iteration over a depth of 10.
 
     ![N_VS_MC](img/charts/N_VS_MC.png)
-    ![N_VS-MC](img/tables/N_VS_MC.png)
+    ![N_VS-MC](img/tables/N_VS_MC.PNG)
 
 * Similar to the path compaction stratergy we can gain a performance benefit by reducing the indirections that are caused due to the paths intersecting different materials are jumbled together.
 
@@ -96,7 +96,7 @@ Performance Analysis
 
 * In this test I run 10 itertaions one with naive and the other with last bounce direct lighting turned on.
 
-    ![N_VS_LBDL](img/charts/N_VS_LBDL.png) ![N_VS_LBDL](img/tables/N_VS_LBDL.png)
+    ![N_VS_LBDL](img/charts/N_VS_LBDL.png) ![N_VS_LBDL](img/tables/N_VS_LBDL.PNG)
 
 * As a hack way to include direct lighting in the scene for those rays that have reached their trace depths instead of terminating the ray we perform one last step to get the direct lighting effect. We calculate the direct lighting for those rays by spanning a light feeler ray in the direction of a randomly chosen light in the scene and caluclate the final color of the pixel by mixing in the intensity and the color of the light. This way we can gain the effect of direct lighting without any extra effort.  
  
@@ -107,11 +107,17 @@ Performance Analysis
 * In this test I run 10 iterations of naive path tracer and one with all the above optimizations turned on
 
     ![N_VS_ALL](img/charts/N_VS_ALL.png) 
-    ![N_VS_ALL](img/tables/N_VS_ALL.png)
+    ![N_VS_ALL](img/tables/N_VS_ALL.PNG)
 
 * This was a purely comparision test of how the different optimization scheme can complement each other to reduce the speed.
 
 * Clearly they are not as fast but the peculiar thing to nite is the initial performance gain due to the first bounce caching and the subsequent lack of gain even though the paths will compact and reduce in size which should technically reduce the load over time but the graph has nearly flatlined which is picular and will need furthure investigation to understand.
 
+## BLOOPERS
 
+* It looks like motion blur! But actually it a problem with my random number generator :)
+
+    ![b1](img/Bloopers/MB.png)    
+
+-----------------------
 * Thank you for viewing my path tracer if you see any mistakes, typos or incorrect assessment I would love to hear from you!
