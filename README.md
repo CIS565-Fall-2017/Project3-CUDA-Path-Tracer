@@ -7,7 +7,7 @@ CUDA Path Tracer
 * Tested on: Windows 10, i7-6700HQ @ 2.60GHz 15.89GB (Personal labtop)
 
 
-![](img/thumbnail.png)
+![](img/Chronormu.png)
 
 - Scene file : Chromie.txt
 - Resolution : 1024 x 1024
@@ -60,21 +60,32 @@ When the user sets the material's REFL value to 1.0, mirrored material is render
 
 
 
-# Path continuation/termination
+# Path continuation/termination and Cache for the first bounce intersections
 
 When the user sets USE_STREAM_COMPACTION (in pathtrace.cu) value to 1, it makes decision whether pathes keep going or terminating with using scan.
-
-
-
-# Cache the first bounce intersections
-
 When the user sets USE_CACHE_PATH (in pathtrace.cu) value to 1, it makes cache the first bounce intersections.
 
 ![](img/sc.png)
 
-| # of Elements  | Normal	    | Cache	   | Stream Compaction    | Cache + Stream Compaction   |
-| -------------  | :------- | :------: | :------: | -------: |
-| ms	 | 13583 | 13511 | 8203 | 8034 |
+|               |  Normal  |  Cache   | Stream Compaction    | Cache + Stream Compaction   |
+| ------------  | :------- | :------: | :------: | -------: |
+| ms	        |    13583 |    13511 |     8203 |     8034 |
+
+
+![](img/scd.png)
+
+| Max depth      |   8   |   9   |   10   |   11   |   12   |   13   |   14   |   15   |   16   |   17   |   18   |
+| -------------  | :---- | :---: | :----: | :----: | :----: | :----: | :----: | :----: | :----: | :----: | -----: |
+| Normal	     | 6215 | 6881 | 7449 | 8119 | 8706 | 9376 | 9966 | 10562 | 11215 | 11926 | 12466 |
+| Stream Compaction | 5415 | 5610 | 5873 | 6294 | 6657 | 6869 | 7343 | 7126 | 7370 | 7656 | 7800 |
+
+
+![](img/open.png)
+
+| Max depth      |   8   |   9   |   10   |   11   |   12   |   13   |   14   |   15   |   16   |   17   |   18   |
+| -------------  | :---- | :---: | :----: | :----: | :----: | :----: | :----: | :----: | :----: | :----: | -----: |
+| Opened	     | 5415 | 5610 | 5873 | 6294 | 6657 | 6869 | 7343 | 7126 | 7370 | 7656 | 7800 |
+| Closed     	 | 8849 | 9464 | 10860 | 11367 | 11826 | 13037 | 12886 | 12876 | 14148 | 15049 | 14543 |
 
 - Test scene file : Cornell.txt
 - Resolution : 800 x800
@@ -92,7 +103,7 @@ When the user sets USE_RADIX_SORT (in pathtrace.cu) value to 1, it makes rays/pa
 
 ![](img/mat.png)
 
-| # of Elements  | Normal	    | Cache	   | Stream Compaction    | Cache + Stream Compaction   | Material Sorting |
+|   | Normal	    | Cache	   | Stream Compaction    | Cache + Stream Compaction   | Material Sorting |
 | -------------  | :------- | :------: | :------: | :------: | -------: |
 | ms	 | 13583 | 13511 | 8203 | 8034 | 309396 |
 
@@ -170,7 +181,7 @@ When the user sets SRT_SPP (in pathtrace.cu) value to a digit over 1, Anti-alias
 
 ![](img/anti.png)
 
-| # of Elements  | Normal	    | Cache	   |
+|  | Normal	    | x16	   |
 | -------------  | :------- | -------: | 
 | ms	 | 8203 | 93476 |
 
@@ -202,7 +213,7 @@ And its bounding box is created automatically.
 
 ![](img/BV.png)
 
-| # of Elements  | Normal	    | Bounding volume |
+|   | Normal	    | Bounding volume |
 | -------------  | :------- | -------: | 
 | ms	 | 55097 | 42722 |
 

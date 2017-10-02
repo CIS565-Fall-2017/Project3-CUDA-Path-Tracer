@@ -18,7 +18,7 @@
 #include "interactions.h"
 
 #define SRT_SPP 1 // Anti- Aliasing - Square root of Sample per Pixel
-#define USE_CACHE_PATH 0
+#define USE_CACHE_PATH 1
 #define USE_STREAM_COMPACTION 1
 #define USE_RADIX_SORT 0
 #define USE_BVIC 1 // bounding volume intersection culling

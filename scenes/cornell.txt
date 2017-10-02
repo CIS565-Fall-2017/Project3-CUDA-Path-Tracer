@@ -86,7 +86,7 @@ ROUGHNESSMAP
 CAMERA
 RES         800 800
 FOVY        45
-ITERATIONS  100
+ITERATIONS  5000
 DEPTH       20
 FILE        cornell
 EYE         0.0 5 10.5
