@@ -3,7 +3,7 @@ CUDA Path Tracer
 
 **University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 3**
 
-* (TODO) YOUR NAME HERE
+* Rudraksha Shah
 * Tested on: Windows 10, i7-7700HQ @ 2.80GHz 16GB, GTX 1050 4096MB (Personal Computer)
 
 ![PATH TRACER IMAGE](img/Renders/FRONT.png)
