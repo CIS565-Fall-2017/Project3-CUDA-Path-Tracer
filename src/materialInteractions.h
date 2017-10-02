@@ -128,25 +128,7 @@ __host__ __device__ Color3f sample_f(const Material &m, thrust::default_random_e
 		//if subsurface stuff cant happen calculate color, pdf, and wi using another bxDF
 		Vector3f sample = Vector3f(u01(rng), u01(rng), u01(rng));
 		possibleToSubSurface = sample_f_Subsurface(woW, sample, m, geom, pathsegment, geoms,
-			normal, intersection.intersectPoint, sampledColor, wiW, pdf);
-		//possibleToSubSurface = sample_f_Subsurface_second(woW, sample, m, geom, pathsegment, geoms, numGeoms,
-		//										normal, intersection, sampledColor, wiW, pdf, rng);
-
-		//printf("\nwi: %f %f %f", wiW.x, wiW.y , wiW.z);
-		//printf("\npdf: %f", pdf);
-		//printf("\nsampledColor: %f %f %f", sampledColor.x, sampledColor.y, sampledColor.z);
-
-		//if (!possibleToSubSurface)
-		//{
-		//	//change bxDF to another bxDF;
-
-		//	bxdf = BSDF_LAMBERT;
-		//	//sampledColor = Color3f(0.0f);
-		//}
-		//else
-		//{
-		//	wiW = glm::normalize(calculateRandomDirectionInHemisphere(normal, rng));
-		//}
+										normal, intersection.intersectPoint, sampledColor, wiW, pdf);
 	}
 
 	if (bxdf == BSDF_SPECULAR_BRDF && !possibleToSubSurface)
