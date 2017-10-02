@@ -109,19 +109,26 @@ ROTAT       0 0 0
 SCALE       .01 10 10
 
 // Sphere
-//OBJECT 6
-//sphere
-//material 3
-//TRANS       -1 4 -1
-//ROTAT       0 0 0
-//SCALE       3 3 3
-
-
-// Sphere
 OBJECT 6
-mesh
-..\scenes\cow.obj
+sphere
 material 4
 TRANS       -1 4 -1
 ROTAT       0 0 0
-SCALE     .8 .8 .8
+SCALE       3 3 3
+
+// Sphere
+//OBJECT 7
+//cube
+//material 1
+//TRANS       1 3 1
+//ROTAT       0 0 0
+//SCALE       1 1 1
+
+// Sphere
+//OBJECT 6
+//mesh
+//..\scenes\dodecahedron.obj
+//material 4
+//TRANS       -1 4 -1
+//ROTAT       0 0 0
+//SCALE     3 3 3

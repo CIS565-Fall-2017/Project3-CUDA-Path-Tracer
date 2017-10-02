@@ -18,9 +18,9 @@
 
 #define ERRORCHECK 1
 
-#define MATERIALS 1
+#define MATERIALS 0
 
-#define CACHEBOUNCE 0
+#define CACHEBOUNCE 1
 
 #define DOF 0
 
@@ -551,7 +551,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	#if CACHEBOUNCE
 		if (depth == 0)  {
 			// use cached bounce
-			// printf("first bounce: %d\n", num_paths);
+			 //printf("first bounce: %d\n", num_paths);
 			cudaMemcpy(dev_paths, dev_first_paths, sizeof(PathSegment)* pixelcount, cudaMemcpyDeviceToDevice);
 			depth++;
 			dev_path_end = dev_paths + pixelcount;
