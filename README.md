@@ -24,31 +24,31 @@ This project implements a CUDA-based path tracer capable of rendering globally-i
 
 # Samples - 5000 iterations
 
-Open scene with core features and anti-aliasing
+Open scene with anti-aliasing
 
 ![](img/samples/open-basic.PNG)
 
-Closed scene with core features and anti-aliasing (only one light)
+Closed scene with anti-aliasing (only one light)
 
 ![](img/samples/closed-basic.PNG)
 
-Open scene with depth-of-field, stream compaction and anti-aliasing
+Open scene with depth-of-field
 
 ![](img/samples/dof2.PNG)
 
 ![](img/samples/dof.PNG)
 
-Open scene with motion blur, stream compaction and anti-aliasing
+Open scene with motion blur
 
 ![](img/samples/motion2.PNG)
 
 ![](img/samples/motion.PNG)
 
-Open scene with refraction, core features and anti-aliasing
+Open scene with refraction
 
 ![](img/samples/refract2.png)
 
-Open scene with reflection, core features and anti-aliasing
+Open scene with reflection
 
 ![](img/samples/refract.PNG)
 
