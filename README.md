@@ -9,23 +9,41 @@ CUDA Path Tracer
 
 *A GPU Path Tracer featuring diffuse and specular materials, depth of field, antialiasing, and more.*
 
+|![The path tracer in action.](img/pathTracer.gif)|![A long-running example.](img/longrunningSceneDOF_3000.PNG)|
+|:-:|:-:|
+|An example of the path tracer iterating in action.|An example render after many iterations.|
+
 This path tracer is optimized to parallelize by ray, effectively tracking the number of bounces, direction, and color of each pixel. Rays terminate when they encounter a light, leave the scene, or after some number of bounces based on scene depth.
 
-*An example of how scene depth, the number of times a ray bounces in a scene, can impact the resulting rendering: 500 iterations, no optimizations or additional rendering features.*
+*An example of how scene depth, the number of times a ray bounces in a scene, can impact the resulting rendering: 500 iterations, no optimizations, antialiasing, direct lighting, and depth of field enabled.*
 
-|![16](img/depth16_500_control.png)|![32](img/depth32_500_control.png)|![64](img/depth64_500_control.png)|![128](img/depth128_500_control.png)|
+|![16](img/depth16_500_control.PNG)|![32](img/depth32_500_control.PNG)|![64](img/depth64_500_control.PNG)|![128](img/depth128_500_control.PNG)|
 |:-:|:-:|:-:|:-:|
 |Depth of 16|Depth of 32|Depth of 64|Depth of 128|
 
 ### Antialiasing
 
+|![No antialiasing.](img/noAnti_noDOF_300.PNG)|![With antialiasing.](img/new500.PNG)|
+|:-:|:-:|
+|No antialiasing.|With antialiasing.|
+
 This solution featurs antialiasing, implemented by randomly offsetting the camera's ray when fired into the scene. This random offset, across many iterations, introduces a smoothing effect by preventing us from always sampling the same exact pixels. It helps blend in subpixel-level details.
 
 ### Depth of Field
 
+|![Slight depth of field.](img/goodDOF_500.PNG)|![Extreme depth of field.](img/DOF_1500.PNG)|
+|:-:|:-:|
+|Slight depth of field.|Extreme depth of field.|
+
 Depth of field is simulated in this solution by implementing the equations from page 374 of [*Physically Based Rendering: From Theory to Implementation*](https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=2&cad=rja&uact=8&ved=0ahUKEwjk7M_D_dDWAhVK6iYKHY7GDZcQFggxMAE&url=http%3A%2F%2Fwww.pbrt.org%2F&usg=AOvVaw3WU9JqwMa58xo6ZrCzuf90). With this implementation, we simulate the effects of a curved lens on our camera. The focal distance and lens radius influence how the scene is perceived: some objects are blurred based on their distance from the camera.
 
 ### Direct Lighting
+
+*In this graph, of the test scene after 500 iterations with a depth of eight, one can notice that the direct lighting brings in a very subtle enhancing of shadows. This is particularly visible in the corners of the room.*
+
+|![Direct lighting disabled.](img/noDirect500.PNG)|![Direct lighting enabled.](img/directLight500.PNG)|
+|:-:|:-:|
+|Direct lighting disabled.|Direct lighting enabled.|
 
 Direct lighting in this project is implemented by detecting when a ray has terminated on a surface which is not a light, and then randomly selecting a light-emitting piece of geometry in the scene to fire one last bounce towards. If the ray is able to reach the light, it is brightened. Otherwise, the ray is set to black. Over many iterations, the random shadows and bright spots are smoothed out into interesting illumination features. This simple change has the effect of subtly emphasizing surfaces which are directly illuminated by lights.
 
@@ -52,3 +70,11 @@ The following graph considers these two optimizations across various depths. It 
 <p align="center">
   <img src="img/chartDepthOptimization.png"/>
 </p>
+
+Here we unfortunately don't see any real practical gains from our theoretical optimizations. The trials featuring the contiguous rearrangement are typically taking longer and tracking one another, while the first hit cache tracks the control. Towards the end, it falls off, as we would expect. Interestingly, at the extreme depths the first hit cache does seem to improve the otherwise poor performance of memory rearrangement alone.
+
+### Bloopers
+
+|![Too bright!](img/render1.PNG)|![Bad light!](img/render2.PNG)|![Still bright!](img/render3.PNG)|![Just right!](img/render4.PNG)|
+|:-:|:-:|:-:|:-:|
+|Too bright!|Bad light!|Still bright!|Just right!|
