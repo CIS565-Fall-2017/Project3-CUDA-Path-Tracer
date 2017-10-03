@@ -43,7 +43,7 @@ _Lambertian Reference for the image below_
 
 _Subtle Subsurface Scattering with a scattering coefficient of 300; Entire coloration is due to the subsurface BxDF_
 
-![](img/Subsurface/cornell.cornell.sphereInfrontOfLightLambertianReference.5000samp.png)
+![](img/Subsurface/cornell.sphereInfrontOfLightLambertianReference.5000samp.png)
 
 _Lambertian Reference for the image below_
 
