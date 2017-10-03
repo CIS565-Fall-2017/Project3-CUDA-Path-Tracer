@@ -31,23 +31,23 @@ Due to its accuracy and unbiased nature, path tracing is used to generate refere
 
 ### SubSurface Scattering
 
-![](img/Subsurface/cornell.SpecularSubsurface.HazyVioletSphere.20000samp.png)
+![](img/FancyRenders/Subsurface/cornell.SpecularSubsurface.HazyVioletSphere.20000samp.png)
 
 _Subsurface BxDF and Specular BRDF on a violet sphere_
 
-![](img/Subsurface/cornell.Lambertreferenceforsubsurface2248samp.png)
+![](img/FancyRenders/Subsurface/cornell.Lambertreferenceforsubsurface2248samp.png)
 
 _Lambertian Reference for the image below_
 
-![](img/Subsurface/cornell.subsurface.scatteringcoeff300.thetamin160.5000samp.png)
+![](img/FancyRenders/Subsurface/cornell.subsurface.scatteringcoeff300.thetamin160.5000samp.png)
 
 _Subtle Subsurface Scattering with a scattering coefficient of 300; Entire coloration is due to the subsurface BxDF_
 
-![](img/Subsurface/cornell.sphereInfrontOfLightLambertianReference.5000samp.png)
+![](img/FancyRenders/Subsurface/cornell.sphereInfrontOfLightLambertianReference.5000samp.png)
 
 _Lambertian Reference for the image below_
 
-![](img/Subsurface/cornell.sphereInfrontOfLight.subsurface.scatteringcoeff300.thetamin160.5000samp.png)
+![](img/FancyRenders/Subsurface/cornell.sphereInfrontOfLight.subsurface.scatteringcoeff300.thetamin160.5000samp.png)
 
 Another example of Subsurface Scattering with a scattering coefficient of 300; Entire coloration is due to the subsurface BxDF_
 
