@@ -10,7 +10,7 @@ EMITTANCE   5
 
 // Diffuse white
 MATERIAL 1
-RGB         .9 .75 .45
+RGB         .65 .65 .85
 SPECEX      0
 SPECRGB     0 0 0
 REFL        0
@@ -44,10 +44,11 @@ MATERIAL 4
 RGB         .65 .25 .8
 SPECEX      0
 SPECRGB     .98 .98 .98
-REFL        1
+REFL        0
 REFR        0
 REFRIOR     0
 EMITTANCE   0
+TRANSLUCENCE 1.0
 
 // Origami ORANGE
 MATERIAL 5
@@ -74,7 +75,7 @@ EMITTANCE   8
 MATERIAL 7
 RGB         .775 .85 .1
 SPECEX      0
-SPECRGB     0 0 0
+SPECRGB     .98 .98 .98
 REFL        0
 REFR        0
 REFRIOR     0
@@ -83,12 +84,12 @@ TRANSLUCENCE 1.0
 
 // Origami BLUE
 MATERIAL 8
-RGB         .25 .75 .85
+RGB         .05 .6 .95
 SPECEX      0
-SPECRGB     .9 .95 1.15
-REFL        1
-REFR        1
-REFRIOR     1.33
+SPECRGB     .98 .98 .98
+REFL        0
+REFR        0
+REFRIOR     0
 EMITTANCE   0
 
 // Origami RED
@@ -114,24 +115,24 @@ EMITTANCE   8
 
 // Film
 FILM
-GAMMA			2.2
-FILTER_RADIUS	2.15
+GAMMA			1.5
+FILTER_RADIUS	2.35
 FILTER_ALPHA	3.0
 VIGNETTE_START	0.35
 VIGNETTE_END	1.0
 
 // Camera
 CAMERA
-RES         1440 612
-FOVY        15
+RES         900 406
+FOVY        45
 ITERATIONS  2000
-DEPTH       10
-FILE        buddha
-APERTURE    .5
-DISTANCE	14.5
-BOKEH       ../scenes/resources/bokeh/star_alt.png
-EYE         0 0 14.5
-LOOKAT      0 3 -2
+DEPTH       5
+FILE        cornell
+APERTURE    .15
+DISTANCE	5.2
+BOKEH       ../scenes/resources/bokeh/chromatic.png
+EYE         0 2 7.5
+LOOKAT      0 4 0
 UP          0 1 0
 
 // Ceiling light
@@ -161,11 +162,11 @@ SCALE       .01 20 20
 // Mesh
 OBJECT 3
 mesh
-FILE 		../scenes/resources/meshes/buddha.obj
-material 4
+FILE 		../scenes/resources/meshes/eurydice.obj
+material 8
 TRANS       0 0 0
-ROTAT       0 179.5 0
-SCALE       6 6 6
+ROTAT       0 0 0
+SCALE       1 1 1
 
 // FLOOR
 OBJECT 4

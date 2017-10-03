@@ -501,7 +501,7 @@ __global__ void shadeKernel(int iter, int num_paths, ShadeableIntersection * sha
 				outRay.direction = wi;
 
 				pathSegments[idx].ray = outRay;
-				pathSegments[idx].color = resultColor;
+				pathSegments[idx].color = glm::max(resultColor, glm::vec3(0.f));
 				pathSegments[idx].remainingBounces = remainingBounces - 1;
 			}
 		}
