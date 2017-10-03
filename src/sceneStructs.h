@@ -10,6 +10,8 @@
 enum GeomType {
     SPHERE,
     CUBE,
+	TRIANGLE,
+	MESH, // not used for intersections, only loading
 };
 
 struct Ray {
@@ -26,7 +28,15 @@ struct Geom {
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+	glm::vec3 points[3];
 };
+
+// the world space min and max of a geometry
+struct AxisBoundingBox {
+	glm::vec3 minXYZ;
+	glm::vec3 maxXYZ;
+};
+
 
 struct Material {
     glm::vec3 color;
@@ -49,6 +59,8 @@ struct Camera {
     glm::vec3 right;
     glm::vec2 fov;
     glm::vec2 pixelLength;
+	float lensRadius;
+	float focusDistance;
 };
 
 struct RenderState {

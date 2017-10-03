@@ -76,4 +76,34 @@ void scatterRay(
     // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
+	glm::vec3 lambertRayIn = calculateRandomDirectionInHemisphere(normal, rng);
+	float probLambert = 1.0;
+	pathSegment.ray.origin = intersect;
+	pathSegment.ray.direction = lambertRayIn;
+	pathSegment.color *= m.color / probLambert;
+}
+
+
+__host__ __device__
+glm::vec3 cosineSample(
+	glm::vec3 normal, thrust::default_random_engine &rng) {
+	thrust::uniform_real_distribution<float> u01(0, 1);
+	
+	float u1 = u01(rng);
+	float u2 = u01(rng);
+	float r = sqrt(u1);
+	float t = 2 * PI * u2;
+
+	float x = r * cos(t);
+	float y = r * sin(t);
+	float z = sqrt(max(0.0f, 1 - u1));
+
+	glm::vec3 tsn = glm::normalize(glm::vec3(x, y, z));
+	glm::vec3 tan = (1.0f - abs(glm::dot(normal, glm::vec3(0, 0, 1))) < 0.001f) ? glm::cross(normal, glm::vec3(1, 0, 0)) :
+		glm::cross(normal, glm::vec3(0, 0, 1));
+	tan = glm::normalize(tan);
+	glm::vec3 bit = glm::normalize(glm::cross(tan, normal));
+	glm::mat3 tbn = (glm::mat3(tan, bit, normal));
+
+	return glm::normalize(tbn * tsn);
 }

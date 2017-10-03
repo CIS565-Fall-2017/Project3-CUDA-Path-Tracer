@@ -148,6 +148,8 @@ void runCuda() {
 
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
     if (action == GLFW_PRESS) {
+		renderState = &scene->state;
+		Camera &cam = renderState->camera;
       switch (key) {
       case GLFW_KEY_ESCAPE:
         saveImage();
@@ -158,10 +160,23 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
         break;
       case GLFW_KEY_SPACE:
         camchanged = true;
-        renderState = &scene->state;
-        Camera &cam = renderState->camera;
         cam.lookAt = ogLookAt;
         break;
+	  case GLFW_KEY_I:
+		  camchanged = true;
+		  cam.focusDistance = cam.focusDistance >= 0.5f ? cam.focusDistance - 0.25f : 0.25f;	  
+		  break;
+	  case GLFW_KEY_O:
+		  camchanged = true;
+		  cam.focusDistance += 0.25f;
+		  break;
+	  case GLFW_KEY_J:
+		  camchanged = true;
+		  cam.lensRadius = cam.lensRadius > 0.1f ? cam.lensRadius - 0.1f : 0.0f;
+		  break;
+	  case GLFW_KEY_K:
+		  camchanged = true;
+		  cam.lensRadius += 0.1f;
       }
     }
 }

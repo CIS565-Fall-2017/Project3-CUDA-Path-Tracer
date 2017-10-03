@@ -89,6 +89,114 @@ __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
     return -1;
 }
 
+// Moller-Trumbore algorithm, wikipedia
+__host__ __device__ float triangleIntersectionTest(
+	Geom tri, Ray r, glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) 
+{
+	const float EPS = 0.00001f;
+	Ray q;
+	q.origin = multiplyMV(tri.inverseTransform, glm::vec4(r.origin, 1.0f));
+	q.direction = glm::normalize(multiplyMV(tri.inverseTransform, glm::vec4(r.direction, 0.0f)));
+	
+	glm::vec3 v0 = tri.points[0];
+	glm::vec3 v1 = tri.points[1];
+	glm::vec3 v2 = tri.points[2];
+	glm::vec3 e1 = v1 - v0;
+	glm::vec3 e2 = v2 - v0;
+	glm::vec3 h = glm::cross(q.direction, e2);
+	float a = glm::dot(e1, h);
+	if (a > -EPS && a < EPS) return -1;
+
+	a = 1.0f/a;
+	glm::vec3 s = q.origin - v0;
+	float u = a * glm::dot(s, h);
+	if (u < 0 || u > 1) return -1;
+
+	glm::vec3 o = glm::cross(s, e1);
+	float v = a * glm::dot(q.direction, o);
+	if (v < 0 || (u + v) > 1) return -1;
+
+	float t = a * glm::dot(e2, o);
+	if (t < EPS) return -1;
+
+	glm::vec3 norm = glm::normalize(glm::cross(e1, e2));
+
+	outside = glm::dot(norm, q.direction) < 0.0f;
+	intersectionPoint = multiplyMV(tri.transform, glm::vec4(getPointOnRay(q, t), 1.0f));
+	normal = glm::normalize(multiplyMV(tri.transform, glm::vec4(norm, 0.0f)));
+
+	return glm::length(r.origin - intersectionPoint);
+	
+	/*
+	glm::vec3 baryPos;
+	glm::intersectRayTriangle(q.origin, q.direction, tri.points[0], tri.points[1], tri.points[2], baryPos);
+
+	float t = baryPos.z;
+	intersectionPoint = multiplyMV(tri.transform, glm::vec4(getPointOnRay(q, t), 1.0f));
+	normal = glm::normalize(multiplyMV(tri.transform, glm::vec4(glm::cross(tri.points[2] - tri.points[0], tri.points[1] - tri.points[0]), 0.0f)));
+	outside = glm::dot(normal, r.direction) < 0;
+
+	return t;*/
+}
+
+__host__ __device__ float aabbIntersectionTest(
+	glm::vec3 translation,
+	glm::vec3 halfSideLength,
+	Ray r,
+	glm::vec3 &intersectionPoint, 
+	glm::vec3 &normal, bool &outside) 
+{
+	Ray q;
+	// inverse
+	halfSideLength *= 2.0f;
+	halfSideLength = glm::vec3(1.0f) / halfSideLength;
+	glm::mat4 aabbTransform = glm::mat4(
+		glm::vec4(halfSideLength.x, 0, 0, 0),
+		glm::vec4(0, halfSideLength.y, 0, 0),
+		glm::vec4(0, 0, halfSideLength.z, 0),
+		glm::vec4(-halfSideLength.x * translation.x, -halfSideLength.y * translation.y, -halfSideLength.z * translation.z, 1)
+		);
+	q.origin = multiplyMV(aabbTransform, glm::vec4(r.origin, 1.0f));
+	q.direction = glm::normalize(multiplyMV(aabbTransform, glm::vec4(r.direction, 0.0f)));
+
+	float tmin = -1e38f;
+	float tmax = 1e38f;
+	glm::vec3 tmin_n;
+	glm::vec3 tmax_n;
+	for (int xyz = 0; xyz < 3; ++xyz) {
+		float qdxyz = q.direction[xyz];
+		/*if (glm::abs(qdxyz) > 0.00001f)*/ {
+			float t1 = (-0.5f - q.origin[xyz]) / qdxyz;
+			float t2 = (+0.5f - q.origin[xyz]) / qdxyz;
+			float ta = glm::min(t1, t2);
+			float tb = glm::max(t1, t2);
+			glm::vec3 n;
+			n[xyz] = t2 < t1 ? +1 : -1;
+			if (ta > 0 && ta > tmin) {
+				tmin = ta;
+				tmin_n = n;
+			}
+			if (tb < tmax) {
+				tmax = tb;
+				tmax_n = n;
+			}
+		}
+	}
+
+	if (tmax >= tmin && tmax > 0) {
+		outside = true;
+		if (tmin <= 0) {
+			tmin = tmax;
+			tmin_n = tmax_n;
+			outside = false;
+		}
+		intersectionPoint = multiplyMV(aabbTransform, glm::vec4(getPointOnRay(q, tmin), 1.0f));
+		normal = glm::normalize(multiplyMV(aabbTransform, glm::vec4(tmin_n, 0.0f)));
+		return glm::length(r.origin - intersectionPoint);
+	}
+	return -1;
+}
+
 // CHECKITOUT
 /**
  * Test intersection between a ray and a transformed sphere. Untransformed,
@@ -137,7 +245,7 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
     intersectionPoint = multiplyMV(sphere.transform, glm::vec4(objspaceIntersection, 1.f));
     normal = glm::normalize(multiplyMV(sphere.invTranspose, glm::vec4(objspaceIntersection, 0.f)));
     if (!outside) {
-        normal = -normal;
+        //normal = -normal; // never do this
     }
 
     return glm::length(r.origin - intersectionPoint);
