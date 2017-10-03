@@ -81,7 +81,23 @@ Notice how the dark colors are crushed and the highlights are emphasized, and th
 
 A straightforward optimization of the current implementation would be adding LUT textures to reduce the amount of arithmetic operations done on this kernel.
 
+### Textures
+
+Texture mapping, normal mapping and a procedural mandelbrot texture are supported. A flat array of textures is uploaded to the GPU, and materials have a texture descriptor with texture offset, width&height, repeat factor, etc. In the future I plan to implement bilinear filtering and possibly some mip-mapping strategy to improve memory access. 
+
+![](img/textures.png)
 
 
+![](img/mandelbrot.png)
 
+## Conclusion and future work
+This small project is but an excercise in physically based rendering in a GPU with interactive framerates, and it is very much incomplete. A non exhaustive list of improvements would be:
+
+* Sample cache with offset rotation to prevent correlation
+* Multiple importance sampling strategies for reducing variance
+* Cook Torrance BRDF with GGX distribution
+* Kd-tree construction in the GPU
+* Scene kd-tree (should be very straightforward)
+* Denoising filters to reduce variance by using sample information such as normal, material type, etc.
+* Temporal reprojection for reusing data when the camera moves
 
