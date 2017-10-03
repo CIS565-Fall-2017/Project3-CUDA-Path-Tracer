@@ -8,11 +8,25 @@ CUDA Path Tracer
 
 ### Overview
 
+![](./img/2mariosConverged.PNG)
+
 This project simulates the path of light through the Monte-Carlo Path tracing algorithm on the GPU. From the camera, rays are traced to objects and reflected off of them in random directions determined by their respective materials. This will naturally create global illumination effects, where objects will be lit by light from other objects. Since these paths are random, it is necessary to iterate repeatedly and average the iterations. Eventually the image will converge. While there are ways to make this happen faster by sampling directions (Multiple Importance Sampling), this project does not focus on sampling. Instead I tried to create an acceleration structure to ease finding intersections.
 
 ### Implemented Features
 
 ## Depth of Field and Jitter Anti-Aliasing
+
+Images:
+1. A scene with anti aliasing. 
+2. The same scene with DOF focusing on the sphere in the foreground.
+3. The same scene, same focus distance and a wide lens.
+4. The same scene with DOF focusing on the refractice sphere in the background.
+
+![](./img/DOF3.PNG)
+![](./img/DOF1.PNG)
+![](./img/DOF2.PNG)
+![](./img/DOF4.PNG)
+
 
 The path tracer finds light as it travels through the viewport to the eye. As such, rays intuitively originate from pixels in world space. But rays that originate from the same place every iteration will find the exact same intersection point every time. This creates an aliasing effect, where rays from pixel centers will always hit an object when in reality that object should only occupy a portion of that pixel, resulting in binary hit-or-miss colors. We want pixels to blend object and background colors proportionally without jagged edges.
 
@@ -30,11 +44,17 @@ I added baseline materials for Lambert (perfectly rough), reflective (perfect mi
 
 ## Mesh Loading
 
+![](./img/tris.PNG)
+
 I added mesh loading and triangle intersections to the tracer. The loader is the TinyObjLoader by Syoyo Fujita, used under the MIT License. Triangle intersections are Moller Trumbore algorithm. Both are linked under resources.
 
 But loading meshes with 5000-10000 triangles is already taxing for computations. So I tried to make an acceleration structure to speed this up:
 
 ## Octree
+
+![](./img/manyspheres.PNG)
+
+Above: cornell box containing 10,000 randomly-generated spheres
 
 # Introduction
 
@@ -84,7 +104,7 @@ The analogous GPU structure is this:
 
 The good thing about this sort of approach is it also applies very easily to other spatial structures. In fact, the translation process might barely be changed at all.
 
-I then have a kernel to traverse this tree iteratively for intersections. I manage the stack as two arrays: one with the remaining number of children to check and one without 
+I then have a kernel to traverse this tree iteratively for intersections. I manage the stack as two arrays: one with the remaining number of children to check and one without. A major benefit of this traversal kernel is it would be almost unchanged for other spacial data structures.
 
 # Results / Performance
 
@@ -97,10 +117,11 @@ I traced scenes from the default camera until 50 iterations.
 | 5200 | 176s | 138s | 21.6% |
 | 10400 | 399s | 256s | 35.8% |
 
-A 35% improvement may seem good at first, but each iteration still took over 5 seconds. This result means I will probably try to implement a different structure later.
+A 36% improvement may seem good at first, but each iteration still took over 5 seconds. This is still not acceptable for a scene of this size. This result means I will probably try to implement a different structure later. On the other hand, naive traversal would cause my computer to hang with each iteration. So at least it doesn't do that.
 
 Of course, the default camera has the most complex geometry all on display. From positions far away or outside the scene's box, the octree is extremely fast compared to the naive scene traversal. But a simple bounding volume will do the same thing for far positions.
 
+For the larger scene, performance did not vary strongly with maximum tree depth. 9 was ideal, 11 and 7 both took ten seconds longer. The major bottleneck is in the largest nodes, described in the next section.
 
 # Shortcomings
 
@@ -115,9 +136,19 @@ I made the design decision to allocate geometries to the smallest enclosing node
 
 ### Resources
 
-https://github.com/syoyo/tinyobjloader
-https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm
+* https://github.com/syoyo/tinyobjloader 
+* https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm
 
+
+# Bloopers:
+
+A test with refraction on the mario mesh. Hard edged normals caused a lot of odd highlights, and a lot of the paths bounced around and terminated inside the mesh (black)
+
+![](./img/manyspheres.PNG)
+
+An octree optimization test. I wanted to traverse only nodes with closer intersections than my current best intersection. This was the result.
+
+![](./img/bug.PNG)
 
 
 

@@ -64,7 +64,7 @@ UP          0 1 0
 OBJECT 0
 cube
 material 0
-TRANS       0 10 0
+TRANS       -3 10 0
 ROTAT       0 0 0
 SCALE       3 .3 3
 
@@ -115,3 +115,27 @@ material 4
 TRANS       -1 4 -1
 ROTAT       0 0 0
 SCALE       3 3 3
+
+// Sphere
+OBJECT 7
+sphere
+material 3
+TRANS       -2 2 2
+ROTAT       0 0 0
+SCALE       2 2 2
+
+// Sphere
+OBJECT 8
+cube
+material 0
+TRANS       3 10 0
+ROTAT       0 0 0
+SCALE       3 .3 3
+
+// Sphere
+OBJECT 9
+sphere
+material 2
+TRANS       2 5 3
+ROTAT       0 0 0
+SCALE       2 2 2
