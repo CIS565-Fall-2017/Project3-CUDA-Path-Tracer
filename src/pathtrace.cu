@@ -17,7 +17,7 @@
 #define ERRORCHECK 1
 #define SORTING 0
 #define CACHING 1 //turn off caching for antialiasing
-#define COMPACTION 0 //0 - no compaction, 1 - stream compaction using thrust, 2 - stream compaction using stream_compaction package.
+#define COMPACTION 1 //0 - no compaction, 1 - stream compaction using thrust, 2 - stream compaction using stream_compaction package.
 #define DOF 0
 #define TIMER 1
 
@@ -314,7 +314,7 @@ __global__ void shadeFakeMaterial(
 			// like what you would expect from shading in a rasterizer like OpenGL.
 			// TODO: replace this! you should be able to start with basically a one-liner
 			else {
-				scatterRay(pathSegments[idx], intersection.intersect, intersection.surfaceNormal, material, rng);
+				scatterRay(pathSegments[idx], pathSegments[idx].ray.origin + pathSegments[idx].ray.direction * intersection.t, intersection.surfaceNormal, material, rng);
 			}
 			// If there was no intersection, color the ray black.
 			// Lots of renderers use 4 channel color, RGBA, where A = alpha, often
@@ -482,7 +482,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		num_paths = endpath - dev_paths;
 		iterationComplete = num_paths <= 0;
 #endif
-#if EFFICIENT_COMPACTION == 1
+#if COMPACTION == 2
 		num_paths = StreamCompaction::Efficient::compact(num_paths, buffer, dev_paths);
 		iterationComplete = num_paths <= 0;
 #endif
