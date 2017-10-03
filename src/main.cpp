@@ -1,6 +1,7 @@
 #include "main.h"
 #include "preview.h"
 #include <cstring>
+#include <chrono>
 
 static std::string startTimeString;
 
@@ -25,6 +26,9 @@ int iteration;
 
 int width;
 int height;
+
+
+std::chrono::time_point<std::chrono::system_clock> startTime;
 
 //-------------------------------
 //-------------MAIN--------------
@@ -69,28 +73,36 @@ int main(int argc, char** argv) {
     // Initialize CUDA and GL components
     init();
 
+	startTime = std::chrono::system_clock::now();
+
+	initializeDeviceTextures(scene);
+	initializeMeshes(scene);
+
     // GLFW main loop
     mainLoop();
 
     return 0;
 }
 
-void saveImage() {
+void saveImage() 
+{
+	float seconds = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - startTime).count() / 1000.f;
     float samples = iteration;
+
     // output image file
-    image img(width, height);
+    Texture img(width, height);
 
     for (int x = 0; x < width; x++) {
         for (int y = 0; y < height; y++) {
             int index = x + (y * width);
-            glm::vec3 pix = renderState->image[index];
-            img.setPixel(width - 1 - x, y, glm::vec3(pix) / samples);
+            glm::vec4 pix = renderState->image[index];
+            img.setPixel(width - 1 - x, y, glm::vec3(pix.x, pix.y, pix.z));
         }
     }
 
     std::string filename = renderState->imageName;
     std::ostringstream ss;
-    ss << filename << "." << startTimeString << "." << samples << "samp";
+    ss << filename << "." << startTimeString << "." << samples << "spp." << seconds << "s";
     filename = ss.str();
 
     // CHECKITOUT

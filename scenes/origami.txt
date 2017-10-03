@@ -1,0 +1,360 @@
+// Emissive material (light)
+MATERIAL 0
+RGB         1 1 1
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   5
+
+// Diffuse white
+MATERIAL 1
+RGB         .65 .65 .85
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+
+// Diffuse red
+MATERIAL 2
+RGB         .85 .35 .35
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+TEX_DIFFUSE ../scenes/resources/textures/checker_g.png
+
+// Floor Reflective
+MATERIAL 3
+RGB         .9 .9 .9
+SPECEX      0
+SPECRGB     .75 .75 .75
+REFL        1
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+
+// Origami Material 1
+MATERIAL 4
+RGB         .65 .25 .8
+SPECEX      0
+SPECRGB     .98 .98 .98
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+TRANSLUCENCE 1.0
+
+// Origami ORANGE
+MATERIAL 5
+RGB         .9 .6 .2
+SPECEX      0
+SPECRGB     .98 .98 .98
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+TRANSLUCENCE 1.0
+
+// Emissive Alternative
+MATERIAL 6
+RGB         .85 .7 .25
+SPECEX      0
+SPECRGB     .98 .98 .98
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   8
+
+// Origami LIME
+MATERIAL 7
+RGB         .775 .85 .1
+SPECEX      0
+SPECRGB     .98 .98 .98
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+TRANSLUCENCE 1.0
+
+// Origami BLUE
+MATERIAL 8
+RGB         .05 .6 .95
+SPECEX      0
+SPECRGB     .98 .98 .98
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+TRANSLUCENCE 1.0
+
+// Origami RED
+MATERIAL 9
+RGB         .9 .3 .15
+SPECEX      0
+SPECRGB     .98 .98 .98
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+TRANSLUCENCE 1.0
+
+// Back light
+MATERIAL 10
+RGB         1 1 1
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   22
+
+// Film
+FILM
+GAMMA			2.2
+FILTER_RADIUS	2.0
+FILTER_ALPHA	3.5
+VIGNETTE_START	0.35
+VIGNETTE_END	1.0
+
+// Camera
+CAMERA
+RES         1440 612
+FOVY        10
+ITERATIONS  2000
+DEPTH       5
+FILE        cornell
+APERTURE    .85
+DISTANCE	24.2
+BOKEH       ../scenes/resources/bokeh/chromatic.png
+EYE         15 -10 18.5
+LOOKAT      .5 3.5 -2
+UP          0 1 0
+
+// Ceiling light
+OBJECT 0
+cube
+material 10
+TRANS       0 15 -5
+ROTAT       -35 0 0
+SCALE       15 .3 5
+
+// Left wall
+OBJECT 1
+cube
+material 0
+TRANS       -45 10 0
+ROTAT       0 0 0
+SCALE       .01 20 20
+
+// Right wall
+OBJECT 2
+cube
+material 6
+TRANS       45 10 0
+ROTAT       0 0 0
+SCALE       .01 20 20
+
+// Mesh
+OBJECT 3
+mesh
+FILE 		../scenes/resources/meshes/origami.obj
+material 7
+TRANS       0 0 0
+ROTAT       0 0 0
+SCALE       3 3 3
+
+// FLOOR
+OBJECT 4
+mesh
+FILE 		../scenes/resources/meshes/floor.obj
+material 1
+TRANS       0 -.5 0
+ROTAT       0 0 0
+SCALE       7 3 3
+
+// Origami
+OBJECT 5
+mesh
+FILE 		../scenes/resources/meshes/origami.obj
+material 5
+TRANS       -3 0 .5
+ROTAT       0 -32.6 0
+SCALE       3.1 2.8 2.9
+
+// Origami
+OBJECT 6
+mesh
+FILE 		../scenes/resources/meshes/origami_alt.obj
+material 5
+TRANS       -5.0 0 0
+ROTAT       0 12.5 0
+SCALE       3 3 3
+
+// Origami
+OBJECT 7
+mesh
+FILE 		../scenes/resources/meshes/origami.obj
+material 9
+TRANS       -9.0 0 .5
+ROTAT       0 25 0
+SCALE       3 3 3
+
+
+// Origami
+OBJECT 8
+mesh
+FILE 		../scenes/resources/meshes/origami_alt.obj
+material 8
+TRANS       4.0 0 .5
+ROTAT       0 -5 0
+SCALE       3 3 3
+
+
+// Origami
+OBJECT 9
+mesh
+FILE 		../scenes/resources/meshes/origami.obj
+material 8
+TRANS       8.0 0 0
+ROTAT       0 4.0 0
+SCALE       3 3 3
+
+// Base
+OBJECT 10
+cube
+material 3
+TRANS       0 0 -7.0
+ROTAT       0 0 0
+SCALE       40 .75 20
+
+// Origami
+OBJECT 11
+mesh
+FILE 		../scenes/resources/meshes/origami_alt.obj
+material 7
+TRANS       0 0 -4.3
+ROTAT       0 23.0 0
+SCALE       3.25 3.5 3.25
+
+// Origami
+OBJECT 12
+mesh
+FILE 		../scenes/resources/meshes/origami.obj
+material 8
+TRANS       4.1 0 -4.6
+ROTAT       0 -27.5 0
+SCALE       3.35 3.35 3.45
+
+// Origami
+OBJECT 13
+mesh
+FILE 		../scenes/resources/meshes/origami.obj
+material 8
+TRANS       -4 0 -4
+ROTAT       0 15 0
+SCALE       3 3 3
+
+// Origami
+OBJECT 14
+mesh
+FILE 		../scenes/resources/meshes/origami_alt.obj
+material 5
+TRANS       -7 0 -4
+ROTAT       0 15 0
+SCALE       3 3 3
+
+// Origami
+OBJECT 15
+mesh
+FILE 		../scenes/resources/meshes/origami_alt.obj
+material 7
+TRANS       -.5 0 -11.2
+ROTAT       0 15 0
+SCALE       3.5 3.5 3.5
+
+// Origami
+OBJECT 16
+mesh
+FILE 		../scenes/resources/meshes/origami.obj
+material 5
+TRANS       -5.5 0 -10
+ROTAT       0 15 0
+SCALE       3 3 3
+
+// Origami
+OBJECT 17
+mesh
+FILE 		../scenes/resources/meshes/origami.obj
+material 5
+TRANS       -9.5 0 -10
+ROTAT       0 15 0
+SCALE       3.5 3.5 3.5
+
+// Origami
+OBJECT 18
+mesh
+FILE 		../scenes/resources/meshes/origami.obj
+material 5
+TRANS       -3.5 0 -9
+ROTAT       0 7.7 0
+SCALE       3 3 3
+
+// Origami
+OBJECT 19
+mesh
+FILE 		../scenes/resources/meshes/origami_alt.obj
+material 4
+TRANS       8 0 -4.0
+ROTAT       0 -25 0
+SCALE       3.1 3.5 3
+
+// Origami
+OBJECT 20
+mesh
+FILE 		../scenes/resources/meshes/origami_alt.obj
+material 9
+TRANS       -13.5 0 0
+ROTAT       0 -17.5 0
+SCALE       -2.6 3 3.3
+
+// Origami
+OBJECT 21
+mesh
+FILE 		../scenes/resources/meshes/origami.obj
+material 7
+TRANS       13.15 0 -4.4
+ROTAT       0 -23.3 0
+SCALE       3.1 3.2 3
+
+// Origami
+OBJECT 22
+mesh
+FILE 		../scenes/resources/meshes/origami.obj
+material 7
+TRANS       5.5 0 -8.2
+ROTAT       0 12 0
+SCALE       3.05 3.2 3.1
+
+// Origami
+OBJECT 23
+mesh
+FILE 		../scenes/resources/meshes/origami_alt.obj
+material 4
+TRANS       12.5 0 -4
+ROTAT       0 35 0
+SCALE       -3.3 3 3
+
+// Origami
+OBJECT 24
+mesh
+FILE 		../scenes/resources/meshes/origami.obj
+material 9
+TRANS       -12.5 0 -4.2
+ROTAT       0 -23.0 0
+SCALE       3.2 3 3.1
