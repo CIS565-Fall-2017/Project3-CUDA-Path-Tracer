@@ -45,11 +45,11 @@ _Subtle Subsurface Scattering with a scattering coefficient of 300; Entire color
 
 ![](img/FancyRenders/Subsurface/cornell.sphereInfrontOfLightLambertianReference.5000samp.png)
 
-_Lambertian Reference for the image below_
+_Object infront of the only light source in the scene. Lambertian Reference for the image below_
 
 ![](img/FancyRenders/Subsurface/cornell.sphereInfrontOfLight.subsurface.scatteringcoeff300.thetamin160.5000samp.png)
 
-Another example of Subsurface Scattering with a scattering coefficient of 300; Entire coloration is due to the subsurface BxDF_
+_Object infront of the only light source in the scene. Another example of Subsurface Scattering with a scattering coefficient of 300; Entire coloration is due to the subsurface BxDF_
 
 The subsurface BxDF I implemented adds about 3ms of overall compute time per sample for an 800x800 pixel image. 
 The subsurface BxDF I designed looks more interesting with other BxDFs such as specular because it becomes more subtle. If used as the only BxDF in the material it will default to a opaque lambertian with controllable intensity for the subsurface coloration.
