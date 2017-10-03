@@ -31,33 +31,45 @@ Middle: Reflection =1;
 Right Ball: Refraction = 1;
 
 **Ideal Diffuse surfaces&Perfectly specular-reflective surfaces**
-Ideal Diffuse surfaces:
+* Ideal Diffuse surfaces:
+
 ![](https://github.com/XinCastle/Project3-CUDA-Path-Tracer/blob/master/img/Cornell%20beginning.png)
-Perfectly specular-reflective surfaces:
+
+* Perfectly specular-reflective surfaces:
+
 ![](https://github.com/XinCastle/Project3-CUDA-Path-Tracer/blob/master/img/cornell%20specular.png)
 
 **DOF result scene**
-Back wall is set to be a mirror; closed box; rendered using 3534 iteration
+* Back wall is set to be a mirror; closed box; rendered using 3534 iteration
+
 ![](https://github.com/XinCastle/Project3-CUDA-Path-Tracer/blob/master/img/DOF.png)
 
 **DOF comparison**
-Original
+* Original
+
 ![](https://github.com/XinCastle/Project3-CUDA-Path-Tracer/blob/master/img/Fresnel%20Refraction%20comparison.png)
-with DOF
+
+* with DOF
+
 ![](https://github.com/XinCastle/Project3-CUDA-Path-Tracer/blob/master/img/cornell%20with%20DOF.png)
 
 
 **Motion Blur Result Comparison**
-The sphere on the left is moving during rendering
-original
+* The sphere on the left is moving during rendering
+* original
 ![](https://github.com/XinCastle/Project3-CUDA-Path-Tracer/blob/master/img/Cornell%20without%20motion.png)
-with motion blur
+
+* with motion blur
+
 ![](https://github.com/XinCastle/Project3-CUDA-Path-Tracer/blob/master/img/Cornell%20with%20motion.png)
 
 **Anti-Aliasing Result Comparison**
-original
+* original
+
 ![](https://github.com/XinCastle/Project3-CUDA-Path-Tracer/blob/master/img/Cornell%20without%20motion.png) 
-with Anti-Aliasing
+
+* with Anti-Aliasing
+
 ![](https://github.com/XinCastle/Project3-CUDA-Path-Tracer/blob/master/img/Cornell%20with%20AA.png)
 
 
