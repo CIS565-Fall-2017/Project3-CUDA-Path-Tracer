@@ -6,7 +6,7 @@ SPECRGB     0 0 0
 REFL        0
 REFR        0
 REFRIOR     0
-EMITTANCE   5
+EMITTANCE   10
 
 // Diffuse white
 MATERIAL 1
@@ -38,7 +38,7 @@ REFR        0
 REFRIOR     0
 EMITTANCE   0
 
-// Specular white
+// Specular reflect white
 MATERIAL 4
 RGB         .98 .98 .98
 SPECEX      0
@@ -48,13 +48,25 @@ REFR        0
 REFRIOR     0
 EMITTANCE   0
 
+// Specular refract white
+MATERIAL 5
+RGB         .98 .98 .98
+SPECEX      0
+SPECRGB     .98 .98 .98
+REFL        0.2
+REFR        0.8
+REFRIOR     1.5
+EMITTANCE   0
+
 // Camera
 CAMERA
 RES         800 800
-FOVY        45
+FOVY        30
 ITERATIONS  5000
 DEPTH       8
-FILE        cornell
+FILE        cornellmot
+FOCALDISTANCE	10.5
+LENSRADIUS	0.5
 EYE         0.0 5 10.5
 LOOKAT      0 5 0
 UP          0 1 0
@@ -112,6 +124,16 @@ SCALE       .01 10 10
 OBJECT 6
 sphere
 material 4
-TRANS       -1 4 -1
-ROTAT       0 0 0
-SCALE       3 3 3
+TRANS       0 2.5 2
+ROTAT       45 0 45
+SCALE       2 2 2
+ATRANS      1 1 1
+AROTAT      0 45 0
+
+// Sphere2
+OBJECT 7
+sphere
+material 1
+TRANS       2.8 4 0
+ROTAT       45 0 45
+SCALE       2 2 2
