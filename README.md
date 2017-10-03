@@ -46,6 +46,17 @@ All materials both sample a direction and evaluate the brdf function, returning 
 
 Wavefront rendering should vastly improve the shading step, reducing divergence and decoupling code better.
 
+
+### Antialiasing
+The camera samples are randomly selected inside the pixel's area with a uniform distribution. In the future, a precomputed cache of stratified, multi-jittered samples would be ideal to reduce variance.
+
+### Depth of Field
+Depending on both the camera aperture and focal distance, camera rays are perturbed inside a [0,1] square, scaled and centered by the aperture radius. An aperture shape texture is also needed, which defines the contribution of each sample and generates different effects. Because the texture is also colored, things like chromatic aberration can be easily approximated.
+
+![](img/dof.png)
+
+Samples that fall outside the shape simply don't contribute, making this approach rather inefficient. An improvement of this algorithm would be precomputing a cache of samples that have positive contribution to the depth of field phenomena.
+
 ### Sample Filtering
 To reduce aliasing artifacts that arise from averaging AA samples inside a pixel, I implemented a Gaussian filter step that gathers samples with a specific radius and averages them smoothly, reducing jaggies that may arise on certain situations. It is also helpful in terms of reducing noise. Compare the aliasing artifacts that appear near the area light shape. This happens even with antialiasing, because of the box blur generated from averaging inside a pixel.
 
