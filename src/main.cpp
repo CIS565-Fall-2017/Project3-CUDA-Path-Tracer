@@ -1,6 +1,7 @@
 #include "main.h"
 #include "preview.h"
 #include <cstring>
+#include <chrono>
 
 static std::string startTimeString;
 
@@ -25,6 +26,27 @@ int iteration;
 
 int width;
 int height;
+
+using time_point_t = std::chrono::high_resolution_clock::time_point;
+time_point_t time_start_cpu;
+time_point_t time_end_cpu;
+template<typename T>
+void printElapsedTime(T time, std::string note = "")
+{
+	std::cout << "Elapsed time: " << time << "ms per iteration    " << note << std::endl;
+}
+void starttimer()
+{
+	time_start_cpu = std::chrono::high_resolution_clock::now();
+}
+void printtimer()
+{
+	time_end_cpu = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double, std::milli> duro = time_end_cpu - time_start_cpu;
+	float prev_elapsed_time_cpu_milliseconds = static_cast<decltype(prev_elapsed_time_cpu_milliseconds)>(duro.count());
+	prev_elapsed_time_cpu_milliseconds /= (iteration*1.f);
+	printElapsedTime(prev_elapsed_time_cpu_milliseconds, "(std::chrono Measured)");
+}
 
 //-------------------------------
 //-------------MAIN--------------
@@ -57,8 +79,6 @@ int main(int argc, char** argv) {
 
     cameraPosition = cam.position;
 
-    // compute phi (horizontal) and theta (vertical) relative 3D axis
-    // so, (0 0 1) is forward, (0 1 0) is up
     glm::vec3 viewXZ = glm::vec3(view.x, 0.0f, view.z);
     glm::vec3 viewZY = glm::vec3(0.0f, view.y, view.z);
     phi = glm::acos(glm::dot(glm::normalize(viewXZ), glm::vec3(0, 0, -1)));
@@ -66,10 +86,8 @@ int main(int argc, char** argv) {
     ogLookAt = cam.lookAt;
     zoom = glm::length(cam.position - ogLookAt);
 
-    // Initialize CUDA and GL components
     init();
 
-    // GLFW main loop
     mainLoop();
 
     return 0;
@@ -77,7 +95,6 @@ int main(int argc, char** argv) {
 
 void saveImage() {
     float samples = iteration;
-    // output image file
     image img(width, height);
 
     for (int x = 0; x < width; x++) {
@@ -92,10 +109,7 @@ void saveImage() {
     std::ostringstream ss;
     ss << filename << "." << startTimeString << "." << samples << "samp";
     filename = ss.str();
-
-    // CHECKITOUT
     img.savePNG(filename);
-    //img.saveHDR(filename);  // Save a Radiance HDR file
 }
 
 void runCuda() {
@@ -108,7 +122,7 @@ void runCuda() {
 
         cam.view = -glm::normalize(cameraPosition);
         glm::vec3 v = cam.view;
-        glm::vec3 u = glm::vec3(0, 1, 0);//glm::normalize(cam.up);
+        glm::vec3 u = glm::vec3(0, 1, 0);
         glm::vec3 r = glm::cross(v, u);
         cam.up = glm::cross(r, v);
         cam.right = r;
@@ -117,10 +131,10 @@ void runCuda() {
         cameraPosition += cam.lookAt;
         cam.position = cameraPosition;
         camchanged = false;
+
+		starttimer();
       }
 
-    // Map OpenGL buffer object for writing from CUDA on a single GPU
-    // No data is moved (Win & Linux). When mapped to CUDA, OpenGL should not use this buffer
 
     if (iteration == 0) {
         pathtraceFree();
@@ -132,13 +146,14 @@ void runCuda() {
         iteration++;
         cudaGLMapBufferObject((void**)&pbo_dptr, pbo);
 
-        // execute the kernel
+
         int frame = 0;
         pathtrace(pbo_dptr, frame, iteration);
 
-        // unmap buffer object
+
         cudaGLUnmapBufferObject(pbo);
     } else {
+		printtimer();
         saveImage();
         pathtraceFree();
         cudaDeviceReset();
@@ -150,10 +165,12 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
     if (action == GLFW_PRESS) {
       switch (key) {
       case GLFW_KEY_ESCAPE:
+		printtimer();
         saveImage();
         glfwSetWindowShouldClose(window, GL_TRUE);
         break;
       case GLFW_KEY_S:
+		printtimer();
         saveImage();
         break;
       case GLFW_KEY_SPACE:

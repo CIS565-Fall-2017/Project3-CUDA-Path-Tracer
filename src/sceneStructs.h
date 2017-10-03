@@ -26,6 +26,9 @@ struct Geom {
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+	bool motion = false;
+	glm::vec3 translate;
+	glm::vec3 rotate;
 };
 
 struct Material {
@@ -49,6 +52,8 @@ struct Camera {
     glm::vec3 right;
     glm::vec2 fov;
     glm::vec2 pixelLength;
+	float lensRadius;
+	float focalDistance;
 };
 
 struct RenderState {
@@ -64,6 +69,7 @@ struct PathSegment {
 	glm::vec3 color;
 	int pixelIndex;
 	int remainingBounces;
+	bool specular = false;
 };
 
 // Use with a corresponding PathSegment to do:
@@ -72,5 +78,6 @@ struct PathSegment {
 struct ShadeableIntersection {
   float t;
   glm::vec3 surfaceNormal;
+  glm::vec3 point;
   int materialId;
 };
