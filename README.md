@@ -1,5 +1,8 @@
 ![](img/origami.2000spp.1589.5s.png)
 
+2000 spp, 26 minutes
+
+
 CUDA Path Tracer
 ================
 
@@ -13,6 +16,8 @@ CUDA Path Tracer
   * NVIDIA GeForce GTX 1070 (mobile version)
 
 ![](img/dragon.2000spp.205.302s.png)
+
+2000 spp, 3.3 minutes.
 
 ## Details
 This project implements a physically based pathtracer through the use of CUDA and GPU hardware. It has basic material and scene handling and supports meshes while keeping an interactive framerate. The main features are:
@@ -29,6 +34,8 @@ This project implements a physically based pathtracer through the use of CUDA an
 * Gaussian filtering of path samples
 
 ![](img/buddha.2000spp.336.25s.png)
+
+2000 spp, 6 minutes.
 
 ## Feature description and analysis
 
@@ -48,6 +55,8 @@ Wavefront rendering should vastly improve the shading step, reducing divergence 
 
 ### Mesh acceleration structure
 Meshes are implemented and accelerated with the use of a flattened, stack based kd-tree that is constructed in CPU and then uploaded to the GPU. It's implementation is very similar to PBRT's v3 approach, with the main difference being that triangle data is flattened and placed close to the nodes, so that there are absolutely no indirections while traversing the tree. This improved performance drastically; for example, a 30k teapot took approximately 10 minutes to do 230 samples per pixel without acceleration, and when enabling the kd-tree, the renderer can do 1000 samples in merely 2 minutes for a 100k dragon, for example. More analysis is required, and I want to experiment with different ways to structure the tree nodes.
+
+However, I didn't implement an acceleration structure for the scene, and this is very noticeable on the origami scene. The meshes are very low poly and a 2000spp render takes around half an hour, while a 100k Stanford dragon render takes ~3 minutes. Due to the design of my implementation, it should be straightforward to adapt it for arbitrary geometry.
 
 ### Antialiasing
 The camera samples are randomly selected inside the pixel's area with a uniform distribution. In the future, a precomputed cache of stratified, multi-jittered samples would be ideal to reduce variance.
