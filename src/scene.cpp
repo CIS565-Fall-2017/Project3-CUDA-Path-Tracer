@@ -4,6 +4,9 @@
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtx/string_cast.hpp>
 
+#define TINYOBJLOADER_IMPLEMENTATION // define this in only *one* .cc
+#include "tiny_obj_loader.h"
+
 Scene::Scene(string filename) {
     cout << "Reading scene from " << filename << " ..." << endl;
     cout << " " << endl;
@@ -34,12 +37,12 @@ Scene::Scene(string filename) {
 
 int Scene::loadGeom(string objectid) {
     int id = atoi(objectid.c_str());
-    if (id != geoms.size()) {
+    if (false) {
         cout << "ERROR: OBJECT ID does not match expected number of geoms" << endl;
-        return -1;
+        //return -1;
     } else {
         cout << "Loading Geom " << id << "..." << endl;
-        Geom newGeom;
+        std::vector<Geom> newGeoms;
         string line;
 
         //load object type
@@ -47,19 +50,66 @@ int Scene::loadGeom(string objectid) {
         if (!line.empty() && fp_in.good()) {
             if (strcmp(line.c_str(), "sphere") == 0) {
                 cout << "Creating new sphere..." << endl;
+				Geom newGeom;
                 newGeom.type = SPHERE;
+				newGeom.id = id;
+				newGeoms.push_back(newGeom);
             } else if (strcmp(line.c_str(), "cube") == 0) {
                 cout << "Creating new cube..." << endl;
+
+				Geom newGeom;
                 newGeom.type = CUBE;
-            }
+				newGeom.id = id;
+				newGeoms.push_back(newGeom);
+            } else if (strcmp(line.c_str(), "obj") == 0) {
+				cout << "Creating new obj..." << endl;
+				utilityCore::safeGetline(fp_in, line);
+				string input_obj = line;
+				cout << "Reading OBJ: " << input_obj << endl;
+				std::vector<tinyobj::shape_t> shapes;
+				std::vector<tinyobj::material_t> materials;
+				tinyobj::attrib_t attrib;
+				std::string err;
+				bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, input_obj.c_str());
+				if (!err.empty()) { // `err` may contain warning message.
+					std::cerr << err << std::endl;
+				}
+				if (!ret) {
+					exit(1);
+				}
+				std::cout << "# of shapes    : " << shapes.size() << std::endl;
+				std::cout << "# of materials : " << materials.size() << std::endl;
+				for (const auto& shape : shapes) {
+					int index_cnt = 0;
+					//cout << shape.mesh.indices.size() << endl;
+					for (int i = 0; i < shape.mesh.indices.size() / 3; i++) {
+						Geom newGeom;
+						newGeom.type = TRIANGLE;
+						newGeom.id = id;
+						tinyobj::index_t index0 = shape.mesh.indices[0];
+						for (int j = 0; j < 3; j++) {
+							tinyobj::index_t index = shape.mesh.indices[3*i + j];
+							newGeom.points[j] = glm::vec3(attrib.vertices[3 * (index.vertex_index) + 0],
+								attrib.vertices[3 * (index.vertex_index) + 1],
+								attrib.vertices[3 * (index.vertex_index) + 2]);
+						}
+						newGeoms.push_back(newGeom);
+						
+					}
+				}
+
+			}
         }
 
         //link material
         utilityCore::safeGetline(fp_in, line);
         if (!line.empty() && fp_in.good()) {
             vector<string> tokens = utilityCore::tokenizeString(line);
-            newGeom.materialid = atoi(tokens[1].c_str());
-            cout << "Connecting Geom " << objectid << " to Material " << newGeom.materialid << "..." << endl;
+            int materialid = atoi(tokens[1].c_str());
+			for (int i = 0; i < newGeoms.size(); i++) {
+				Geom & newGeom = newGeoms.at(i);
+				newGeom.materialid = materialid;
+			}
         }
 
         //load transformations
@@ -69,22 +119,34 @@ int Scene::loadGeom(string objectid) {
 
             //load tranformations
             if (strcmp(tokens[0].c_str(), "TRANS") == 0) {
-                newGeom.translation = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+				for (int i = 0; i < newGeoms.size(); i++) {
+					Geom & newGeom = newGeoms.at(i);
+					newGeom.translation = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+				}
             } else if (strcmp(tokens[0].c_str(), "ROTAT") == 0) {
-                newGeom.rotation = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+				for (int i = 0; i < newGeoms.size(); i++) {
+					Geom & newGeom = newGeoms.at(i);
+					newGeom.rotation = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+				}
             } else if (strcmp(tokens[0].c_str(), "SCALE") == 0) {
-                newGeom.scale = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+				for (int i = 0; i < newGeoms.size(); i++) {
+					Geom & newGeom = newGeoms.at(i);
+					newGeom.scale = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+				}
             }
 
             utilityCore::safeGetline(fp_in, line);
         }
+		cout << "NUM GEOMETRY TO LOAD " << newGeoms.size() << endl;
+		for (int i = 0; i < newGeoms.size(); i++) {
+			Geom & newGeom = newGeoms.at(i);
+			newGeom.transform = utilityCore::buildTransformationMatrix(
+				newGeom.translation, newGeom.rotation, newGeom.scale);
+			newGeom.inverseTransform = glm::inverse(newGeom.transform);
+			newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
 
-        newGeom.transform = utilityCore::buildTransformationMatrix(
-                newGeom.translation, newGeom.rotation, newGeom.scale);
-        newGeom.inverseTransform = glm::inverse(newGeom.transform);
-        newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
-
-        geoms.push_back(newGeom);
+			geoms.push_back(newGeom);
+		}
         return 1;
     }
 }
@@ -158,6 +220,7 @@ int Scene::loadMaterial(string materialid) {
     } else {
         cout << "Loading Material " << id << "..." << endl;
         Material newMaterial;
+		newMaterial.id = id;
 
         //load static properties
         for (int i = 0; i < 7; i++) {
@@ -180,7 +243,7 @@ int Scene::loadMaterial(string materialid) {
                 newMaterial.indexOfRefraction = atof(tokens[1].c_str());
             } else if (strcmp(tokens[0].c_str(), "EMITTANCE") == 0) {
                 newMaterial.emittance = atof(tokens[1].c_str());
-            }
+            } 
         }
         materials.push_back(newMaterial);
         return 1;

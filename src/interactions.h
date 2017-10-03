@@ -1,6 +1,8 @@
 #pragma once
 
 #include "intersections.h"
+#include <thrust/random/linear_congruential_engine.h>
+#include <thrust/random/uniform_real_distribution.h>
 
 // CHECKITOUT
 /**
@@ -41,6 +43,22 @@ glm::vec3 calculateRandomDirectionInHemisphere(
         + sin(around) * over * perpendicularDirection2;
 }
 
+__host__ __device__
+glm::vec2 calculateRandomUniformPointDisc(float off, float rand1, float rand2) {
+	float radius;
+	float theta;
+	if (fabsf(rand1) > fabsf(rand2)) {
+		radius = rand1;
+		theta = (3.1415f / 4.0f) * (rand2 / rand1);
+	}
+	else {
+		radius = rand2;
+		theta = (3.1415f / 2.0f) - ((3.1415f / 4.0f) * (rand1 / rand2));
+	}
+
+	return glm::vec2(radius*std::cos(theta)*off, radius*std::sin(theta)*off);
+}
+
 /**
  * Scatter a ray with some probabilities according to the material properties.
  * For example, a diffuse surface scatters in a cosine-weighted hemisphere.
@@ -73,7 +91,7 @@ void scatterRay(
         glm::vec3 normal,
         const Material &m,
         thrust::default_random_engine &rng) {
-    // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
+    // TODO: implement this.
 }

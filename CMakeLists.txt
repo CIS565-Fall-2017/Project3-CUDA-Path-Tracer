@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.0)
 
 project(cis565_path_tracer)
 
+# Crucial magic for CUDA linking
+find_package(Threads REQUIRED)
+find_package(CUDA 8.0 REQUIRED)
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 
 # Set up include and lib paths
@@ -60,9 +63,7 @@ if (WIN32)
 	list(APPEND CORELIBS legacy_stdio_definitions.lib)
 endif()
 
-# Crucial magic for CUDA linking
-find_package(Threads REQUIRED)
-find_package(CUDA 8.0 REQUIRED)
+
 
 set(CUDA_ATTACH_VS_BUILD_RULE_TO_CUDA_FILE ON)
 set(CUDA_SEPARABLE_COMPILATION ON)
@@ -72,7 +73,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 endif()
 
 include_directories(.)
-#add_subdirectory(stream_compaction)  # TODO: uncomment if using your stream compaction
+add_subdirectory(stream_compaction)  # TODO: uncomment if using your stream compaction
 add_subdirectory(src)
 
 cuda_add_executable(${CMAKE_PROJECT_NAME}
