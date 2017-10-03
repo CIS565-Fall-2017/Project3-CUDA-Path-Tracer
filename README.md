@@ -44,8 +44,13 @@ All materials both sample a direction and evaluate the brdf function, returning 
 Wavefront rendering should vastly improve the shading step, reducing divergence and decoupling code better.
 
 ### Sample Filtering
-To reduce aliasing artifacts that arise from averaging AA samples inside a pixel, I implemented a Gaussian filter step that gathers samples with a specific radius and averages them smoothly, reducing jaggies that may arise on certain situations. It is also helpful in terms of reducing noise.
+To reduce aliasing artifacts that arise from averaging AA samples inside a pixel, I implemented a Gaussian filter step that gathers samples with a specific radius and averages them smoothly, reducing jaggies that may arise on certain situations. It is also helpful in terms of reducing noise. Compare the aliasing artifacts that appear near the area light shape. This happens even with antialiasing, because of the box blur generated from averaging inside a pixel.
 
+![](img/nofiltered.png)
+Render without filtering
+
+![](img/filtered.png)
+Render with a filtering radius of 2 pixels.
 
 ### Filmic tonemapping
 After the filtering step is done, there's one last pass that normalizes the filter samples, does gamma correction, adds vignetting and modifies the result colors to have a more filmic aesthetic. The specific implementation is based on John Hable's tonemapping operator for Uncharted, which can be seen here: http://filmicworlds.com/blog/filmic-tonemapping-operators/
