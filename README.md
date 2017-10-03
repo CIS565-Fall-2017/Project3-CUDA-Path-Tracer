@@ -84,7 +84,8 @@ Right Ball: Refraction = 1;
  ON                       | OFF                   | OFF                      | 586.416    
  OFF                      | ON                    | OFF                      | 1475.642    
  OFF                      | OFF                   | ON                       | 188.064     
-**I tried to turn both stream compaction and sort by material on, the result is 957.648. It becomes faster than only using sort by material. I think it's because stream compaction makes the sort faster.
+
+* I tried to turn both stream compaction and sort by material on, the result is 957.648. It becomes faster than only using sort by material. I think it's because stream compaction makes the sort faster.
 
 ![](https://github.com/XinCastle/Project3-CUDA-Path-Tracer/blob/master/img/Chart.png)
 
