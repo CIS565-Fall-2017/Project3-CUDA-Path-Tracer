@@ -31,27 +31,34 @@ Middle: Reflection =1;
 Right Ball: Refraction = 1;
 
 **Ideal Diffuse surfaces&Perfectly specular-reflective surfaces**
-![](https://github.com/XinCastle/Project3-CUDA-Path-Tracer/blob/master/img/Cornell%20beginning.png)  |  ![](https://github.com/XinCastle/Project3-CUDA-Path-Tracer/blob/master/img/cornell%20specular.png)
+Ideal Diffuse surfaces:
+![](https://github.com/XinCastle/Project3-CUDA-Path-Tracer/blob/master/img/Cornell%20beginning.png)
+Perfectly specular-reflective surfaces:
+![](https://github.com/XinCastle/Project3-CUDA-Path-Tracer/blob/master/img/cornell%20specular.png)
 
 **DOF result scene**
 Back wall is set to be a mirror; closed box; rendered using 3534 iteration
 ![](https://github.com/XinCastle/Project3-CUDA-Path-Tracer/blob/master/img/DOF.png)
 
 **DOF comparison**
-without DOF  | with DOF
-:-------------------------:|:-------------------------:
-![](https://github.com/XinCastle/Project3-CUDA-Path-Tracer/blob/master/img/Fresnel%20Refraction%20comparison.png)  |  ![](https://github.com/XinCastle/Project3-CUDA-Path-Tracer/blob/master/img/cornell%20with%20DOF.png)
+Original
+![](https://github.com/XinCastle/Project3-CUDA-Path-Tracer/blob/master/img/Fresnel%20Refraction%20comparison.png)
+with DOF
+![](https://github.com/XinCastle/Project3-CUDA-Path-Tracer/blob/master/img/cornell%20with%20DOF.png)
+
 
 **Motion Blur Result Comparison**
 The sphere on the left is moving during rendering
-original  | with motion blur
-:-------------------------:|:-------------------------:
-![](https://github.com/XinCastle/Project3-CUDA-Path-Tracer/blob/master/img/Cornell%20without%20motion.png)  |  ![](https://github.com/XinCastle/Project3-CUDA-Path-Tracer/blob/master/img/Cornell%20with%20motion.png)
+original
+![](https://github.com/XinCastle/Project3-CUDA-Path-Tracer/blob/master/img/Cornell%20without%20motion.png)
+with motion blur
+![](https://github.com/XinCastle/Project3-CUDA-Path-Tracer/blob/master/img/Cornell%20with%20motion.png)
 
 **Anti-Aliasing Result Comparison**
-original  | with Anti-Aliasing
-:-------------------------:|:-------------------------:
-![](https://github.com/XinCastle/Project3-CUDA-Path-Tracer/blob/master/img/Cornell%20without%20motion.png)  |  ![](https://github.com/XinCastle/Project3-CUDA-Path-Tracer/blob/master/img/Cornell%20with%20AA.png)
+original
+![](https://github.com/XinCastle/Project3-CUDA-Path-Tracer/blob/master/img/Cornell%20without%20motion.png) 
+with Anti-Aliasing
+![](https://github.com/XinCastle/Project3-CUDA-Path-Tracer/blob/master/img/Cornell%20with%20AA.png)
 
 
 ### Performance Analysis
@@ -65,8 +72,10 @@ original  | with Anti-Aliasing
  ON                       | OFF                   | OFF                      | 586.416    
  OFF                      | ON                    | OFF                      | 1475.642    
  OFF                      | OFF                   | ON                       | 188.064     
+**I tried to turn both stream compaction and sort by material on, the result is 957.648. It becomes faster than only using sort by material. I think it's because stream compaction makes the sort faster.
 
 ![](https://github.com/XinCastle/Project3-CUDA-Path-Tracer/blob/master/img/Chart.png)
+
 
 * From the data and chart above, we can tell that in open box test, both stream compaction and sort by material are slower than the naive approach. Only cache first bounce is faster. 
 * As for tests using closed box. The stream compaction doesn't really accelerate the program. The overall time is still similar with the data above. Only using stream compaction in a closed box makes the program slower than only using it in an open box. It's because compared with closed box, open box can be better optimized by stream compaction.
