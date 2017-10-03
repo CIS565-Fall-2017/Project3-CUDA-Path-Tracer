@@ -15,8 +15,9 @@
 #include "interactions.h"
 
 #define ERRORCHECK 1
-#define SORTING 1
-#define CACHING 0 //turn off caching for antialiasing
+#define SORTING 0
+#define CACHING 1 //turn off caching for antialiasing
+#define COMPACTION 0 //0 - no compaction, 1 - stream compaction using thrust, 2 - stream compaction using stream_compaction package.
 #define DOF 0
 #define TIMER 1
 
@@ -473,9 +474,18 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 			dev_materials
 			);
 		// TODO: should be based off stream compaction results.
+#if COMPACTION == 0
+		iterationComplete = depth > 8;
+#endif
+#if COMPACTION == 1
 		PathSegment* endpath = thrust::partition(thrust::device, dev_paths, dev_paths + num_paths, bounce_remaining());
 		num_paths = endpath - dev_paths;
 		iterationComplete = num_paths <= 0;
+#endif
+#if EFFICIENT_COMPACTION == 1
+		num_paths = StreamCompaction::Efficient::compact(num_paths, buffer, dev_paths);
+		iterationComplete = num_paths <= 0;
+#endif
 	}
 
 	// Assemble this iteration and apply it to the image

@@ -10,7 +10,7 @@ In this project, I have implemented a CUDA-based path tracer through the use  of
 
 ![](img/reflection.png)
 
-### Features:
+# Features:
 * A shading kernel with BSDF evaluation for:
   * Ideal Diffuse surfaces.
   * Perfectly specular-reflective (mirrored) surfaces (e.g. using `glm::reflect`).
@@ -27,20 +27,32 @@ max ray depths.
 * Stochastic Sampled Antialiasing
 * Toggleable Timer
 
-### Results:
+# Results:
 
-# Simple Reflection
+Simple Reflection
+-----------------
 
 ![](img/reflection.png)
 
-# Depth of Field
+Depth of Field
+--------------
 
 ![](img/dof.png)
 
-# Antialiasing
+Antialiasing
+------------
 
 ![](img/antialiasing.png)
 
-# Refraction
+Refraction
+----------
 
 ![](img/refraction.png)
+
+# Performance Analysis:
+
+The below measurements for execution time are for 500 iterations and depth of 8.
+
+![](img/performance.jpg)
+
+Caching corresponds to the fastest execution time. I found that sorting the path segments didn't actually help increase the performance. This could be due to the effect of thr sorting complexity on execution time. Stream Compaction was done by using thrust's partition and also by using work-efficient stream compaction. In both the cases the use of stream compaction led to better performance, specially with caching enabled. But thrust gave better performance, which might be due to the memory access in the work-efficient stream compaction.
