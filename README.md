@@ -46,6 +46,8 @@ All materials both sample a direction and evaluate the brdf function, returning 
 
 Wavefront rendering should vastly improve the shading step, reducing divergence and decoupling code better.
 
+### Mesh acceleration structure
+Meshes are implemented and accelerated with the use of a flattened, stack based kd-tree that is constructed in CPU and then uploaded to the GPU. It's implementation is very similar to PBRT's v3 approach, with the main difference being that triangle data is flattened and placed close to the nodes, so that there are absolutely no indirections while traversing the tree. This improved performance drastically; for example, a 30k teapot took approximately 10 minutes to do 230 samples per pixel without acceleration, and when enabling the kd-tree, the renderer can do 1000 samples in merely 2 minutes for a 100k dragon, for example. More analysis is required, and I want to experiment with different ways to structure the tree nodes.
 
 ### Antialiasing
 The camera samples are randomly selected inside the pixel's area with a uniform distribution. In the future, a precomputed cache of stratified, multi-jittered samples would be ideal to reduce variance.
