@@ -9,7 +9,7 @@ CUDA Path Tracer
 ![](img/loris.gif)
 
 ![](img/mask1000spp.png)\
-1000 samples per pixel ~500,000 tris\
+1000 samples per pixel ~500,000 tris BVH Depth: 19\
 Construction: 8 minutes\
 One iteration: ~650ms\
 Total Render Time: ~7 minutes
@@ -43,7 +43,8 @@ In addition to simple geometry defined by functions (sphere, cube), I've impleme
 
 If we repeatedly partition the objects in the scene into recursive bounding boxes that contain "half" of their parents' geometry, we get a structure that looks like the following: 
 
-![](img/bvh_explain_example.PNG)
+![](img/bvh_explain_example.PNG)\
+credit: [Nvidia's Thinking Parallel](https://devblogs.nvidia.com/parallelforall/thinking-parallel-part-ii-tree-traversal-gpu/)
 
 This way, instead of performing intersection tests over n elements (where n is the number of objects), we only need to perform intersection tests over the log(n) bounding boxes that bring you to your element. 
 
