@@ -46,10 +46,12 @@ Wavefront rendering should vastly improve the shading step, reducing divergence 
 ### Sample Filtering
 To reduce aliasing artifacts that arise from averaging AA samples inside a pixel, I implemented a Gaussian filter step that gathers samples with a specific radius and averages them smoothly, reducing jaggies that may arise on certain situations. It is also helpful in terms of reducing noise. Compare the aliasing artifacts that appear near the area light shape. This happens even with antialiasing, because of the box blur generated from averaging inside a pixel.
 
-![](img/nofiltered.png)
+![](img/nofilter.png)
+
 Render without filtering
 
 ![](img/filtered.png)
+
 Render with a filtering radius of 2 pixels.
 
 ### Filmic tonemapping
@@ -57,7 +59,12 @@ After the filtering step is done, there's one last pass that normalizes the filt
 
 Because the tonemapping pass does gamma correction, all textures and color input is transformed into linear space before the rendering starts. 
 
+![](img/tonemapping.png)
+
+Notice how the dark colors are crushed and the highlights are emphasized, and the borders are obscured. The vignetting function is completely custom and is not based on any physical property apart from aesthetic.
+
 A straightforward optimization of the current implementation would be adding LUT textures to reduce the amount of arithmetic operations done on this kernel.
+
 
 
 
