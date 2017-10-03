@@ -54,6 +54,8 @@ Render without filtering
 
 Render with a filtering radius of 2 pixels.
 
+An interesting problem that appeared while designing the filtering step is the need to gather close samples, or using gather-as-you-scatter strategies to prevent having a separate step. In the future, such strategies would improve performance drastically, as the current implementation suffers with big filter radii (although in practice, a radius of 2 is more than enough). 
+
 ### Filmic tonemapping
 After the filtering step is done, there's one last pass that normalizes the filter samples, does gamma correction, adds vignetting and modifies the result colors to have a more filmic aesthetic. The specific implementation is based on John Hable's tonemapping operator for Uncharted, which can be seen here: http://filmicworlds.com/blog/filmic-tonemapping-operators/
 
