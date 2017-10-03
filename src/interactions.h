@@ -67,13 +67,36 @@ glm::vec3 calculateRandomDirectionInHemisphere(
  * You may need to change the parameter list for your purposes!
  */
 __host__ __device__
-void scatterRay(
-		PathSegment & pathSegment,
-        glm::vec3 intersect,
-        glm::vec3 normal,
-        const Material &m,
-        thrust::default_random_engine &rng) {
+void scatterRayUniform(
+		PathSegment &pathSegment,
+    glm::vec3 &intersect,
+    glm::vec3 &normal,
+    const Material &m,
+    thrust::default_random_engine &rng) {
     // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
+  glm::vec3 dir = calculateRandomDirectionInHemisphere(normal, rng);
+  pathSegment.ray.direction = dir;
+  pathSegment.ray.origin = intersect+dir*0.00001f; // avoid shadow acne
+  --pathSegment.remainingBounces;
+  //pathSegment.color = pathSegment.remainingBounces > 0 ?
+  //                        pathSegment.color * m.color : glm::vec3(0.0f);
+  pathSegment.color = pathSegment.color * m.color;
+}
+
+__host__ __device__
+void scatterRaySpecular(
+		PathSegment &pathSegment,
+    glm::vec3 &intersect,
+    glm::vec3 &normal,
+    const Material &m,
+    thrust::default_random_engine &rng) {
+  glm::vec3 dir = glm::reflect(pathSegment.ray.direction, normal);
+  pathSegment.ray.direction = dir;
+  pathSegment.ray.origin = intersect+dir*0.00001f; // avoid shadow acne
+  --pathSegment.remainingBounces;
+  //pathSegment.color = pathSegment.remainingBounces > 0 ?
+  //                        pathSegment.color * m.specular.color : glm::vec3(0.0f);
+  pathSegment.color = pathSegment.color* m.specular.color;
 }
