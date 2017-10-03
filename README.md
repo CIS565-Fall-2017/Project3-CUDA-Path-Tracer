@@ -46,18 +46,27 @@ Wavefront rendering should vastly improve the shading step, reducing divergence 
 ### Sample Filtering
 To reduce aliasing artifacts that arise from averaging AA samples inside a pixel, I implemented a Gaussian filter step that gathers samples with a specific radius and averages them smoothly, reducing jaggies that may arise on certain situations. It is also helpful in terms of reducing noise. Compare the aliasing artifacts that appear near the area light shape. This happens even with antialiasing, because of the box blur generated from averaging inside a pixel.
 
-![](img/nofiltered.png)
+![](img/nofilter.png)
+
 Render without filtering
 
 ![](img/filtered.png)
+
 Render with a filtering radius of 2 pixels.
+
+An interesting problem that appeared while designing the filtering step is the need to gather close samples, or using gather-as-you-scatter strategies to prevent having a separate step. In the future, such strategies would improve performance drastically, as the current implementation suffers with big filter radii (although in practice, a radius of 2 is more than enough). 
 
 ### Filmic tonemapping
 After the filtering step is done, there's one last pass that normalizes the filter samples, does gamma correction, adds vignetting and modifies the result colors to have a more filmic aesthetic. The specific implementation is based on John Hable's tonemapping operator for Uncharted, which can be seen here: http://filmicworlds.com/blog/filmic-tonemapping-operators/
 
 Because the tonemapping pass does gamma correction, all textures and color input is transformed into linear space before the rendering starts. 
 
+![](img/tonemapping.png)
+
+Notice how the dark colors are crushed and the highlights are emphasized, and the borders are obscured. The vignetting function is completely custom and is not based on any physical property apart from aesthetic.
+
 A straightforward optimization of the current implementation would be adding LUT textures to reduce the amount of arithmetic operations done on this kernel.
+
 
 
 
