@@ -21,6 +21,14 @@ These images showcase the depth of field effect. The first image has the focal d
 
 Depth of field was implemented by jittering ray origins in a disc.
 
+![](./build/.2017-10-02_19-35-20z.20samp.png)
+
+![](./build/.2017-10-02_19-35-49z.40samp.png)
+
+![](./build/.2017-10-02_19-36-23z.120samp.png)
+
+This is a series of images with reducing lensRadius. The focal distance is closer than everything in the scene but one can see how the radius of the lens affects the blur.
+
 ## Antialias
 
 ![](./img/no_aa.png)
