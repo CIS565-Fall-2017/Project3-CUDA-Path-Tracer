@@ -43,13 +43,17 @@ _Lambertian Reference for the image below_
 
 _Subtle Subsurface Scattering with a scattering coefficient of 300; Entire coloration is due to the subsurface BxDF_
 
-![](img/FancyRenders/Subsurface/cornell.sphereInfrontOfLightLambertianReference.5000samp.png)
-
-_Object infront of the only light source in the scene. Lambertian Reference for the image below_
-
 ![](img/FancyRenders/Subsurface/cornell.sphereInfrontOfLight.subsurface.scatteringcoeff300.thetamin160.5000samp.png)
 
 _Object infront of the only light source in the scene. Another example of Subsurface Scattering with a scattering coefficient of 300; Entire coloration is due to the subsurface BxDF_
+
+![](img/FancyRenders/Subsurface/cornell.sphereInfrontOfLight.subsurface.scatteringcoeff200.thetamin160.5000samp.png)
+
+_Object infront of the only light source in the scene. Subsurface Scattering with a scattering coefficient of 200_
+
+![](img/FancyRenders/Subsurface/cornell.sphereInfrontOfLight.subsurface.scatteringcoeff100.thetamin160.5000samp.png)
+
+_Object infront of the only light source in the scene. Subsurface Scattering with a scattering coefficient of 100_
 
 The subsurface BxDF I implemented adds about 3ms of overall compute time per sample for an 800x800 pixel image. 
 The subsurface BxDF I designed looks more interesting with other BxDFs such as specular because it becomes more subtle. If used as the only BxDF in the material it will default to a opaque lambertian with controllable intensity for the subsurface coloration.
@@ -64,16 +68,18 @@ Algorithm:
 3) Generate a scattered ray origin using a sample obtained from the uniform scattered sampling of a disc generated along the normal. Scale this origin by a coefficient thats based off of samplDistance. Move this ray origin just inside the object.
 3) Create a new ray (scattered ray) using the scattered origin and scattered direction.
 4) Carry out an intersection test using this ray against only the geometr the original ray (ray1) intersected with. This gives you a t value which lets you determine the thickness of the object.
-5) if (sampleDistance < object thickness) { return Black } //this is because the rays energy will die before it exits the object.
+5) If (sampleDistance < object thickness) { return Black } //this is because the rays energy will die before it exits the object.
 6) Now we know that the object is thin enough that the ray can escape it with some energy. But to prevent any weird errors we change the exit point of the ray to just outside the object ( t + EPSILON instead of sampleDistance).
-7) Update the original point of intersection of ray1 to be this exit point determined in step 6. This is because intersectionPoints are used to make spawn new rays for further bouncing in the scene.
-8) update the wi of the ray to the scattered ray direction
-9) update the pdf to be a value determined by the Henyey-Greenstein formulation for a positive g value.
+7) Update the original point of intersection of ray1 to be this exit point determined in step 6. This is because intersectionPoints are used to Make spawn new rays for further bouncing in the scene.
+8) Update the wi of the ray to the scattered ray direction
+9) Update the pdf to be a value determined by the Henyey-Greenstein formulation for a positive g value.
 10) Scale down the color of the ray by a coefficient based on sampleDistance.
 
-Notes:  -> This algorithm isnt perfect and looks best when combined with other BxDFs especially ones with a reflective component.
-		-> It needs a bit of fine-tuning in terms of the coefficients used (all trial and error right now)
-		-> models refractive subsurface materials and not the general reflective and refractive material.
+Notes:  
+- This algorithm isnt perfect and looks best when combined with other BxDFs especially ones with a reflective component.
+- If the subsurface BxDF is used on its own then the reflections of the object are somewhat darker than you'd expect.
+- It needs a bit of fine-tuning in terms of the coefficients used (all trial and error right now)
+- Models refractive subsurface materials and not the general reflective and refractive material.
 
 ### Stream Compactionfor Inactive Ray Culling
 
