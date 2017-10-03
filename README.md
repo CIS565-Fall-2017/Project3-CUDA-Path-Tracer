@@ -126,7 +126,7 @@ Depth of field barely costs us anything in terms of run time.
 
 ### Naive Integration Scheme
 
-![](img/IntegrationSchemes/cornell.Naive.5000samples.png)
+![](img/FancyRenders/IntegrationSchemes/cornell.Naive.5000samples.png)
 
 _Anti-Aliased render of a cornell box scene using the naive integration scheme_
 
@@ -135,11 +135,11 @@ A Naive brute force approach to path tracing. This integrator takes a long time 
 
 ### Direct Lighting Integration Scheme
 
-![](img/IntegrationSchemes/cornell.DirectLighting.SpereLight.5000samples.png)
+![](img/FancyRenders/IntegrationSchemes/cornell.DirectLighting.SpereLight.5000samples.png)
 
 _cornell box with a sphere light using the direct light integration scheme_
 
-![](img/IntegrationSchemes/cornell.SpereLight.5000samples.png)
+![](img/FancyRenders/IntegrationSchemes/cornell.SpereLight.5000samples.png)
 
 _cornell box with a sphere light using the naive integration scheme for reference_
 
