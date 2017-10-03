@@ -163,7 +163,7 @@ Because the direct Lighting Integration Scheme stops after the first bounce it r
 
 ## References
 
-![](img/EverythingIsSpecular.png)
+![](img/FancyRenders/EverythingIsSpecular.png)
 
 _Everything was a specular surface. whoops_
 
