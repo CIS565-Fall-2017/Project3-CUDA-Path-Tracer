@@ -26,17 +26,54 @@ Due to its accuracy and unbiased nature, path tracing is used to generate refere
 
 ## Features
 
-![](img/GPUPathTracer_AllFeaturesTiming.png)
-![](img/GPUPathTracer_featureComparison.png)
+![](img/PathTracerAllFeatureTable.png)
+![](img/PathTracerAllFeatureData.png)
 
-### Naive Integration Scheme
+### SubSurface Scattering
 
-![](img/cornell.Naive.5000samples.png)
+![](img/Subsurface/cornell.SpecularSubsurface.HazyVioletSphere.20000samp.png)
 
-_Anti-Aliased render of a cornell box scene using the naive integration scheme_
+_Subsurface BxDF and Specular BRDF on a violet sphere_
 
-A Naive brute force approach to path tracing. This integrator takes a long time and a large number of samples per pixel to converge upon an image. There are things that can be done to improve speed at which the image converges such as Multiple Important Sampling but these add biases to the image. Usually these biases are very good approximations of how the brute force approach would result. 
-#### I talk more about Multiple Important Sampling [here](https://github.com/Aman-Sachan-asach/Monte-Carlo-Path-Tracer).
+![](img/Subsurface/cornell.Lambertreferenceforsubsurface2248samp.png)
+
+_Lambertian Reference for the image below_
+
+![](img/Subsurface/cornell.subsurface.scatteringcoeff300.thetamin160.5000samp.png)
+
+_Subtle Subsurface Scattering with a scattering coefficient of 300; Entire coloration is due to the subsurface BxDF_
+
+![](img/Subsurface/cornell.cornell.sphereInfrontOfLightLambertianReference.5000samp.png)
+
+_Lambertian Reference for the image below_
+
+![](img/Subsurface/cornell.sphereInfrontOfLight.subsurface.scatteringcoeff300.thetamin160.5000samp.png)
+
+Another example of Subsurface Scattering with a scattering coefficient of 300; Entire coloration is due to the subsurface BxDF_
+
+The subsurface BxDF I implemented adds about 3ms of overall compute time per sample for an 800x800 pixel image. 
+The subsurface BxDF I designed looks more interesting with other BxDFs such as specular because it becomes more subtle. If used as the only BxDF in the material it will default to a opaque lambertian with controllable intensity for the subsurface coloration.
+The subsurface BxDF I designed only handles forward scattering subsurface materials.
+
+Subsurface materials can most accurately be modelled as random walks inside the object with a high probability of exit back out close to the point of entry for the ray (reflective component with a displaced intersectionPoint), and fewer rays which traverse the object and leave through the opposite side (refractive component). This however takes forever to converge even on a GPU path tracer. My approach is an amalgamation of everything I found while trying to research Subsurface scattering but heavily models single scattering events and mostly non reflective Subsurface materials.
+
+Algorithm:
+1) Ray ray1 intersects with an object in the scene.
+2) Generate a sampleDistance which is how far the ray can travel through the object with a subsurface BxDF (This is based off of a exponential function, ie -logf(rand())/scatteringCoefficient ).
+2) Generate a scattered ray direction based on the original ray (ray1) direction and the scattering properties of the material.
+3) Generate a scattered ray origin using a sample obtained from the uniform scattered sampling of a disc generated along the normal. Scale this origin by a coefficient thats based off of samplDistance. Move this ray origin just inside the object.
+3) Create a new ray (scattered ray) using the scattered origin and scattered direction.
+4) Carry out an intersection test using this ray against only the geometr the original ray (ray1) intersected with. This gives you a t value which lets you determine the thickness of the object.
+5) if (sampleDistance < object thickness) { return Black } //this is because the rays energy will die before it exits the object.
+6) Now we know that the object is thin enough that the ray can escape it with some energy. But to prevent any weird errors we change the exit point of the ray to just outside the object ( t + EPSILON instead of sampleDistance).
+7) Update the original point of intersection of ray1 to be this exit point determined in step 6. This is because intersectionPoints are used to make spawn new rays for further bouncing in the scene.
+8) update the wi of the ray to the scattered ray direction
+9) update the pdf to be a value determined by the Henyey-Greenstein formulation for a positive g value.
+10) Scale down the color of the ray by a coefficient based on sampleDistance.
+
+Notes:  -> This algorithm isnt perfect and looks best when combined with other BxDFs especially ones with a reflective component.
+		-> It needs a bit of fine-tuning in terms of the coefficients used (all trial and error right now)
+		-> models refractive subsurface materials and not the general reflective and refractive material.
 
 ### Stream Compactionfor Inactive Ray Culling
 
@@ -69,11 +106,11 @@ Anti-Aliasing is a really cool feature that costs us almost nothing (infact, our
 
 ### Depth of Field
 
-![](img/cornell.DOFexaggerated.5000samples.png)
+![](img/FancyRenders/DepthOfField/cornell.DOFexaggerated.5000samples.png)
 
 _Depth of Field Exaggerated_
 
-![](img/cornell.DOFsubtle.5000samples.png)
+![](img/FancyRenders/DepthOfField/cornell.DOFsubtle.5000samples.png)
 
 _Subtle Depth Of Field_
 
@@ -81,13 +118,22 @@ Another easy feature that can yield interesting visual results is depth of field
 
 Depth of field barely costs us anything in terms of run time.
 
+### Naive Integration Scheme
+
+![](img/IntegrationSchemes/cornell.Naive.5000samples.png)
+
+_Anti-Aliased render of a cornell box scene using the naive integration scheme_
+
+A Naive brute force approach to path tracing. This integrator takes a long time and a large number of samples per pixel to converge upon an image. There are things that can be done to improve speed at which the image converges such as Multiple Important Sampling but these add biases to the image. Usually these biases are very good approximations of how the brute force approach would result. 
+#### I talk more about Multiple Important Sampling [here](https://github.com/Aman-Sachan-asach/Monte-Carlo-Path-Tracer).
+
 ### Direct Lighting Integration Scheme
 
-![](img/cornell.DirectLighting.SpereLight.5000samples.png)
+![](img/IntegrationSchemes/cornell.DirectLighting.SpereLight.5000samples.png)
 
 _cornell box with a sphere light using the direct light integration scheme_
 
-![](img/cornell.SpereLight.5000samples.png)
+![](img/IntegrationSchemes/cornell.SpereLight.5000samples.png)
 
 _cornell box with a sphere light using the naive integration scheme for reference_
 

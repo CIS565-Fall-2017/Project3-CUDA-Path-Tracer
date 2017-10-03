@@ -24,10 +24,10 @@
 //--------------------
 //Toggle-able OPTIONS
 //--------------------
-#define FIRST_BOUNCE_INTERSECTION_CACHING 0
-#define MATERIAL_SORTING 0
-#define INACTIVE_RAY_CULLING 0 //Stream Compaction of rays
-#define DEPTH_OF_FIELD 0
+#define FIRST_BOUNCE_INTERSECTION_CACHING 1
+#define MATERIAL_SORTING 1
+#define INACTIVE_RAY_CULLING 1 //Stream Compaction of rays
+#define DEPTH_OF_FIELD 1
 #define ANTI_ALIASING 1 // if you use first bounce caching, antialiasing will not work --> can make it work with 
 						// a more deterministic Supersampling approach to AA but requires more memory for 
 						// caching more intersections
@@ -413,7 +413,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 
 	////------------------------------------------------
 	////Timer Start
-	//timeStartCpu = std::chrono::high_resolution_clock::now();
+	timeStartCpu = std::chrono::high_resolution_clock::now();
 	////------------------------------------------------
 
 	// Recap:
@@ -542,10 +542,10 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 
 	////------------------------------------------------
 	////Timer End
-	//timeEndCpu = std::chrono::high_resolution_clock::now();
-	//std::chrono::duration<double, std::milli> duration = timeEndCpu - timeStartCpu;
-	//prevElapsedTime = static_cast<decltype(prevElapsedTime)>(duration.count());
-	//printTimerDetails(iter, depth, prevElapsedTime);
+	timeEndCpu = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double, std::milli> duration = timeEndCpu - timeStartCpu;
+	prevElapsedTime = static_cast<decltype(prevElapsedTime)>(duration.count());
+	printTimerDetails(iter, depth, prevElapsedTime);
 	////------------------------------------------------
 
     // Send results to OpenGL buffer for rendering
