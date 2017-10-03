@@ -38,6 +38,9 @@ The brute force algorithm uses a sequence of compute kernels that intersect and 
 ### Multiple BxDFs
 Apart from the common materials, the purely diffuse material supports a translucence attribute that lets the material transmit light through thin walled geometry, such as triangles. You can see an example in the following figure.
 
+![](img/translucent.png)
+
+Notice how the paper is translucent on the back of the origami piece.
 
 All materials both sample a direction and evaluate the brdf function, returning a pdf for the Monte Carlo simulation. Note that the kernel is an uber shader and decides which sampling function to call depending on material type.
 
