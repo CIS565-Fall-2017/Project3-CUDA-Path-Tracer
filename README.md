@@ -77,10 +77,12 @@ This took me like 5 days to do, I ended up simply using thrust's partition, but 
 
 #### Environment Maps:
 
-![inverted](/img/envMap.png)
+![environment-map](/img/envMap2.png)
+
 An environment map with a purely specular sphere in the middle.
 
-![inverted](/img/envMapDiff.png)
+![diffuse-environment-map](/img/envMap.png)
+
 An environment map with a purely diffuse sphere in the middle.
 
 In the sample images above, you can clearly see the effect the environment map has with specular surfaces. With the purely specular surface it sort of looks like there is some bloom effeect showing as well. I think that is really cool.
@@ -138,11 +140,11 @@ Took me forever to get this to work, triangle intersection and intersection test
 ### Bloopers / Lessons Learned
 
 This is a blooper I got while trying to get MIS to work
-![inverted](/img/bloopers/inverted.png)
+![inverted](/img/bloopers/inverted.gif)
 
 Another blooper I got where I was sampling the light weirdly
 
-![the-v](/img/bloopers/the-v.png)
+![the-v](/img/bloopers/the-v.gif)
 
 My favorite Blooper, which also shows Direct Ligting Rays being sampled:
 
