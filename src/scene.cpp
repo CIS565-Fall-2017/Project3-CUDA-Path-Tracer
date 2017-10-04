@@ -80,7 +80,7 @@ int Scene::loadGeom(string objectid) {
         }
 
         //link material
-		utilityCore::safeGetline(fp_in, line);
+        utilityCore::safeGetline(fp_in, line);
         if (!line.empty() && fp_in.good()) {
             vector<string> tokens = utilityCore::tokenizeString(line);
             newGeom.materialid = atoi(tokens[1].c_str());
