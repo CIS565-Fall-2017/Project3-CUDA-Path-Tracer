@@ -148,5 +148,5 @@ Another blooper I got where I was sampling the light weirdly
 
 My favorite Blooper, which also shows Direct Ligting Rays being sampled:
 
-![starry](/img/bloopers/the-v.png)![inverted](/img/bloopers/starry.gif)
+![inverted](/img/bloopers/starry.gif)
 
