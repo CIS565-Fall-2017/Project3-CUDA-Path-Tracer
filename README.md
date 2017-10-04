@@ -140,6 +140,7 @@ Took me forever to get this to work, triangle intersection and intersection test
 ### Bloopers / Lessons Learned
 
 This is a blooper I got while trying to get MIS to work
+
 ![inverted](/img/bloopers/inverted.gif)
 
 Another blooper I got where I was sampling the light weirdly
