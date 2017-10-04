@@ -16,7 +16,6 @@ The features included in this pathtracer are:
 - Other Integrators: Direct Lighting, Multiple Importance Sampling
 - Implicit Surfaces: Raymarched 3D [Mandelbulb!](http://www.skytopia.com/project/fractal/mandelbulb.html)
 
-// Describe the basic LTE, show images for how perfectly diffuse and specular brdfs scatter light
 The basic, naive pathtracer has a simple goal: hit an object, change the current ray's color according to the material properties, bounce and continue.
 While, this while give you a correct image, it will take a terribly long time for the image to converge to one without any noise or graininess. Here, after 5000 samples,
 we see the results of a simple cornell box scene integrated naively:
