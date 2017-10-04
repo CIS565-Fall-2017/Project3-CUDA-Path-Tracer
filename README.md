@@ -50,7 +50,7 @@ I'm also a fan of fractals, so logically, I had to pathtrace a 3D Mandelbulb, wh
 
 Direct lighting:
 
-![](img/Mandelbulb_3PtLighting_DL_500samp.png)
+![](img/Mandelbulb_3PtLighting_DL_500samp.PNG)
 
 and rendered with multiple importance sampling (the image export created some black dots, I will re-render some in the near future):
 
