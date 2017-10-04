@@ -74,8 +74,6 @@ static Geom * dev_geoms = NULL;
 static Material * dev_materials = NULL;
 static PathSegment * dev_paths = NULL;
 static ShadeableIntersection * dev_intersections = NULL;
-// TODO: static variables for device memory, any extra info you need, etc
-// ...
 
 void pathtraceInit(Scene *scene) {
     hst_scene = scene;
@@ -96,8 +94,6 @@ void pathtraceInit(Scene *scene) {
     cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
-    // TODO: initialize any extra device memeory you need
-
     checkCUDAError("pathtraceInit");
 }
 
@@ -107,7 +103,6 @@ void pathtraceFree() {
     cudaFree(dev_geoms);
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
-    // TODO: clean up any extra device memory you created
 
     checkCUDAError("pathtraceFree");
 }
@@ -139,14 +134,12 @@ __global__ void generateRayFromCamera(Camera cam
         segment.throughput = segment.color;
         segment.hitSpecularObject = false;
 
-
         thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, index);
         thrust::uniform_real_distribution<float> u_onehalf(-0.5f, 0.5f);
 
         float xJitter = u_onehalf(rng) * cam.pixelLength.x;
         float yJitter = u_onehalf(rng) * cam.pixelLength.y;
 
-        // TODO: implement antialiasing by jittering the ray
         segment.ray.direction = glm::normalize(cam.view
             - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
             - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
@@ -181,7 +174,7 @@ __device__ float SDF(
         glm::vec4 trap = glm::vec4(abs(w), m);
         float dz = 1.0;
 
-        for (int i = 0; i<4; i++)
+        for (int i = 0; i < 4; i++)
         {
             #if 1
             float m2 = m*m;
@@ -230,8 +223,8 @@ __device__ glm::vec3 ComputeNormal(
 )
 {
     return glm::normalize(glm::vec3(SDF(pos + glm::vec3(1.f * EPSILON, 0.f, 0.f), type, scale) - SDF(pos - glm::vec3(1.f * EPSILON, 0.f, 0.f), type, scale),
-                                    SDF(pos + glm::vec3(0.f, 1.f * EPSILON, 0.f), type, scale) - SDF(pos - glm::vec3(0.f, 1.f * EPSILON, 0.f), type, scale),
-                                    SDF(pos + glm::vec3(0.f, 0.f, 1.f * EPSILON), type, scale) - SDF(pos - glm::vec3(0.f, 0.f, 1.f * EPSILON), type, scale)));
+        SDF(pos + glm::vec3(0.f, 1.f * EPSILON, 0.f), type, scale) - SDF(pos - glm::vec3(0.f, 1.f * EPSILON, 0.f), type, scale),
+        SDF(pos + glm::vec3(0.f, 0.f, 1.f * EPSILON), type, scale) - SDF(pos - glm::vec3(0.f, 0.f, 1.f * EPSILON), type, scale)));
 }
 
 __device__ void ComputeIntersectionsHelper(
@@ -526,7 +519,7 @@ __device__ glm::vec3 ComputeDirectLighting_BSDF(
     thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, pathSegment.remainingBounces + index * index);
 
     Material & mat = materials[shadeableIsect.materialId];
-    
+
     /* Compute the various components needed for the LTE */
 
     glm::vec3 f, isectPos, normal;
@@ -605,7 +598,7 @@ __global__ void DirectLightingIntegrator(
             PathSegment & pathSegment = iterationPaths[index];
             Geom chosenLight; // Needed for MIS, but not in this integrator. Lets us reuse the direct lighting code for both integrators
             float pdfa, pdfb; // Needed for MIS, buyt not in this integrator.
-            pathSegment.color = (float) nLights * ComputeDirectLighting(index, iter, nLights, numGeoms, pathSegment, shadeableIntersections[index], materials, geometry, chosenLight, pdfa, pdfb);
+            pathSegment.color = (float)nLights * ComputeDirectLighting(index, iter, nLights, numGeoms, pathSegment, shadeableIntersections[index], materials, geometry, chosenLight, pdfa, pdfb);
         }
         else
         {
@@ -691,9 +684,9 @@ __global__ void MISIntegrator(
             float pdf_Light; // Light evaluated, light-importance sampled
             float pdf_BSDF; // BSDF evaluated, BSDF-importance sampled
             glm::vec3 directLighting_Light = ComputeDirectLighting(index, iter, nLights, numGeoms, pathSegment,
-                                                                   shadeableIsect, materials, geometry, chosenLight, pdf_BSDF_Light, pdf_Light);
+                shadeableIsect, materials, geometry, chosenLight, pdf_BSDF_Light, pdf_Light);
             glm::vec3 directLighting_BSDF = ComputeDirectLighting_BSDF(index, iter, nLights, numGeoms, pathSegment,
-                                                                       shadeableIsect, materials, geometry, chosenLight, pdf_Light_BSDF, pdf_BSDF);
+                shadeableIsect, materials, geometry, chosenLight, pdf_Light_BSDF, pdf_BSDF);
             // Compute the proper weights using the various PDFs and power heuristic
             float w_Light = PowerHeuristic(1, pdf_Light, 1, pdf_BSDF_Light);
             float w_BSDF = PowerHeuristic(1, pdf_BSDF, 1, pdf_Light_BSDF);
@@ -851,7 +844,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
     // * Finally, add this iteration's results to the image. This has been done
     //   for you.
 
-    // TODO: perform one iteration of path tracing
+    // Timing for measuring performance
+
 
     int depth = 0;
     PathSegment* dev_path_end = dev_paths + pixelcount;
@@ -861,17 +855,18 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
     generateRayFromCamera << <blocksPerGrid2d, blockSize2d >> > (cam, iter, traceDepth, dev_paths);
     checkCUDAError("generate camera ray");
 
+    dim3 numblocksPathSegmentTracing = (num_active_paths + blockSize1d - 1) / blockSize1d;
+
     // --- PathSegment Tracing Stage ---
     // Shoot ray into scene, bounce between objects, push shading chunks
 
     bool iterationComplete = false;
     while (!iterationComplete) {
 
+        numblocksPathSegmentTracing = (num_active_paths + blockSize1d - 1) / blockSize1d;
         // clean shading chunks
         cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
-        // tracing
-        dim3 numblocksPathSegmentTracing = (num_active_paths + blockSize1d - 1) / blockSize1d;
         computeIntersections << < numblocksPathSegmentTracing, blockSize1d >> > (
             num_active_paths
             , dev_paths
@@ -881,6 +876,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
             );
         checkCUDAError("trace one bounce");
         cudaDeviceSynchronize();
+
         depth++;
 
         //#define SORT_BY_MATERIAL_TYPE
@@ -942,11 +938,11 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
                         , dev_geoms
                         );
                     checkCUDAError("MIS Integrator");
-                }
-                #endif
-            }
-            #endif
         }
+                #endif
+    }
+            #endif
+}
         #endif
         cudaDeviceSynchronize();
 
