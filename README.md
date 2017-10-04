@@ -41,12 +41,12 @@ and this also converges quite satisfyingly at higher sample counts:
 ![](img/cornell_MIS_20000samp.png)
 
 So, I've implemented some of the quintessential rendering techniques - great. Cornell boxes don't look that awesome though. One of my favorite techniques for creating
-awesome looking scenes is raymarching. Inigo Quiles, who happens to hold the title of "Coolest Person of All Time", is an expert on this and has a [website](http://iquilezles.org/www/) dedicated to learning about
+awesome looking scenes is raymarching. Inigo Quilez, who happens to hold the title of "Coolest Person of All Time", is an expert on this and has a [website](http://iquilezles.org/www/) dedicated to learning about
 it as well as plenty of other graphics techniques. The basic premise of ray marching is to begin with functions that answer the question "How close am I to the nearest object in the scene?".
 Given a ray from the camera, step along the ray at a small interval repeatedly asking "How close am I to the nearest object?" and if the answer to that is close to zero, we know we've
 hit an object.
 
-I'm also a fan of fractals, so logically, I had to pathtrace a 3D Mandelbulb, which has supposedly never been done in 565 history. Here are a couple scenes showcasing the results:
+I'm also a fan of fractals, so logically, I had to pathtrace a 3D Mandelbulb, which has apparently never been done in 565 history (?). Here are a couple scenes showcasing the results:
 
 Direct lighting:
 
@@ -54,7 +54,7 @@ Direct lighting:
 
 and rendered with multiple importance sampling (the image export created some black dots, I will re-render some in the near future):
 
-![](mandelbulb_cornell_MIS5000samp.png)
+![](img/mandelbulb_cornell_MIS5000samp.png)
 
 Still todo:
 set up gpu timer
