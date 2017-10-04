@@ -77,7 +77,7 @@ BXDF        2
 
 // Camera
 CAMERA
-RES         600 600
+RES         1000 1000
 FOVY        45
 ITERATIONS  5000
 DEPTH       8

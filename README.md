@@ -36,7 +36,7 @@ at 5000 samples, we have a much more converged image than the naively integrated
 
 ![](img/cornell_MIS_5000samp.png)
 
-and this also converges quite satisfyingly at higher sample counts:
+and this also converges quite satisfyingly at higher sample counts (20k):
 
 ![](img/cornell_MIS_20000samp.png)
 
@@ -52,10 +52,21 @@ Direct lighting:
 
 ![](img/Mandelbulb_3PtLighting_DL_500samp.PNG)
 
-and rendered with multiple importance sampling (the image export created some black dots, I will re-render some in the near future):
+and rendered with multiple importance sampling (the image export created some black dots, I will re-render this in the near future):
 
 ![](img/mandelbulb_cornell_MIS5000samp.png)
 
-Still todo:
-set up gpu timer
-stream compaction timing
+# Timing / Analysis
+
+Material Sorting only decreased performance - probably because in a Cornell Box scene, the variety
+of material types is not large enough to make the cost of sorting all the rays worthwhile. Below shows
+the performance comparison:
+
+![](img/matsortgraph.png)
+
+Stream Compaction also decreased performance, surprisingly. I tried increasing the number of pixels to see if a higher
+ ray count would cause the costs involved with stream compaction to be less than the gain, but this did not seem to happen.
+ Here's the graph:
+ 
+
+![](img/streamcompgraph.png)
