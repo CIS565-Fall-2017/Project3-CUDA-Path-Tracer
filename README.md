@@ -141,13 +141,13 @@ Took me forever to get this to work, triangle intersection and intersection test
 
 This is a blooper I got while trying to get MIS to work
 
-![inverted](/img/bloopers/inverted.gif)
+![bnw](/img/bloopers/bnw.gif)
 
 Another blooper I got where I was sampling the light weirdly
 
-![the-v](/img/bloopers/the-v.gif)
+![the-v](/img/bloopers/v.gif)
 
 My favorite Blooper, which also shows Direct Ligting Rays being sampled:
 
-![inverted](/img/bloopers/starry.gif)
+![starry stuff](/img/bloopers/starry.gif)
 
