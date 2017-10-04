@@ -211,6 +211,7 @@ int Scene::loadMaterial(string materialid) {
             }
         }
         newMaterial.summaryState = materialSummary(newMaterial);
+		//int u = numMaterials(newMaterial);
         materials.push_back(newMaterial);
         return 1;
     }

@@ -38,7 +38,9 @@ struct Geom {
 //  zero and Emissive is >0 it is emissive; if it is nonzero and emissive is not 
 // there it is Lambert.
 // indexOfRefraction is the ratio of the index of refraction of the side away from the normal to
-// the that on the side that the normal points to.:
+// the that on the side that the normal points to.  A glass sphere in air would be 1.5
+// the color is used for Lambertian materials
+// the specular color is used for Phong reflection, and specular refraction or reflection
 struct Material {
     glm::vec3 color;
     struct {
@@ -53,7 +55,7 @@ struct Material {
 };
 
 
-enum MaterialType { Lambert = 1 << 0, Reflective = 1 << 1, Refractive = 1 << 2, Emissive = 1 << 3};
+enum MaterialType { Lambert = 1 << 0, Reflective = 1 << 1, Refractive = 1 << 2, Emissive = 1 << 3, NoMaterial = 1 << 4 };
 // MaxMaterialTypes is number of material categories.
 const  unsigned MaxMaterialTypes {4};
 struct Camera {
@@ -74,7 +76,7 @@ struct RenderState {
     std::vector<glm::vec3> image;
     std::string imageName;
 };
-
+// Material type is the randomly selected material for the next round
 struct PathSegment {
 	Ray ray;
 	glm::vec3 color;
@@ -89,4 +91,12 @@ struct ShadeableIntersection {
   float t;
   glm::vec3 surfaceNormal;
   int materialId;
+  // Matl tells us which specific material of several possible
+  // ones are used in this intersection.
+  MaterialType matl;
+  // cache whether 
+  bool outside;
 };
+
+// used for sorting matl is the single material that this intersection will use.
+bool operator<(ShadeableIntersection &v1, ShadeableIntersection& v2);

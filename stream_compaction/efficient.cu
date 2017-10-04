@@ -134,7 +134,7 @@ namespace StreamCompaction {
 		   // Now do the Downsweep to Sum elements
 		   // Stride starts at TILE
 		  maxRed = 1;
-		  for (Stride = TILE; Stride > 1; Stride >>= 1, maxRed << 1){
+		  for (Stride = TILE; Stride > 1; Stride >>= 1, maxRed <<= 1){
 			  if (threadIdx.x < maxRed) {
 				  int right = -Stride * threadIdx.x + startOffset;
 				  int separation = Stride >> 1;
