@@ -198,7 +198,7 @@ void scatterRay(
 			pathSegment.color *= (frenselCoefficient * m.specular.color / reflecProb); // divide the probability to counter the chance
 #else
 #ifdef ENABLE_MIS_LIGHTING
-			pathSegment.color *= (frenselCoefficient * m.specular.color / reflecProb); // divide the probability to counter the chance
+			pathSegment.ThroughputColor *= (frenselCoefficient * m.specular.color / reflecProb); // divide the probability to counter the chance
 #endif
 #endif
 		}
@@ -226,7 +226,7 @@ void scatterRay(
 			pathSegment.color *= ((1.f - frenselCoefficient) * m.specular.color / refractProb);  // divide the probability to counter the chance
 #else
 #ifdef ENABLE_MIS_LIGHTING
-			pathSegment.color *= ((1.f - frenselCoefficient) * m.specular.color / refractProb);  // divide the probability to counter the chance
+			pathSegment.ThroughputColor *= ((1.f - frenselCoefficient) * m.specular.color / refractProb);  // divide the probability to counter the chance
 #endif
 #endif
 		}
@@ -244,7 +244,7 @@ void scatterRay(
 		pathSegment.color *= m.specular.color; 
 #else
 #ifdef ENABLE_MIS_LIGHTING
-		pathSegment.color *= m.specular.color;
+		pathSegment.ThroughputColor *= m.specular.color;
 #endif
 #endif
 	}
@@ -278,7 +278,7 @@ void scatterRay(
 		pathSegment.color *= m.specular.color;  
 #else
 #ifdef ENABLE_MIS_LIGHTING
-		pathSegment.color *= m.specular.color;
+		pathSegment.ThroughputColor *= m.specular.color;
 #endif
 #endif
 	}
@@ -335,10 +335,11 @@ void scatterRay(
 
 		// ******************* MIS  START *************************
 		glm::vec3 throughputColor = pathSegment.ThroughputColor;
+
 		// ********** MIS Direct lighting part ********************
 		glm::vec3 OneLightColor(0.f);
 
-		float pdf_bsdf = 1.0f / PI;
+		float pdf_bsdf = 1.0f / PI; // Diffuse bxdf pdf value
 
 		// use power heuristic here 
 		float weigh_direct = (pdf_direct * pdf_direct) / (pdf_direct * pdf_direct + pdf_bsdf * pdf_bsdf);
@@ -353,7 +354,7 @@ void scatterRay(
 #endif
 						   ) == selectedLight.geomIdx) {
 			OneLightColor += ((m.color / PI) * selectedLight.emittance * AbsDot(normal, shadowFeelRay.direction) * weigh_direct / pdf_direct);
-			//OneLightColor += (((m.color / PI) * selectedLight.emittance * AbsDot(normal, shadowFeelRay.direction) / pdf_direct));
+			//OneLightColor += (((m.color / PI) * selectedLight.emittance * AbsDot(normal, shadowFeelRay.direction) / pdf_direct) / 2.f);
 		}
 
 		// ********** MIS Direct bsdf part ********************
@@ -374,13 +375,16 @@ void scatterRay(
 
 		/*throughputColor *= ((float)lightSize * OneLightColor);
 		pathSegment.ThroughputColor = throughputColor;*/
+
 		pathSegment.color += throughputColor * ((float)lightSize * OneLightColor);
+
 
 		// ************** MIS set new ray ******************
 		newDirection = calculateRandomDirectionInHemisphere(normal, rng);
 		pathSegment.ray.direction = glm::normalize(newDirection);
 		pathSegment.ray.origin = intersect;
-		pathSegment.ThroughputColor = throughputColor * m.color * AbsDot(normal, glm::normalize(newDirection));
+		pathSegment.ThroughputColor = throughputColor * m.color;
+		//pathSegment.ThroughputColor = throughputColor * m.color * AbsDot(normal, glm::normalize(newDirection));
 
 		// ************** MIS  END *************************
 

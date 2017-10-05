@@ -13,12 +13,12 @@
 // ----------------------------------------------------------------
 
 // Uncomment to enable direct lighting
-//#define ENABLE_DIR_LIGHTING
+#define ENABLE_DIR_LIGHTING
 
 
 // MIS is NOT finished yet Just ignore it!!!!!!!
 // Should uncomment dir lighting first to uncomment mis
-//#define ENABLE_MIS_LIGHTING
+#define ENABLE_MIS_LIGHTING
 
 
 // ----------------------------------------------------------------

@@ -570,7 +570,13 @@ __global__ void shadeMaterialNaive(
 			// If the material indicates that the object was a light, "light" the ray
 			if (material.emittance > 0.0f) {
 #ifdef	ENABLE_DIR_LIGHTING
+
+#ifdef ENABLE_MIS_LIGHTING
+				pathSegment.color += (pathSegment.ThroughputColor * (materialColor * material.emittance));
+#else
 				pathSegment.color += (materialColor * material.emittance);
+#endif
+
 #else
 				pathSegment.color *= (materialColor * material.emittance);
 #endif
