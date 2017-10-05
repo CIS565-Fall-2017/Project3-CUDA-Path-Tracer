@@ -3,7 +3,7 @@
 #include <cstring>
 
 static std::string startTimeString;
-
+static std::string elapsedTimeString;
 // For camera controls
 static bool leftMousePressed = false;
 static bool rightMousePressed = false;
@@ -33,19 +33,22 @@ int height;
 int main(int argc, char** argv) {
     startTimeString = currentTimeString();
 
+	PerformanceTimer timer;
+
     if (argc < 2) {
         printf("Usage: %s SCENEFILE.txt\n", argv[0]);
         return 1;
     }
 
     const char *sceneFile = argv[1];
-
+	
     // Load scene file
     scene = new Scene(sceneFile);
 
     // Set up camera stuff from loaded path tracer settings
     iteration = 0;
     renderState = &scene->state;
+	
     Camera &cam = renderState->camera;
     width = cam.resolution.x;
     height = cam.resolution.y;
@@ -69,14 +72,27 @@ int main(int argc, char** argv) {
     // Initialize CUDA and GL components
     init();
 
+	timer.startCpuTimer();
     // GLFW main loop
-    mainLoop();
+    mainLoop(timer);
 
+	
     return 0;
 }
 
+void getCameraInfo()
+{
+	Camera &cam = renderState->camera;
+
+	cout <<"Camera Position : " << cam.position.x <<", " <<cam.position.y << ", " << cam.position.z<<endl;
+
+	glm::vec3 LookAT = cam.lookAt;// = cam.position + glm::normalize(cam.lookAt);
+
+	cout << "Camera Lookat : " << LookAT.x << ", " << LookAT.y << ", " << LookAT.z <<endl;
+}
+
 void saveImage() {
-    float samples = iteration;
+    float samples = (float)iteration;
     // output image file
     image img(width, height);
 
@@ -90,7 +106,7 @@ void saveImage() {
 
     std::string filename = renderState->imageName;
     std::ostringstream ss;
-    ss << filename << "." << startTimeString << "." << samples << "samp";
+    ss << filename << "." << startTimeString << "." << samples << "samp" << "." <<elapsedTimeString << "ms";
     filename = ss.str();
 
     // CHECKITOUT
@@ -98,7 +114,8 @@ void saveImage() {
     //img.saveHDR(filename);  // Save a Radiance HDR file
 }
 
-void runCuda() {
+void runCuda(PerformanceTimer &timer) {
+
     if (camchanged) {
         iteration = 0;
         Camera &cam = renderState->camera;
@@ -113,7 +130,7 @@ void runCuda() {
         cam.up = glm::cross(r, v);
         cam.right = r;
 
-        cam.position = cameraPosition;
+        //cam.position = cameraPosition;
         cameraPosition += cam.lookAt;
         cam.position = cameraPosition;
         camchanged = false;
@@ -122,12 +139,14 @@ void runCuda() {
     // Map OpenGL buffer object for writing from CUDA on a single GPU
     // No data is moved (Win & Linux). When mapped to CUDA, OpenGL should not use this buffer
 
-    if (iteration == 0) {
+    if (iteration == 0)
+	{
         pathtraceFree();
         pathtraceInit(scene);
     }
 
-    if (iteration < renderState->iterations) {
+    if (iteration < renderState->iterations)
+	{
         uchar4 *pbo_dptr = NULL;
         iteration++;
         cudaGLMapBufferObject((void**)&pbo_dptr, pbo);
@@ -138,7 +157,14 @@ void runCuda() {
 
         // unmap buffer object
         cudaGLUnmapBufferObject(pbo);
-    } else {
+    }
+	else
+	{
+		
+		timer.endCpuTimer();
+		elapsedTimeString = utilityCore::convertIntToString(timer.getCpuElapsedTimeForPreviousOperation());
+
+
         saveImage();
         pathtraceFree();
         cudaDeviceReset();
@@ -156,6 +182,9 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
       case GLFW_KEY_S:
         saveImage();
         break;
+	  case GLFW_KEY_C:
+		  getCameraInfo();
+		  break;
       case GLFW_KEY_SPACE:
         camchanged = true;
         renderState = &scene->state;

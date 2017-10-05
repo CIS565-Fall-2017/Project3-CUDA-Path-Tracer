@@ -1,0 +1,393 @@
+// Emissive material (light)
+MATERIAL 0
+RGB         1 1 1
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   15
+DIFFUSEMAP
+SPECULAMAP
+NORMALMAP
+ROUGHNESSMAP
+
+// Pillar
+MATERIAL 1
+RGB         0.831373 0.686274 0.43
+SPECEX      0
+SPECRGB     1 1 1
+REFL        0.1
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+DIFFUSEMAP
+SPECULAMAP
+NORMALMAP
+ROUGHNESSMAP  \texture\checker.tga
+
+// Floor
+MATERIAL 2
+RGB         1 1 1
+SPECEX      0
+SPECRGB     1 1 1
+REFL        0.2
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+DIFFUSEMAP  \texture\goldenfloor.tga
+SPECULAMAP
+NORMALMAP   \texture\goldenfloor_nor.tga
+ROUGHNESSMAP \texture\goldenfloor_roughness.tga
+
+// Floor2
+MATERIAL 3
+RGB         1 1 1
+SPECEX      0
+SPECRGB     1 1 1
+REFL        0.502
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+DIFFUSEMAP  \texture\goldenfloor2.tga
+SPECULAMAP
+NORMALMAP
+ROUGHNESSMAP
+
+// Specular white
+MATERIAL 4
+RGB         .98 .98 .98
+SPECEX      0
+SPECRGB     .98 .98 .98
+REFL        1
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+DIFFUSEMAP
+SPECULAMAP
+NORMALMAP
+ROUGHNESSMAP
+
+// ChromieSkin
+MATERIAL 5
+RGB         1 1 1
+SPECEX      0
+SPECRGB     1.0 1.0 1.0
+REFL        0.01
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+DIFFUSEMAP  \texture\storm_hero_chromie_ultimate_diff.tga
+SPECULAMAP  
+NORMALMAP   \texture\storm_hero_chromie_ultimate_norm.tga
+ROUGHNESSMAP \texture\storm_hero_chromie_ultimate_roughness.tga
+
+// ChromieTrap
+MATERIAL 6
+RGB         1 1 1
+SPECEX      0
+SPECRGB     1 1 1
+REFL        0.2
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+DIFFUSEMAP  \texture\storm_fx_chromie_base_trap_diff.tga
+SPECULAMAP  \texture\storm_fx_chromie_base_trap_spec.tga
+NORMALMAP   \texture\storm_fx_chromie_base_trap_norm.tga
+ROUGHNESSMAP \texture\storm_fx_chromie_base_trap_roughness.tga
+
+// ChromieGlass
+MATERIAL 7
+RGB         1 1 1
+SPECEX      0
+SPECRGB     1 1 1
+REFL        0.99
+REFR        1
+REFRIOR     1.3
+EMITTANCE   0
+DIFFUSEMAP  
+SPECULAMAP  
+NORMALMAP   
+ROUGHNESSMAP
+
+// ChromieMetal
+MATERIAL 8
+RGB         1 1 1
+SPECEX      0
+SPECRGB     1 1 1
+REFL        0.01
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+DIFFUSEMAP  \texture\storm_hero_chromie_ultimate_diff.tga
+SPECULAMAP  \texture\storm_hero_chromie_ultimate_spec.tga
+NORMALMAP   \texture\storm_hero_chromie_ultimate_norm.tga
+ROUGHNESSMAP  \texture\storm_hero_chromie_ultimate_roughness.tga
+
+// Emissive material (light)
+MATERIAL 9
+RGB         0.2 0.58 1
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   10
+DIFFUSEMAP
+SPECULAMAP
+NORMALMAP
+ROUGHNESSMAP
+
+// Emissive material (light)
+MATERIAL 10
+RGB         0.8 0.7 0.2
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   8
+DIFFUSEMAP
+SPECULAMAP
+NORMALMAP
+ROUGHNESSMAP
+
+// Camera
+CAMERA
+RES         1024 1024
+FOVY        45
+ITERATIONS  5000
+DEPTH       8
+FILE        Chromie
+EYE         0 0 6.5
+LOOKAT      0 2.25 0
+UP          0 1 0
+FOCALDST    6.300735
+LENSRADIOUS 0.1
+ENVMAP      \texture\bg.tga
+
+
+// Ceiling light
+OBJECT 0
+cube
+material 0
+TRANS       4 12 7
+ROTAT       40 0 160
+SCALE       10 .3 10
+
+// Floor
+OBJECT 1
+cube
+material 2
+TRANS       0 0 0
+ROTAT       0 0 0
+SCALE       20 .01 20
+
+OBJECT 2
+mesh
+\obj\Chromie_Cloth.obj
+material 5
+TRANS       0 3 0
+ROTAT       0 30 0
+SCALE       0.2 0.2 0.2
+
+OBJECT 3
+mesh
+\obj\Chromie_Metal.obj
+material 8
+TRANS       0 3 0
+ROTAT       0 30 0
+SCALE       0.2 0.2 0.2
+
+OBJECT 4
+mesh
+\obj\Chromie_Trap.obj
+material 6
+TRANS       0 0 0
+ROTAT       0 0 0
+SCALE       0.2 0.2 0.2
+
+OBJECT 5
+mesh
+\obj\Chromie_Trap_Glass.obj
+material 7
+TRANS       0 0 0
+ROTAT       0 0 0
+SCALE       0.2 0.2 0.2
+
+// Ceiling light
+OBJECT 6
+cube
+material 10
+TRANS       12.12 20 -7
+ROTAT       -40  0 130
+SCALE       10 .3 10
+
+// Ceiling light
+OBJECT 7
+cube
+material 9
+TRANS       -12.12 20 -7
+ROTAT       -40  0 40
+SCALE       10 .3 10
+
+// Pillar 1
+OBJECT 8
+cube
+material 1
+TRANS       0 0 5
+ROTAT       0 0 0
+SCALE       0.5 3 0.5
+
+// Pillar 2
+OBJECT 9
+cube
+material 1
+TRANS       1.294095 0 4.829629
+ROTAT       0 0 0
+SCALE       0.5 4 0.5
+
+// Pillar 3
+OBJECT 10
+cube
+material 1
+TRANS       2.5 0 4.330127
+ROTAT       0 0 0
+SCALE       0.5 5 0.5
+
+// Pillar 4
+OBJECT 11
+cube
+material 1
+TRANS       3.535534 0 3.535534
+ROTAT       0 0 0
+SCALE       0.5 6 0.5
+
+// Pillar 5
+OBJECT 12
+cube
+material 1
+TRANS       4.330127 0 2.5
+ROTAT       0 0 0
+SCALE       0.5 7 0.5
+
+// Pillar 6
+OBJECT 13
+cube
+material 1
+TRANS       4.829629 0 1.294095
+ROTAT       0 0 0
+SCALE       0.5 8 0.5
+
+// Pillar 1
+OBJECT 14
+cube
+material 1
+TRANS       5 0 0
+ROTAT       0 0 0
+SCALE       0.5 9 0.5
+
+// Pillar 2
+OBJECT 15
+cube
+material 1
+TRANS       4.829629 0 -1.294095
+ROTAT       0 0 0
+SCALE       0.5 10 0.5
+
+// Pillar 3
+OBJECT 16
+cube
+material 1
+TRANS       4.330127 0 -2.5
+ROTAT       0 0 0
+SCALE       0.5 11 0.5
+
+// Pillar 4
+OBJECT 17
+cube
+material 1
+TRANS       3.535534 0 -3.535534
+ROTAT       0 0 0
+SCALE       0.5 12 0.5
+
+// Pillar 5
+OBJECT 18
+cube
+material 1
+TRANS       2.5 0 -4.330127
+ROTAT       0 0 0
+SCALE       0.5 13 0.5
+
+// Pillar 6
+OBJECT 19
+cube
+material 1
+TRANS       1.294095 0 -4.829629
+ROTAT       0 0 0
+SCALE       0.5 14 0.5
+
+// Pillar 7
+OBJECT 20
+cube
+material 1
+TRANS       0 0 -5
+ROTAT       0 0 0
+SCALE       0.5 15 0.5
+
+// Pillar 8
+OBJECT 21
+cube
+material 1
+TRANS       -1.294095 0 -4.829629
+ROTAT       0 0 0
+SCALE       0.5 16 0.5
+
+// Pillar 9
+OBJECT 22
+cube
+material 1
+TRANS       -2.5 0 -4.330127
+ROTAT       0 0 0
+SCALE       0.5 17 0.5
+
+// Pillar 10
+OBJECT 23
+cube
+material 1
+TRANS       -3.535534 0 -3.535534
+ROTAT       0 0 0
+SCALE       0.5 18 0.5
+
+// Pillar 11
+OBJECT 24
+cube
+material 1
+TRANS       -4.330127 0 -2.5
+ROTAT       0 0 0
+SCALE       0.5 19 0.5
+
+// Pillar 12
+OBJECT 25
+cube
+material 1
+TRANS       -4.829629 0 -1.294095
+ROTAT       0 0 0
+SCALE       0.5 20 0.5
+
+// Pillar 13
+OBJECT 26
+cube
+material 1
+TRANS       -5 0 0
+ROTAT       0 0 0
+SCALE       0.5 21 0.5
+
+// Floor
+OBJECT 27
+cube
+material 3
+TRANS       0 -0.1 0
+ROTAT       0 0 0
+SCALE       1000 .01 1000
+
