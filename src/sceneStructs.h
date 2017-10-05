@@ -8,13 +8,41 @@
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
 
 #define  MAX_OCTREE_CELL 100
+#define  KDTREE_MAX_STACK 128
+
+typedef float Float;
+typedef glm::vec3 Color3f;
+typedef glm::vec3 Point3f;
+typedef glm::vec3 Normal3f;
+typedef glm::vec2 Point2f;
+typedef glm::ivec2 Point2i;
+typedef glm::ivec3 Point3i;
+typedef glm::vec3 Vector3f;
+typedef glm::vec2 Vector2f;
+typedef glm::ivec2 Vector2i;
+typedef glm::mat4 Matrix4x4;
+typedef glm::mat3 Matrix3x3;
+
+// Global constants. You may not end up using all of these.
+#define ShadowEpsilon 0.0001f
+#define RayEpsilon 0.000005f
+#define RayMarchingEpsilon 0.1f
+#define Pi 3.14159265358979323846f
+#define TwoPi 6.28318530717958647692f
+#define InvPi 0.31830988618379067154f
+#define Inv2Pi 0.15915494309189533577f
+#define Inv4Pi 0.07957747154594766788f
+#define PiOver2 1.57079632679489661923f
+#define PiOver4 0.78539816339744830961f
+#define Sqrt2 1.41421356237309504880f
+#define OneMinusEpsilon 0.99999994f
 
 enum GeomType {
     SPHERE,
     CUBE,
 	PLANE,
 	MESH,
-	TRIANGLE
+	TRIANGLE	
 };
 
 struct Ray {
@@ -26,6 +54,7 @@ struct AABB
 {
 	glm::vec3 min;
 	glm::vec3 max;
+	glm::vec3 mid;
 };
 
 struct Image
@@ -35,6 +64,8 @@ struct Image
 	int height;
 	int beginIndex;
 };
+
+
 
 struct Octree
 {
@@ -80,11 +111,53 @@ struct Triangle {
 	AABB boundingBox;
 };
 
+struct KDtreeNodeForGPU
+{
+	int ID;
+	bool bLeaf;
+
+	int ParentID;
+	AABB boundingBox;
+
+	int LeftID;
+	int RightID;
+
+	int size;
+
+	int TriangleArrayIndex;
+
+	bool bLeftTraversed;
+	bool bRightTraversed;
+
+	bool bLeftIntersected;
+	bool bRightIntersected;
+
+	float minT;
+	float maxT;
+};
+
+struct KDtreeNode
+{
+	int ID;
+	bool bLeaf;
+
+	int ParentID;
+	AABB boundingBox;
+
+	int LeftID;
+	int RightID;
+
+	int size;
+
+	std::vector<Triangle> triangles;
+};
+
 struct Mesh {
 	int size;
 	int triangleBeginIndex;
-	AABB boundingBox;
+	//AABB boundingBox;
 	int OctreeID;
+	int KDtreeID;
 };
 
 struct Geom {
@@ -151,6 +224,7 @@ struct PathSegment {
 	glm::vec3 throughputColor;
 	int pixelIndex;
 	int remainingBounces;
+	bool specularBounce;
 };
 
 // Use with a corresponding PathSegment to do:

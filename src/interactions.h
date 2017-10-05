@@ -288,20 +288,9 @@ __host__ __device__ float getPlaneArea(const Geom &plane)
 }
 
 
-////////////////////////////////////////////////////////////////
-///////////////////////////// CUBE /////////////////////////////
-////////////////////////////////////////////////////////////////
-
-__host__ __device__ float getCubeArea(const Geom &cube)
+__host__ __device__ ShadeableIntersection planeSample(const ShadeableIntersection &ref, const Point2f &xi, float *pdf, const Geom &shape)
 {
-	return (cube.scale.x * cube.scale.y + cube.scale.y * cube.scale.z + cube.scale.x * cube.scale.z) * 2.0f;
-}
-
-
-__host__ __device__ ShadeableIntersection cubeSample(const ShadeableIntersection &ref, const Point2f &xi, float *pdf, const Geom &shape)
-{
-	//Find nearest face
-
+	ShadeableIntersection inter;
 
 	//A SquarePlane is assumed to have a radius of 0.5 and a center of <0,0,0>.
 	Point2f pt = Point2f(xi.x - 0.5f, xi.y - 0.5f);
@@ -310,14 +299,204 @@ __host__ __device__ ShadeableIntersection cubeSample(const ShadeableIntersection
 
 	Point3f WorldSpacePoint = Point3f(WSP.x, WSP.y, WSP.z);
 
-	ShadeableIntersection inter;
-
 	inter.intersectPoint = WorldSpacePoint;
-	inter.surfaceNormal = glm::normalize(glm::vec3(shape.invTranspose * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f)));
+	inter.surfaceNormal = glm::normalize(glm::vec3(shape.invTranspose * glm::vec4(Normal3f(0.0f, 0.0f, 1.0f), 0.0f)));
 
-	//*pdf = 1.0f / getCubeArea(shape);
 	*pdf = 1.0f / getPlaneArea(shape);
+	//*pdf = 1.0f;
 	return inter;
+}
+
+////////////////////////////////////////////////////////////////
+///////////////////////////// CUBE /////////////////////////////
+////////////////////////////////////////////////////////////////
+
+__host__ __device__ float getCubeArea(const Geom &cube, const glm::vec3 &surfaceNormal)
+{
+	glm::vec3 localNormal = multiplyMV(cube.inverseTransform, glm::vec4(surfaceNormal, 0.0f));
+
+	if (glm::abs(localNormal.x) > 0.0f)
+	{
+		return cube.scale.z * cube.scale.y;
+	}
+	else if (glm::abs(localNormal.y) > 0.0f)
+	{
+		return cube.scale.x * cube.scale.z;
+	}
+	else
+	{
+		return cube.scale.x * cube.scale.y;
+	}
+
+	//return (cube.scale.x * cube.scale.y + cube.scale.y * cube.scale.z + cube.scale.x * cube.scale.z) * 2.0f;
+	
+}
+
+
+__host__ __device__ ShadeableIntersection cubeSample(const ShadeableIntersection &ref, const Point2f &xi, float *pdf, const Geom &shape)
+{
+	
+	Point2f pt = Point2f(xi.x - 0.5f, xi.y - 0.5f);
+	glm::vec4 WSP;
+	ShadeableIntersection inter;
+	//Find nearest face
+
+	glm::vec3 localPoint = multiplyMV(shape.inverseTransform, glm::vec4(ref.intersectPoint, 1.0f));	
+	glm::vec3 gaplocalPoint = glm::abs(localPoint - glm::vec3(0.5f));
+
+	if (gaplocalPoint.x < gaplocalPoint.z && gaplocalPoint.x < gaplocalPoint.y)
+	{
+		if (localPoint.x <= -0.5f)
+		{
+			WSP = shape.transform * glm::vec4(-0.5f, pt.x, pt.y, 1.0f);
+			inter.surfaceNormal = glm::normalize(glm::vec3(shape.invTranspose * glm::vec4(-1.0f, 0.0f, 0.0f, 0.0f)));
+		}
+		else if (localPoint.x >= 0.5f)
+		{
+			WSP = shape.transform * glm::vec4(0.5f, pt.x, pt.y, 1.0f);
+			inter.surfaceNormal = glm::normalize(glm::vec3(shape.invTranspose * glm::vec4(1.0f, 0.0f, 0.0f, 0.0f)));
+		}
+		//Inside
+		else
+		{
+			*pdf = 0.0f;
+			return inter;
+		}
+	}
+	else if (gaplocalPoint.y < gaplocalPoint.x && gaplocalPoint.y < gaplocalPoint.z)
+	{
+		if (localPoint.y <= -0.5f)
+		{
+			WSP = shape.transform * glm::vec4(pt.x, -0.5f, pt.y, 1.0f);
+			inter.surfaceNormal = glm::normalize(glm::vec3(shape.invTranspose * glm::vec4(0.0f, -1.0f, 0.0f, 0.0f)));
+		}
+		else if (localPoint.y >= 0.5f)
+		{
+			WSP = shape.transform * glm::vec4(pt.x, 0.5f, pt.y, 1.0f);
+			inter.surfaceNormal = glm::normalize(glm::vec3(shape.invTranspose * glm::vec4(0.0f, 1.0f, 0.0f, 0.0f)));
+		}
+		//Inside
+		else
+		{
+			*pdf = 0.0f;
+			return inter;
+		}
+	}
+	else if (gaplocalPoint.z < gaplocalPoint.x && gaplocalPoint.z < gaplocalPoint.y)
+	{
+		if (localPoint.z <= -0.5f)
+		{
+			WSP = shape.transform * glm::vec4(pt.x, pt.y, -0.5f, 1.0f);
+			inter.surfaceNormal = glm::normalize(glm::vec3(shape.invTranspose * glm::vec4(0.0f, 0.0f, -1.0f, 0.0f)));
+		}
+		else if (localPoint.z >= 0.5f)
+		{
+			WSP = shape.transform * glm::vec4(pt.x, pt.y, 0.5f, 1.0f);
+			inter.surfaceNormal = glm::normalize(glm::vec3(shape.invTranspose * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f)));
+		}
+		//Inside
+		else
+		{
+			*pdf = 0.0f;
+			return inter;
+		}
+	}
+	else
+	{
+
+	}
+
+	
+	Point3f WorldSpacePoint = Point3f(WSP.x, WSP.y, WSP.z);	
+	inter.intersectPoint = WorldSpacePoint;
+
+	
+
+	*pdf = 1.0f / getCubeArea(shape, inter.surfaceNormal);
+	//*pdf = 1.0f / getPlaneArea(shape);
+	return inter;
+}
+
+////////////////////////////////////////////////////////////////
+///////////////////////////// SPHERE ////////////////////////////
+////////////////////////////////////////////////////////////////
+
+__host__ __device__ float getSphereArea(const Geom &sphere)
+{
+	//DELETEME
+	return 4.f * Pi * sphere.scale.x * sphere.scale.x; // We're assuming uniform scale
+}
+
+__host__ __device__ void CoordinateSystem(const Vector3f& v1, Vector3f* v2, Vector3f* v3)
+{
+	if (glm::abs(v1.x) > glm::abs(v1.y))
+		*v2 = Vector3f(-v1.z, 0, v1.x) / glm::sqrt(v1.x * v1.x + v1.z * v1.z);
+	else
+		*v2 = Vector3f(0, v1.z, -v1.y) / glm::sqrt(v1.y * v1.y + v1.z * v1.z);
+	*v3 = glm::cross(v1, *v2);
+}
+
+__host__ __device__ ShadeableIntersection sphereSample(const Point2f &xi, Float *pdf, const Geom &shape)
+{
+	Point3f pObj = squareToSphereUniform(xi);
+	float radius = 0.5f;
+
+	pObj *= radius;
+
+	ShadeableIntersection it;
+	it.surfaceNormal = glm::normalize(multiplyMV(shape.inverseTransform, glm::vec4(pObj, 0.0f)));	          
+	it.intersectPoint = Point3f(shape.transform * glm::vec4(pObj.x, pObj.y, pObj.z, 1.0f));
+
+	*pdf = 1.0f / getSphereArea(shape);
+
+	return it;
+}
+
+__host__ __device__ ShadeableIntersection sphereSample(const ShadeableIntersection &ref, const Point2f &xi, float *pdf, const Geom &shape)
+{
+
+	Point3f center = Point3f(shape.transform * glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
+	Vector3f centerToRef = glm::normalize(center - ref.intersectPoint);
+	Vector3f tan, bit;
+
+	CoordinateSystem(centerToRef, &tan, &bit);
+
+	float radius = 0.5f;
+
+	Point3f pOrigin;
+	if (glm::dot(center - ref.intersectPoint, ref.surfaceNormal) > 0)
+		pOrigin = ref.intersectPoint + ref.surfaceNormal * RayEpsilon;
+	else
+		pOrigin = ref.intersectPoint - ref.surfaceNormal * RayEpsilon;
+
+	if (glm::distance2(pOrigin, center) <= radius * radius) // Radius is 1, so r^2 is also 1
+		return sphereSample(xi, pdf, shape);
+
+	float sinThetaMax2 = radius / glm::distance2(ref.intersectPoint, center); // Again, radius is 1
+	float cosThetaMax = std::sqrt(glm::max((float)0.0f, 1.0f - sinThetaMax2));
+	float cosTheta = (1.0f - xi.x) + xi.x * cosThetaMax;
+	float sinTheta = std::sqrt(glm::max((float)0.0f, 1.0f - cosTheta * cosTheta));
+	float phi = xi.y * 2.0f * Pi;
+
+	float dc = glm::distance(ref.intersectPoint, center);
+	float ds = dc * cosTheta - glm::sqrt(glm::max((float)0.0f, 1 - dc * dc * sinTheta * sinTheta));
+
+	float cosAlpha = (dc * dc + 1 - ds * ds) / (2 * dc * 1);
+	float sinAlpha = glm::sqrt(glm::max((float)0.0f, 1.0f - cosAlpha * cosAlpha));
+
+	Vector3f nObj = sinAlpha * glm::cos(phi) * -tan + sinAlpha * glm::sin(phi) * -bit + cosAlpha * -centerToRef;
+	Point3f pObj = Point3f(nObj); // Would multiply by radius, but it is always 1 in object space
+
+	ShadeableIntersection isect;
+
+	pObj *= radius / glm::length(pObj); // pObj is already in object space with r = 1, so no need to perform this step
+
+	isect.intersectPoint = Point3f(shape.transform * glm::vec4(pObj.x, pObj.y, pObj.z, 1.0f));
+	isect.surfaceNormal = glm::normalize(multiplyMV(shape.inverseTransform, glm::vec4(nObj, 0.0f)));
+
+	*pdf = 1.0f / (2.0f * Pi * (1 - cosThetaMax));
+
+	return isect;
 }
 
 
@@ -325,7 +504,7 @@ __host__ __device__ ShadeableIntersection cubeSample(const ShadeableIntersection
 ///////////////////////////// DiffuseAreaLight /////////////////////////////
 ////////////////////////////////////////////////////////////////////////////
 
-/*
+
 __host__ __device__ Color3f Li(const glm::vec3 &isect_normal, const Vector3f &w, const Geom &shape, const Material *material)
 {
 
@@ -336,20 +515,92 @@ __host__ __device__ Color3f Li(const glm::vec3 &isect_normal, const Vector3f &w,
 
 }
 
+__host__ __device__  ShadeableIntersection ShapeSample(const ShadeableIntersection &ref, const Point2f &xi, float *pdf, const Geom &shape)
+{
+	//TODO
+	ShadeableIntersection inters;
+
+	if (shape.type == CUBE)
+	{
+		inters = cubeSample(ref, xi, pdf, shape);
+	}
+	else if (shape.type == PLANE)
+	{
+		inters = planeSample(ref, xi, pdf, shape);
+	}
+	else if (shape.type == SPHERE)
+	{
+		inters = sphereSample(ref, xi, pdf, shape);
+	}
+
+
+	//Converet light sample weight to solid angle measure
+	Vector3f LightVec = glm::normalize(inters.intersectPoint - ref.intersectPoint);
+
+	float InvArea = *pdf;
+
+	float NoL = glm::abs(glm::dot(inters.surfaceNormal, -LightVec));
+
+	//Exception Handling
+	if (NoL > 0.0f)
+	{
+		float dist = glm::distance(ref.intersectPoint, inters.intersectPoint);
+		*pdf = dist * dist * InvArea / NoL;
+	}
+	else
+		*pdf = 0.0f;
+
+	return inters;
+}
+
 __host__ __device__ Color3f Sample_Li(const ShadeableIntersection &ref, const Point2f &xi, Vector3f *wiW, Float *pdf, const Geom &lightShape, const Material *material)
 {
 	ShadeableIntersection inter;
 
-	if (lightShape.type == CUBE)
-	{
-		inter = cubeSample(ref, xi, pdf, lightShape);
-	}
-
-
-	if (*pdf == 0.0f || (ref.intersectPoint == inter.intersectPoint))
+	inter = ShapeSample(ref, xi, pdf, lightShape);
+	
+	if(*pdf == 0.0f)
 		return Color3f(0, 0, 0);
 
 	*wiW = glm::normalize(inter.intersectPoint - ref.intersectPoint);
+
+	if (glm::dot(*wiW, ref.surfaceNormal) < 0.0f)
+		return Color3f(0, 0, 0);
+		
+	/*
+	if (lightShape.type == CUBE)
+	{
+		float NoL = (glm::dot(inter.surfaceNormal, -*wiW));		
+
+		if (NoL > 0.0f)
+			*pdf = glm::distance2(ref.intersectPoint, inter.intersectPoint) / (NoL * getCubeArea(lightShape, inter.surfaceNormal));
+		else
+			*pdf = 0.0f;
+	}
+	else if (lightShape.type == PLANE)
+	{
+		float NoL = (glm::dot(inter.surfaceNormal, -*wiW));	
+
+		if (NoL > 0.0f)
+			*pdf = glm::distance2(ref.intersectPoint, inter.intersectPoint) / (NoL * getPlaneArea(lightShape));
+		else
+			*pdf = 0.0f;		
+	}
+	else if (lightShape.type == SPHERE)
+	{
+		float NoL = (glm::dot(inter.surfaceNormal, -*wiW));
+
+		if (NoL > 0.0f)
+			*pdf = glm::distance2(ref.intersectPoint, inter.intersectPoint) / (NoL * getSphereArea(lightShape));
+		else
+			*pdf = 0.0f;
+	}
+	else
+		return Color3f(0, 0, 0);
+	*/
+
+	if (*pdf == 0.0f || (ref.intersectPoint == inter.intersectPoint))
+		return Color3f(0, 0, 0);
 
 
 	if (*pdf > 0)
@@ -359,37 +610,74 @@ __host__ __device__ Color3f Sample_Li(const ShadeableIntersection &ref, const Po
 
 }
 
-__host__ __device__ float Pdf_Li(const ShadeableIntersection &ref, const Vector3f &wi, const Geom &shape)
+__host__ __device__ float Pdf_Li(const ShadeableIntersection &ref, const Vector3f &wiW, const Geom &shape, int normalTexID, Image* imageHeader, glm::vec3 *imageData)
 {
 
-	Ray ray = SpawnRay(ref, wi);
+	Ray ray = SpawnRay(ref, wiW);
 	//Intersection isectLight;
 
 	glm::vec3 tmp_intersect;
 	glm::vec3 tmp_normal;
+	glm::vec2 tmp_uv;
 	bool outside = true;
+
+	float t;
 
 	if (shape.type == CUBE)
 	{
-		float t;
-		t = boxIntersectionTest(shape, ray, tmp_intersect, tmp_normal, outside);
+		t = boxIntersectionTest(shape, ray, tmp_intersect, tmp_normal, tmp_uv, outside, normalTexID, imageHeader, imageData);
 		if (t < 0.0f)
 			return 0.0f;
 
-		float NoL = (glm::dot(tmp_normal, -wi));
+		float NoL = (glm::dot(tmp_normal, -wiW));
 
 		//if (this->twoSided)
 		NoL = glm::abs(NoL);
 
-		if (NoL >= 0.0f)
-			return glm::distance2(ref.intersectPoint, tmp_intersect) / (NoL * getCubeArea(shape));
+		if (NoL > 0.0f)
+			return glm::distance2(ref.intersectPoint, tmp_intersect) / (NoL * getCubeArea(shape, tmp_normal));
+		else
+			return 0.0f;
+
+	}
+	else if (shape.type == PLANE)
+	{
+		t = planeIntersectionTest(shape, ray, tmp_intersect, tmp_normal, tmp_uv, outside, normalTexID, imageHeader, imageData);
+		if (t < 0.0f)
+			return 0.0f;
+
+		float NoL = (glm::dot(tmp_normal, -wiW));
+
+		//if (this->twoSided)
+		NoL = glm::abs(NoL);
+
+		if (NoL > 0.0f)
+			return glm::distance2(ref.intersectPoint, tmp_intersect) / (NoL * getPlaneArea(shape));
 		else
 			return 0.0f;
 	}
+	else if (shape.type == SPHERE)
+	{
+		t = sphereIntersectionTest(shape, ray, tmp_intersect, tmp_normal, tmp_uv, outside, normalTexID, imageHeader, imageData);
+		if (t < 0.0f)
+			return 0.0f;
 
-	return 0.0f;
+		float NoL = (glm::dot(tmp_normal, -wiW));
+
+		//if (this->twoSided)
+		NoL = glm::abs(NoL);
+
+		if (NoL > 0.0f)
+			return glm::distance2(ref.intersectPoint, tmp_intersect) / (NoL * getSphereArea(shape));
+		else
+			return 0.0f;
+	}
+	else
+		return 0.0f;
 }
-*/
+
+	
+
 
 ////////////////////////////////////////////////////////////////////////////
 /////////////////////////////// IDLE DIFFUSE ///////////////////////////////
@@ -635,7 +923,7 @@ __host__ __device__ Color3f MicrofacetBRDF_Sample_f(const Material *material, co
 /////////////////////////////// TRANSMISSION ///////////////////////////////
 ////////////////////////////////////////////////////////////////////////////
 
-__host__ __device__ Color3f SpecularTransmission_Sample_f(const Material *material, const Vector3f &woW, Vector3f *wiW, const Vector3f &normalW, thrust::default_random_engine &rng, Float *pdf, float etaA, float etaB)
+__host__ __device__ Color3f SpecularTransmission_Sample_f(const Material *material, const Vector3f &woW, Vector3f *wiW, const Vector3f &normalW, Float *pdf, float etaA, float etaB)
 {
 	bool entering = CosTheta(woW, normalW) > 0.0f;
 	Float etaI = entering ? etaA : etaB;
@@ -823,7 +1111,7 @@ void scatterRay(
 	{
 		//Mirror reflection
 		if (m.hasReflective == 1.0f)
-			color = SpecularTransmission_Sample_f(&m, woW, &wiW, normal, rng, &pdf, 1.0f, m.indexOfRefraction);
+			color = SpecularTransmission_Sample_f(&m, woW, &wiW, normal, &pdf, 1.0f, m.indexOfRefraction);
 		//Lambert reflection
 		else if(m.hasReflective == 0.0f)
 			color = LambertianTransmission_Sample_f(&m, woW, &wiW, normal, rng, &pdf);
@@ -858,4 +1146,58 @@ void scatterRay(
 		originOffset = -originOffset;
 
 	pathSegment.ray.origin += originOffset;
+}
+
+
+__host__ __device__
+void GetFandPDF(
+	glm::vec3 intersect,
+	glm::vec3 woW,
+	glm::vec3 wiW,
+	glm::vec3 normal,
+	glm::vec3 & color,
+	float & pdf,
+	const Material &m	
+) {	
+	//Refractive
+	if (m.hasRefractive > 0.0f)
+	{
+		//Mirror reflection
+		if (m.hasReflective == 1.0f)
+			color = SpecularTransmission_Sample_f(&m, woW, &wiW, normal, &pdf, 1.0f, m.indexOfRefraction);
+		//Lambert reflection
+		else if (m.hasReflective == 0.0f)
+		{
+			color = LambertianTransmission_f(&m, woW, wiW);
+			pdf = LambertianTransmission_Pdf(woW, wiW, normal);
+		}
+		//Microfacet reflection
+		else
+		{
+			float etaA = 1.0f;
+			float etaB = m.indexOfRefraction;
+			Float eta = CosTheta(woW, normal) > 0.0f ? (etaA / etaB) : (etaB / etaA);
+			color = MicrofacetBTDF_f(&m, woW, wiW, normal, m.Roughness, eta);
+			pdf = MicrofacetBTDF_Pdf(woW, wiW, normal, m.Roughness, eta);
+		}
+
+	}
+	//Idle diffuse
+	else if (m.hasReflective == 0.0f)
+	{
+		color = diffuse_f(&m);
+		pdf = diffuse_Pdf(woW, wiW, normal);
+	}
+	// Mirror
+	else if (m.hasReflective == 1.0f)
+	{
+		color = mirror_f(&m);
+		pdf = mirror_Pdf(woW, wiW, normal);
+	}
+	//Microfacet PBRT
+	else
+	{
+		color = MicrofacetBRDF_f(&m, woW, wiW, normal, m.Roughness);
+		pdf = MicrofacetBRDF_Pdf(woW, wiW, normal, m.Roughness);
+	}
 }

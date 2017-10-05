@@ -6,32 +6,7 @@
 #include "sceneStructs.h"
 #include "utilities.h"
 
-typedef float Float;
-typedef glm::vec3 Color3f;
-typedef glm::vec3 Point3f;
-typedef glm::vec3 Normal3f;
-typedef glm::vec2 Point2f;
-typedef glm::ivec2 Point2i;
-typedef glm::ivec3 Point3i;
-typedef glm::vec3 Vector3f;
-typedef glm::vec2 Vector2f;
-typedef glm::ivec2 Vector2i;
-typedef glm::mat4 Matrix4x4;
-typedef glm::mat3 Matrix3x3;
 
-// Global constants. You may not end up using all of these.
-#define ShadowEpsilon 0.0001f
-#define RayEpsilon 0.000005f
-#define RayMarchingEpsilon 0.1f
-#define Pi 3.14159265358979323846f
-#define TwoPi 6.28318530717958647692f
-#define InvPi 0.31830988618379067154f
-#define Inv2Pi 0.15915494309189533577f
-#define Inv4Pi 0.07957747154594766788f
-#define PiOver2 1.57079632679489661923f
-#define PiOver4 0.78539816339744830961f
-#define Sqrt2 1.41421356237309504880f
-#define OneMinusEpsilon 0.99999994f
 /**
  * Handy-dandy hash function that provides seeds for random number generation.
  */
@@ -257,12 +232,89 @@ __host__ __device__ float boxIntersectionTest(Geom box, Ray r, glm::vec3 &inters
     return -1;
 }
 
+
+
+__host__ __device__ glm::mat3 plane_ComputeTBN(Geom plane)
+{
+	glm::vec3 nor = glm::normalize(glm::vec3(plane.invTranspose * glm::vec4(Normal3f(0, 0, 1), 0.0f)));
+	//TODO: Compute tangent and bitangent
+
+	//glm::vec4 ta = transform.T() * glm::vec4(1,0,0,0);
+	//*tan = glm::normalize(Vector3f(ta.x, ta.y, ta.z));
+
+	glm::vec3 tan = glm::normalize(glm::vec3(plane.invTranspose * glm::vec4(Normal3f(1, 0, 0), 0.0f)));
+
+	//glm::vec4 bi = transform.T() * glm::vec4(0,1,0,0);
+	//*bit = glm::normalize(Vector3f(bi.x, bi.y, bi.z));
+
+	glm::vec3 bit = glm::normalize(glm::cross(nor, tan));
+
+	glm::mat3 tbn;
+
+	tbn[0] = tan;
+	tbn[1] = bit;
+	tbn[2] = nor;
+
+	return tbn;
+}
+
+__host__ __device__ Point2f plane_GetUVCoordinates(const Point3f &point)
+{
+	return Point2f(point.x + 0.5f, point.y + 0.5f);
+}
+
+__host__ __device__ float planeIntersectionTest(Geom plane, Ray r, glm::vec3 &intersectionPoint, glm::vec3 &normal, glm::vec2 &uv, bool &outside,
+	int normalTexID, Image* ImageHeader, glm::vec3* imageData)
+{
+	//Transform the ray
+	Ray r_loc; // = ray.GetTransformedCopy(transform.invT());
+
+	r_loc.origin = multiplyMV(plane.inverseTransform, glm::vec4(r.origin, 1.0f));
+	r_loc.direction = glm::normalize(multiplyMV(plane.inverseTransform, glm::vec4(r.direction, 0.0f)));
+
+	//Ray-plane intersection
+	float t = glm::dot(glm::vec3(0, 0, 1), (glm::vec3(0.5f, 0.5f, 0) - r_loc.origin)) / glm::dot(glm::vec3(0, 0, 1), r_loc.direction);
+	Point3f P = Point3f(t * r_loc.direction + r_loc.origin);
+	//Check that P is within the bounds of the square
+	if (t > 0 && P.x >= -0.5f && P.x <= 0.5f && P.y >= -0.5f && P.y <= 0.5f)
+	{
+		glm::vec3 intersectionPointLocal = getPointOnRay(r_loc, t);
+		intersectionPoint = multiplyMV(plane.transform, glm::vec4(intersectionPointLocal, 1.0f));
+		uv = plane_GetUVCoordinates(intersectionPointLocal);
+		
+		
+		if (normalTexID >= 0)
+		{
+			glm::mat3 tbn = plane_ComputeTBN(plane);
+
+			const Image &header = ImageHeader[normalTexID];
+
+			glm::vec3 normalColor = getTextColor(header.width, header.height, header.beginIndex, uv, imageData);
+			normalColor = glm::normalize(normalColor*2.0f - glm::vec3(1.0f));
+
+			normal = glm::normalize(tbn * normalColor);
+		}
+		else
+		{
+			if(glm::dot(r_loc.direction, glm::vec3(0.0f, 0.0f, 1.0f)) < 0.0f)
+				normal = glm::normalize(multiplyMV(plane.invTranspose, glm::vec4(glm::vec3(0.0f, 0.0f, 1.0f), 0.0f)));
+			else
+				normal = glm::normalize(multiplyMV(plane.invTranspose, glm::vec4(glm::vec3(0.0f, 0.0f, -1.0f), 0.0f)));
+
+		}
+
+
+		return glm::length(intersectionPoint - r.origin);
+	}
+	return -1.0f;
+}
+
 __host__ __device__ glm::mat3 Sphere_ComputeTBN(glm::vec3 nor, glm::vec3 worldP, glm::mat3 rotMat)
 {
 	glm::vec3 tan;
 	glm::vec3 bit;
 
-	
+
 	tan = glm::normalize(rotMat * glm::cross(glm::vec3(0.0f, 1.0f, 0.0f), (glm::normalize(worldP))));
 	bit = glm::normalize(glm::cross(nor, tan));
 
@@ -278,7 +330,7 @@ __host__ __device__ glm::mat3 Sphere_ComputeTBN(glm::vec3 nor, glm::vec3 worldP,
 __host__ __device__ glm::vec2 Sphere_GetUVCoordinates(const glm::vec3 &point)
 {
 	glm::vec3 p = glm::normalize(point);
-	float phi = glm::atan(p.z , p.x);
+	float phi = glm::atan(p.z, p.x);
 	if (phi < 0.0f)
 	{
 		phi += 6.283185f;
@@ -593,6 +645,189 @@ __host__ __device__ float triangleIntersectionTest(Geom geom, Triangle triangle,
 	return -1;
 }
 
+
+__host__ __device__ float traverseKDtree(const Ray &r, const KDtreeNodeForGPU *kdTreeForGPU, int TreeBegin, Geom geom, const Triangle* triangles, const int* triangleIndex,	
+	glm::vec3 &intersectionPoint, glm::vec3 &normal, glm::vec2 &uv, int normalTexID, Image* ImageHeader, glm::vec3* imageData)
+{
+	float min_t = FLT_MAX;
+	KDtreeNodeForGPU Stack[KDTREE_MAX_STACK];
+	int stackIndicator = -1;
+
+	KDtreeNodeForGPU thisNode = kdTreeForGPU[TreeBegin];
+
+	//root
+	stackIndicator++;
+	Stack[stackIndicator] = thisNode;
+
+	while (true)
+	{
+		if (thisNode.bLeaf)
+		{
+			glm::vec3 tmp_intersect;
+			glm::vec3 tmp_normal;
+			glm::vec2 tmp_uv;
+			bool bOutside;
+
+			for (int i = 0; i < thisNode.size; i++)
+			{
+				float t = triangleIntersectionTest(geom, triangles[triangleIndex[thisNode.TriangleArrayIndex + i]], r,
+					tmp_intersect, tmp_normal, tmp_uv, bOutside, normalTexID, ImageHeader, imageData);
+
+				if (t > 0.0f && min_t > t)
+				{
+					min_t = t;
+					intersectionPoint = tmp_intersect;
+					normal = tmp_normal;
+					uv = tmp_uv;
+				}
+			}			
+		}
+		else
+		{
+			float t;
+
+			if ((!Stack[stackIndicator].bLeftTraversed && thisNode.LeftID > -1) &&
+				(!Stack[stackIndicator].bRightTraversed && thisNode.RightID > -1))
+			{
+				float left_t; float right_t;
+				bool bleft; bool bright;
+				bleft = BBIntersect(r, kdTreeForGPU[thisNode.LeftID].boundingBox, &left_t);
+				bright = BBIntersect(r, kdTreeForGPU[thisNode.RightID].boundingBox, &right_t);
+
+				Stack[stackIndicator].bLeftIntersected = bleft;
+				Stack[stackIndicator].bLeftIntersected = bright;
+
+				if (bleft && bright)
+				{
+					if (left_t < right_t)
+					{
+						if (min_t >= left_t)
+						{
+							thisNode = kdTreeForGPU[thisNode.LeftID];
+
+							Stack[stackIndicator].bLeftTraversed = true;
+
+							stackIndicator++;
+							Stack[stackIndicator] = thisNode;
+
+							continue;
+						}
+					}
+					else
+					{
+						if (min_t >= right_t)
+						{
+							thisNode = kdTreeForGPU[thisNode.RightID];
+
+							Stack[stackIndicator].bRightTraversed = true;
+
+							stackIndicator++;
+							Stack[stackIndicator] = thisNode;
+							continue;
+						}
+					}
+				}
+				else if (bleft)
+				{
+					if (min_t >= left_t)
+					{
+						thisNode = kdTreeForGPU[thisNode.LeftID];
+
+						Stack[stackIndicator].bLeftTraversed = true;
+
+						stackIndicator++;
+						Stack[stackIndicator] = thisNode;
+
+						continue;
+					}
+				}
+				else if (bright)
+				{
+					if (min_t >= right_t)
+					{
+						thisNode = kdTreeForGPU[thisNode.RightID];
+
+						Stack[stackIndicator].bRightTraversed = true;
+
+						stackIndicator++;
+						Stack[stackIndicator] = thisNode;
+						continue;
+					}
+				}
+			}
+			else if (!Stack[stackIndicator].bLeftTraversed && thisNode.LeftID > -1)
+			{
+				if (Stack[stackIndicator].bLeftIntersected)
+				{
+					if (min_t >= t)
+					{
+						thisNode = kdTreeForGPU[thisNode.LeftID];
+
+						Stack[stackIndicator].bLeftTraversed = true;
+
+						stackIndicator++;
+						Stack[stackIndicator] = thisNode;
+
+						continue;
+					}
+				}
+				else if (BBIntersect(r, kdTreeForGPU[thisNode.LeftID].boundingBox, &t))
+				{
+					if (min_t >= t)
+					{
+						thisNode = kdTreeForGPU[thisNode.LeftID];
+
+						Stack[stackIndicator].bLeftTraversed = true;
+
+						stackIndicator++;
+						Stack[stackIndicator] = thisNode;
+
+						continue;
+					}					
+				}
+			}
+			else if (!Stack[stackIndicator].bRightTraversed && thisNode.RightID > -1)
+			{
+				if (Stack[stackIndicator].bRightIntersected)
+				{
+					if (min_t >= t)
+					{
+						thisNode = kdTreeForGPU[thisNode.RightID];
+
+						Stack[stackIndicator].bRightTraversed = true;
+
+						stackIndicator++;
+						Stack[stackIndicator] = thisNode;
+						continue;
+					}
+				}
+				else if (BBIntersect(r, kdTreeForGPU[thisNode.RightID].boundingBox, &t))
+				{
+					if (min_t >= t)
+					{
+						thisNode = kdTreeForGPU[thisNode.RightID];
+
+						Stack[stackIndicator].bRightTraversed = true;
+
+						stackIndicator++;
+						Stack[stackIndicator] = thisNode;
+						continue;
+					}
+				}
+			}
+		}
+
+		//back to parent
+		stackIndicator--;
+
+		if (stackIndicator < 0)
+			break;		
+
+		thisNode = Stack[stackIndicator];
+	}
+
+	return min_t;
+}
 
 /*
 __host__ __device__ float traverseOctree(const Ray &r, const Octree *octreees, int thisOctreeNum, Geom geom, const Triangle* triangles, glm::vec3 &intersectionPoint, glm::vec3 &normal, float t_min)

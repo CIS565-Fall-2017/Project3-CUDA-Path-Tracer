@@ -5,6 +5,91 @@
 #include <glm/gtx/string_cast.hpp>
 #include <array>
 
+
+AABB Apply(const glm::mat4 &tr, AABB paramAABB)
+{
+	//TODO
+	Point3f Points[8];
+
+	Points[0] = glm::vec3(tr * glm::vec4(paramAABB.min.x, paramAABB.min.y, paramAABB.min.z, 1.0f));
+	Points[1] = glm::vec3(tr * glm::vec4(paramAABB.min.x, paramAABB.min.y, paramAABB.max.z, 1.0f));
+
+	Points[2] = glm::vec3(tr * glm::vec4(paramAABB.min.x, paramAABB.max.y, paramAABB.min.z, 1.0f));
+	Points[3] = glm::vec3(tr * glm::vec4(paramAABB.min.x, paramAABB.max.y, paramAABB.max.z, 1.0f));
+
+	Points[4] = glm::vec3(tr * glm::vec4(paramAABB.max.x, paramAABB.min.y, paramAABB.min.z, 1.0f));
+	Points[5] = glm::vec3(tr * glm::vec4(paramAABB.max.x, paramAABB.min.y, paramAABB.max.z, 1.0f));
+
+	Points[6] = glm::vec3(tr * glm::vec4(paramAABB.max.x, paramAABB.max.y, paramAABB.min.z, 1.0f));
+	Points[7] = glm::vec3(tr * glm::vec4(paramAABB.max.x, paramAABB.max.y, paramAABB.max.z, 1.0f));
+
+
+	float maxX = Points[0].x;
+	float maxY = Points[0].y;
+	float maxZ = Points[0].z;
+
+	float minX = Points[0].x;
+	float minY = Points[0].y;
+	float minZ = Points[0].z;
+
+	for (int i = 1; i < 8; i++)
+	{
+		maxX = glm::max(Points[i].x, maxX);
+		maxY = glm::max(Points[i].y, maxY);
+		maxZ = glm::max(Points[i].z, maxZ);
+
+		minX = glm::min(Points[i].x, minX);
+		minY = glm::min(Points[i].y, minY);
+		minZ = glm::min(Points[i].z, minZ);
+	}
+
+
+	AABB newBB;
+
+	newBB.min = glm::vec3(minX, minY, minZ);
+	newBB.max = glm::vec3(maxX, maxY, maxZ);
+	newBB.mid = (newBB.min + newBB.max) * 0.5f;
+	return newBB;
+}
+
+Vector3f Diagonal(AABB paramAABB)
+{
+	return paramAABB.max - paramAABB.min;
+}
+
+float SurfaceArea(AABB paramAABB)
+{
+	//TODO
+	Vector3f d = Diagonal(paramAABB);
+	return 2 * (d.x * d.y + d.x * d.z + d.y * d.z);
+}
+
+AABB Union(const AABB& b1, const AABB& b2)
+{
+	AABB newAABB;
+
+	newAABB.min = Point3f(std::min(b1.min.x, b2.min.x), std::min(b1.min.y, b2.min.y), std::min(b1.min.z, b2.min.z));
+	newAABB.max = Point3f(std::max(b1.max.x, b2.max.x),	std::max(b1.max.y, b2.max.y), std::max(b1.max.z, b2.max.z));
+
+	return newAABB;
+}
+
+AABB Union(const AABB& b1, const glm::vec3& p)
+{
+	AABB newAABB;
+	
+	newAABB.min = Point3f(std::min(b1.min.x, p.x), std::min(b1.min.y, p.y), std::min(b1.min.z, p.z));
+	newAABB.max = Point3f(std::max(b1.max.x, p.x), std::max(b1.max.y, p.y), std::max(b1.max.z, p.z));
+
+	return newAABB;
+}
+
+AABB Union(const AABB& b1, const glm::vec4& p)
+{
+	return Union(b1, Point3f(p));
+}
+
+
 std::vector<char> readBMP(const std::string &file)
 {
 	static constexpr size_t HEADER_SIZE = 54;
@@ -219,8 +304,250 @@ bool Inbound(AABB big, AABB sMall)
 	return true;
 }
 
+bool bSpan(AABB big, AABB sMall)
+{
+	if (big.max.x < sMall.min.x || big.max.y < sMall.min.y || big.max.z < sMall.min.z ||
+		big.min.x > sMall.max.x || big.min.y > sMall.max.y || big.min.z > sMall.max.z )
+	{
+		return false;
+	}
 
-static void createOCtree(std::vector<Octree> *octreeStructure, int thisOctreeIndex, std::vector<Triangle> &triangles, const std::vector<int> &IncludeTriIndices)
+	return true;
+}
+
+
+bool sortByX(Triangle t1, Triangle t2)
+{
+	float t1_max = std::max(std::max(t1.position0.x, t1.position1.x), t1.position2.x);
+	float t2_max = std::max(std::max(t2.position0.x, t2.position1.x), t2.position2.x);
+
+	return t1_max < t2_max;
+}
+
+bool sortByY(Triangle t1, Triangle t2)
+{
+	float t1_max = std::max(std::max(t1.position0.y, t1.position1.y), t1.position2.y);
+	float t2_max = std::max(std::max(t2.position0.y, t2.position1.y), t2.position2.y);
+
+	return t1_max < t2_max;
+}
+
+bool sortByZ(Triangle t1, Triangle t2)
+{
+	float t1_max = std::max(std::max(t1.position0.z, t1.position1.z), t1.position2.z);
+	float t2_max = std::max(std::max(t2.position0.z, t2.position1.z), t2.position2.z);
+
+	return t1_max < t2_max;
+}
+
+void createKDtree(std::vector<KDtreeNode> &KDtree, int thisIndex, int MaxTriangles)
+{
+	KDtreeNode &thisNode = KDtree[thisIndex];
+
+	if (thisNode.ID == 472)
+	{
+		int debug = 4;
+	}
+
+	if (KDtree[thisIndex].triangles.size() <= MaxTriangles)
+	{
+		KDtree[thisIndex].bLeaf = true;
+		KDtree[thisIndex].LeftID = -1;
+		KDtree[thisIndex].RightID = -1;
+		return;
+	}
+
+	//Find the widest Axis
+	float x_width = glm::abs(KDtree[thisIndex].boundingBox.max.x - KDtree[thisIndex].boundingBox.min.x);
+	float y_width = glm::abs(KDtree[thisIndex].boundingBox.max.y - KDtree[thisIndex].boundingBox.min.y);
+	float z_width = glm::abs(KDtree[thisIndex].boundingBox.max.z - KDtree[thisIndex].boundingBox.min.z);
+
+	int wAxis = -1;
+
+	if (x_width >= y_width && x_width >= z_width)
+	{
+		wAxis = 0;
+	}
+	else if (y_width >= x_width && y_width >= z_width)
+	{
+		wAxis = 1;
+	}
+	else if (z_width >= x_width && z_width >= y_width)
+	{
+		wAxis = 2;
+	}
+
+	
+
+	//sort by the axis
+	
+	if (wAxis == 0)
+	{
+		std::sort(KDtree[thisIndex].triangles.begin(), KDtree[thisIndex].triangles.end(), sortByX);
+	}
+	else if (wAxis == 1)
+	{
+		std::sort(KDtree[thisIndex].triangles.begin(), KDtree[thisIndex].triangles.end(), sortByY);
+	}
+	else if (wAxis == 2)
+	{
+		std::sort(KDtree[thisIndex].triangles.begin(), KDtree[thisIndex].triangles.end(), sortByZ);
+	}
+	else
+		return;	
+
+	float min_cost = FLT_MAX;
+	int min_index = -1;
+	AABB min_LeftAABB;
+	AABB min_RightAABB;
+	int min_Leftcount;
+	int min_Rightcount;
+
+	for (int i = 0; i < KDtree[thisIndex].triangles.size(); i++)
+	{
+		float newBorder;
+		AABB LeftAABB = KDtree[thisIndex].boundingBox;
+		AABB RightAABB = KDtree[thisIndex].boundingBox;
+		
+		if (wAxis == 0)
+		{
+			newBorder = KDtree[thisIndex].triangles[i].boundingBox.max.x;
+			LeftAABB.max.x = newBorder;
+			RightAABB.min.x = newBorder;
+		}
+		else if (wAxis == 1)
+		{
+			newBorder = KDtree[thisIndex].triangles[i].boundingBox.max.y;
+			LeftAABB.max.y = newBorder;
+			RightAABB.min.y = newBorder;
+		}
+		else if (wAxis == 2)
+		{
+			newBorder = KDtree[thisIndex].triangles[i].boundingBox.max.z;
+			LeftAABB.max.z = newBorder;
+			RightAABB.min.z = newBorder;
+		}
+
+		int leftCount = 0;
+		int rightCount = 0;
+
+		/*
+		for (int j = 0; j < KDtree[thisIndex].triangles.size(); j++)
+		{
+			if (bSpan(LeftAABB, KDtree[thisIndex].triangles[j].boundingBox))
+			{
+				leftCount++;
+			}
+			else
+				break;
+		}
+
+		for (int j = KDtree[thisIndex].triangles.size() - 1; j >= 0; j--)
+		{
+			if (bSpan(RightAABB, KDtree[thisIndex].triangles[j].boundingBox))
+			{
+				rightCount++;
+			}
+			else
+				break;
+		}
+		*/
+
+		for (int j = 0; j < KDtree[thisIndex].triangles.size(); j++)
+		{
+			if (bSpan(LeftAABB, KDtree[thisIndex].triangles[j].boundingBox))
+			{
+				leftCount++;
+			}
+
+			if (bSpan(RightAABB, KDtree[thisIndex].triangles[j].boundingBox))
+			{
+				rightCount++;
+			}
+		}
+
+		float cost = (SurfaceArea(LeftAABB) * leftCount + SurfaceArea(RightAABB) * rightCount) / SurfaceArea(KDtree[thisIndex].boundingBox);
+
+		if (min_cost > cost)
+		{
+			min_cost = cost;
+			min_index = i;
+			min_LeftAABB = LeftAABB;
+			min_RightAABB = RightAABB;
+			min_Leftcount = leftCount;
+			min_Rightcount = rightCount;
+		}
+	}
+
+	if (KDtree[thisIndex].triangles.size() == min_Leftcount || KDtree[thisIndex].triangles.size() == min_Rightcount)
+	{
+		KDtree[thisIndex].bLeaf = true;
+		KDtree[thisIndex].LeftID = -1;
+		KDtree[thisIndex].RightID = -1;
+		return;
+	}
+
+
+	//Divide
+
+	KDtreeNode LNode;
+	KDtreeNode RNode;
+
+	LNode.boundingBox = min_LeftAABB;
+	RNode.boundingBox = min_RightAABB;
+
+	LNode.ID = KDtree.size();
+	LNode.ParentID = KDtree[thisIndex].ID;
+	LNode.bLeaf = false;
+	KDtree[thisIndex].LeftID = LNode.ID;
+	KDtree.push_back(LNode);
+
+	RNode.ID = KDtree.size();
+	RNode.ParentID = KDtree[thisIndex].ID;
+	RNode.bLeaf = false;
+	KDtree[thisIndex].RightID = RNode.ID;
+	KDtree.push_back(RNode);
+
+	/*
+	for (int j = 0; j < min_Leftcount; j++)
+	{
+		KDtree[LNode.ID].triangles.push_back(KDtree[thisIndex].triangles[j]);
+	}
+
+	for (int j = KDtree[thisIndex].triangles.size() - 1; j >= KDtree[thisIndex].triangles.size() - min_Rightcount - 1; j--)
+	{
+		KDtree[RNode.ID].triangles.push_back(KDtree[thisIndex].triangles[j]);
+	}
+	*/
+	
+	for (int j = 0; j < KDtree[thisIndex].triangles.size(); j++)
+	{	
+		if (bSpan(min_LeftAABB, KDtree[thisIndex].triangles[j].boundingBox))
+		{			
+			KDtree[LNode.ID].triangles.push_back(KDtree[thisIndex].triangles[j]);
+		}
+
+		if (bSpan(min_RightAABB, KDtree[thisIndex].triangles[j].boundingBox))
+		{
+			KDtree[RNode.ID].triangles.push_back(KDtree[thisIndex].triangles[j]);
+		}
+	}
+	
+
+	KDtree[LNode.ID].size = KDtree[LNode.ID].triangles.size();
+	KDtree[RNode.ID].size = KDtree[RNode.ID].triangles.size();
+
+	KDtree[thisIndex].triangles.clear();
+
+	
+	createKDtree(KDtree, LNode.ID, MaxTriangles);
+	createKDtree(KDtree, RNode.ID, MaxTriangles);
+
+
+
+}
+
+void createOCtree(std::vector<Octree> *octreeStructure, int thisOctreeIndex, std::vector<Triangle> &triangles, const std::vector<int> &IncludeTriIndices)
 {
 	std::vector<int> child01_Triangles;
 	std::vector<int> child02_Triangles;
@@ -624,6 +951,10 @@ int Scene::loadGeom(std::string objectid) {
 				std::cout << "Creating new cube..." << std::endl;
                 newGeom.type = CUBE;
             }
+			else if (strcmp(line.c_str(), "plane") == 0) {
+				std::cout << "Creating new plane..." << std::endl;
+				newGeom.type = PLANE;
+			}
 			else if (strcmp(line.c_str(), "mesh") == 0)
 			{
 				std::cout << "Creating new mesh..." << std::endl;
@@ -712,13 +1043,37 @@ int Scene::loadGeom(std::string objectid) {
 								triangles[j].position1 = Vpositions[index02];
 								triangles[j].position2 = Vpositions[index03];
 
-								triangles[j].normal0 = Vnormals[index01];
-								triangles[j].normal1 = Vnormals[index02];
-								triangles[j].normal2 = Vnormals[index03];
+								if (normals.size() == 0)
+								{
+									glm::vec3 vec1 = triangles[j].position2 - triangles[j].position0;
+									glm::vec3 vec2 = triangles[j].position1 - triangles[j].position0;
 
-								triangles[j].texcoord0 = Vuvs[index01];
-								triangles[j].texcoord1 = Vuvs[index02];
-								triangles[j].texcoord2 = Vuvs[index03];
+									triangles[j].normal0 = glm::normalize(glm::cross(vec2, vec1));
+									triangles[j].normal1 = triangles[j].normal0;
+									triangles[j].normal2 = triangles[j].normal0;
+								}
+								else
+								{
+									triangles[j].normal0 = Vnormals[index01];
+									triangles[j].normal1 = Vnormals[index02];
+									triangles[j].normal2 = Vnormals[index03];
+								}
+								
+
+								if (uvs.size() == 0)
+								{
+									triangles[j].texcoord0 = glm::vec2(0.0f, 0.0f);
+									triangles[j].texcoord1 = glm::vec2(0.0f, 0.0f);
+									triangles[j].texcoord2 = glm::vec2(0.0f, 0.0f);
+								}
+								else
+								{
+									triangles[j].texcoord0 = Vuvs[index01];
+									triangles[j].texcoord1 = Vuvs[index02];
+									triangles[j].texcoord2 = Vuvs[index03];
+								}
+
+								
 							}
 
 
@@ -798,6 +1153,7 @@ int Scene::loadGeom(std::string objectid) {
 
 								triangles[z].boundingBox.min = glm::vec3(minX, minY, minZ) - glm::vec3(0.000001f);
 								triangles[z].boundingBox.max = glm::vec3(maxX, maxY, maxZ) + glm::vec3(0.000001f);;
+								triangles[z].boundingBox.mid = (triangles[z].boundingBox.min + triangles[z].boundingBox.max) * 0.5f;
 
 								temp = triangles[z];
 
@@ -830,51 +1186,65 @@ int Scene::loadGeom(std::string objectid) {
 
 							}
 
-							newGeom.meshInfo.boundingBox.min = glm::vec3(minX, minY, minZ);
-							newGeom.meshInfo.boundingBox.max = glm::vec3(maxX, maxY, maxZ);
+							newGeom.boundingBox.min = glm::vec3(minX, minY, minZ);
+							newGeom.boundingBox.max = glm::vec3(maxX, maxY, maxZ);
 
 							newGeom.ID = (int)geoms.size();
 
-							
+							newGeom.meshInfo.KDtreeID = kdTree.size();
 
-							//Create Octree
-							//std::vector<Octree> VOctree;
-							std::vector<int> triIndices;
-
-							Octree root;
-							AABB rootBB = newGeom.meshInfo.boundingBox;
-							rootBB.max += glm::vec3(EPSILON);
-							rootBB.max -= glm::vec3(EPSILON);
-							root.boundingBox = rootBB;
-							root.size = tricount;
-							root.ID = (int)octreeforMeshes.size();
-							root.bLeaf = false;
-							root.child_01 = -1;
-							root.child_02 = -1;
-							root.child_03 = -1;
-							root.child_04 = -1;
-							root.child_05 = -1;
-							root.child_06 = -1;
-							root.child_07 = -1;
-							root.child_08 = -1;
+							KDtreeNode root;
+							root.ID = kdTree.size();
 							root.ParentID = -1;
-							root.firstElement = newGeom.meshInfo.triangleBeginIndex;
+							//root.firstElement = newGeom.meshInfo.triangleBeginIndex;
+							root.size = tricount;
 
-							//root.bTraversed = false;
+							root.bLeaf = false;
+							root.boundingBox = newGeom.boundingBox;
 
-							octreeforMeshes.push_back(root);
-
-							
 							for (int z = 0; z < tricount; z++)
 							{
-								triIndices.push_back(newGeom.meshInfo.triangleBeginIndex + z);
+								root.triangles.push_back(triangles[z]);
 							}
 
-							createOCtree(&octreeforMeshes, (int)octreeforMeshes.size() - 1, trianglesInMesh, triIndices);
+							kdTree.push_back(root);
+														
+							createKDtree(kdTree, root.ID, 4);
+
+							for (int h = root.ID; h < kdTree.size(); h++)
+							{
+								KDtreeNodeForGPU temp;
+
+								temp.bLeaf = kdTree[h].bLeaf;
+								temp.boundingBox = kdTree[h].boundingBox;
+								temp.ID = kdTree[h].ID;
+								temp.LeftID = kdTree[h].LeftID;
+								temp.RightID = kdTree[h].RightID;
+								temp.ParentID = kdTree[h].ParentID;
+								temp.size = kdTree[h].size;
 
 
-							newGeom.meshInfo.OctreeID = root.ID;
+								temp.bLeftTraversed = false;
+								temp.bRightTraversed = false;
 
+								temp.bLeftIntersected = false;
+								temp.bRightIntersected = false;
+
+								temp.minT = FLT_MAX;
+								temp.maxT = -FLT_MAX;
+
+								if (temp.bLeaf == true)
+								{
+									temp.TriangleArrayIndex = kdTreeTriangleIndexForGPU.size();
+									for (int k = 0; k < kdTree[h].triangles.size(); k++)
+									{
+										kdTreeTriangleIndexForGPU.push_back(kdTree[h].triangles[k].triangleID);
+									}
+								}
+
+								kdTreeForGPU.push_back(temp);
+							}
+							
 							geoms.push_back(newGeom);
 
 							//This is light
@@ -922,6 +1292,33 @@ int Scene::loadGeom(std::string objectid) {
         newGeom.transform = utilityCore::buildTransformationMatrix(newGeom.translation, newGeom.rotation, newGeom.scale, newGeom.rotationMat);
         newGeom.inverseTransform = glm::inverse(newGeom.transform);
         newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);		
+
+		
+
+
+		if (newGeom.type == SPHERE)
+		{
+			newGeom.boundingBox.min = glm::vec3(-0.5f, -0.5f, -0.5f);
+			newGeom.boundingBox.max = glm::vec3(0.5f, 0.5f, 0.5f);
+
+			newGeom.boundingBox = Apply(newGeom.transform, newGeom.boundingBox);
+
+		}
+		else if (newGeom.type == CUBE)
+		{
+			newGeom.boundingBox.min = glm::vec3(-0.5f, -0.5f, -0.5f);
+			newGeom.boundingBox.max = glm::vec3(0.5f, 0.5f, 0.5f);
+
+			newGeom.boundingBox = Apply(newGeom.transform, newGeom.boundingBox);
+		}
+		else if (newGeom.type == PLANE)
+		{
+			newGeom.boundingBox.min = glm::vec3(-0.5f, -0.5f, -0.001f);
+			newGeom.boundingBox.max = glm::vec3(0.5f, 0.5f, 0.001f);
+
+			newGeom.boundingBox = Apply(newGeom.transform, newGeom.boundingBox);
+		}
+
 
 		newGeom.ID = (int)geoms.size();
 

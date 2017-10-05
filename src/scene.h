@@ -18,7 +18,9 @@ char * ConvertWCtoC(const wchar_t* str);
 
 bool Inbound(AABB big, AABB sMall);
 
-void createOCtree(std::vector<Octree> &octreeStructure, Octree &thisOctree, std::vector<Triangle> &triangles);
+bool bSpan(AABB big, AABB sMall);
+
+static void createOCtree(std::vector<Octree> &octreeStructure, Octree &thisOctree, std::vector<Triangle> &triangles);
 
 
 class Scene {
@@ -52,6 +54,11 @@ public:
 	std::vector<Triangle> trianglesInMesh;
 	std::vector<Octree> octreeforMeshes;
 
+
+	std::vector<KDtreeNode> kdTree;
+	std::vector<KDtreeNodeForGPU> kdTreeForGPU;
+	std::vector<int> kdTreeTriangleIndexForGPU;
+
 	std::vector<Image> Images;
 	std::vector<glm::vec3> imageData;
 
@@ -59,3 +66,9 @@ public:
 
     RenderState state;
 };
+
+/*
+Bounds3f Union(const Bounds3f& b1, const Bounds3f& b2);
+Bounds3f Union(const Bounds3f& b1, const Point3f& p);
+Bounds3f Union(const Bounds3f& b1, const glm::vec4& p);
+*/

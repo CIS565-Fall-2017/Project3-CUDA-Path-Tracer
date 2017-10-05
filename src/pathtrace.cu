@@ -18,11 +18,15 @@
 #include "interactions.h"
 
 #define SRT_SPP 1 // Anti- Aliasing - Square root of Sample per Pixel
-#define USE_CACHE_PATH 1
+#define USE_CACHE_PATH 0
 #define USE_STREAM_COMPACTION 1
 #define USE_RADIX_SORT 0
 #define USE_BVIC 1 // bounding volume intersection culling
 #define USE_OCTREE 0
+#define USE_KDTREE 1
+
+#define NAIVE_ITERGRATOR 1
+#define MIS_ITERGRATOR 0
 
 
 #define DEBUG_NORMAL 0
@@ -74,135 +78,6 @@ thrust::default_random_engine makeSeededRandomEngine(int iter, int index, int de
 
 
 
-////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////// BSDF ///////////////////////////////////
-////////////////////////////////////////////////////////////////////////////
-
-/*
-__host__ __device__ Color3f BSDF_f(const Material *material, const Vector3f &woW, const Vector3f &wiW, glm::mat4 &worldToLocal)
-{
-	Color3f resultColor;
-
-	//Vector3f wo = worldToTangent*woW;
-	//Vector3f wi = worldToTangent*wiW;
-	
-	Vector3f wo = glm::normalize(multiplyMV(worldToLocal, glm::vec4(woW, 0.0f)));
-	Vector3f wi = glm::normalize(multiplyMV(worldToLocal, glm::vec4(wiW, 0.0f)));
-
-	//Diffuse
-	if (material->hasReflective == 0.0f)
-	{
-		resultColor = diffuse_f(material);
-	}
-	//mirror
-	else if (material->hasReflective == 1.0f)
-	{		
-		resultColor = mirror_f(material);
-	}
-
-	
- 	for (int i = 0; i < numBxDFs; i++)
-	{
-		if (bxdfs[i]->MatchesFlags(flags))
-			resultColor += bxdfs[i]->f(wo, wi);
-	}
-	
-	return resultColor;
-}
-
-__host__ __device__ Color3f BSDF_Sample_f(const Material *material, int NumberOfMatchedBxDF, const Vector3f &woW, Vector3f *wiW, const Point2f &xi, const float randforBxdf,
-	float *pdf, glm::mat4 &worldToLocal, glm::mat4 &LocalToWorld)
-{
-	//TODO
-	Color3f resultColor(0.0f);
-
-	*pdf = 0.0f;
-
-	if (NumberOfMatchedBxDF < 1)
-		return resultColor;
-
-	int ChosenBxDf = (int)(randforBxdf*NumberOfMatchedBxDF);
-
-	//float newY = xi.y;	
-
-	//Vector3f wo = worldToTangent*woW;
-	Vector3f wo = glm::normalize(multiplyMV(worldToLocal, glm::vec4(woW, 0.0f)));
-	Vector3f wi;
-
-	//*sampledType = bxdfs[ChosenBxDf]->type;
-	//BxDFType exceptType = (BxDFType)(BSDF_ALL & ~bxdfs[ChosenBxDf]->type);
-
-	//Get wi
-	//Diffuse
-	if (material->hasReflective == 0.0f)
-	{
-		resultColor = diffuse_Sample_f(material, wo, &wi, xi, pdf);
-	}
-	//mirror
-	else if (material->hasReflective == 1.0f)
-	{
-		resultColor = mirror_Sample_f(material, wo, &wi, xi, pdf);
-	}
-	
-
-	//*wiW = tangentToWorld * wi;
-	*wiW = glm::normalize(multiplyMV(LocalToWorld, glm::vec4(wi, 0.0f)));
-
-	// If spec is chosen, skip the rest
-	//REST !!!!!!!!!!!!!!!!!!!!!!
-	
-	if (material->hasReflective == 0.0f)
-	{
-		resultColor += f(woW, *wiW, exceptType);
-
-		//Get PDF
-		float OhterPdfs = Pdf(woW, *wiW, exceptType);
-
-
-		*pdf += OhterPdfs;
-
-	}
-	
-	*pdf /= NumberOfMatchedBxDF;
-
-	return resultColor;
-
-}
-
-__host__ __device__ float BSDF_Pdf(const Material *material, const Vector3f &woW, const Vector3f &wiW, glm::mat4 &worldToLocal)
-{	
-	float result = 0.0f;
-
-	//Vector3f wo = worldToTangent*woW;
-	//Vector3f wi = worldToTangent*wiW;
-
-	Vector3f wo = glm::normalize(multiplyMV(worldToLocal, glm::vec4(woW, 0.0f)));
-	Vector3f wi = glm::normalize(multiplyMV(worldToLocal, glm::vec4(wiW, 0.0f)));
-
-	//Diffuse
-	if (material->hasReflective == 0.0f)
-	{
-		result = diffuse_Pdf(wo, wi);
-	}
-	//mirror
-	else if (material->hasReflective == 1.0f)
-	{
-		result = mirror_Pdf(wo, wi);
-	}
-
-	
-
-	for (int i = 0; i < numBxDFs; i++)
-	{
-		if (bxdfs[i]->MatchesFlags(flags))
-			result += bxdfs[i]->Pdf(wo, wi);
-	}
-	
-
-	return result;
-}
-*/
-
 //Kernel that writes the image to the OpenGL PBO directly.
 __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution,
         int iter, glm::vec3* image) {
@@ -249,6 +124,10 @@ static Octree *dev_Octrees = NULL;
 
 static Image * ImageHeader = NULL;
 static glm::vec3 * imageDatas = NULL;
+
+static KDtreeNodeForGPU *kdTreeForGPU = NULL;
+static int *kdTreeTriangleIndexForGPU = NULL;
+
 
 
 //static bool *dev_bTraversed = NULL;
@@ -306,6 +185,13 @@ void pathtraceInit(Scene *scene) {
 	cudaMalloc(&imageDatas, scene->imageData.size() * sizeof(glm::vec3));
 	cudaMemcpy(imageDatas, scene->imageData.data(), scene->imageData.size() * sizeof(glm::vec3), cudaMemcpyHostToDevice);	
 
+	cudaMalloc(&kdTreeForGPU, scene->kdTreeForGPU.size() * sizeof(KDtreeNodeForGPU));
+	cudaMemcpy(kdTreeForGPU, scene->kdTreeForGPU.data(), scene->kdTreeForGPU.size() * sizeof(KDtreeNodeForGPU), cudaMemcpyHostToDevice);
+
+	cudaMalloc(&kdTreeTriangleIndexForGPU, scene->kdTreeTriangleIndexForGPU.size() * sizeof(int));
+	cudaMemcpy(kdTreeTriangleIndexForGPU, scene->kdTreeTriangleIndexForGPU.data(), scene->kdTreeTriangleIndexForGPU.size() * sizeof(int), cudaMemcpyHostToDevice);
+
+	
     checkCUDAError("pathtraceInit");
 }
 
@@ -329,6 +215,9 @@ void pathtraceFree() {
 
 	cudaFree(ImageHeader);
 	cudaFree(imageDatas);
+
+	cudaFree(kdTreeForGPU);
+	cudaFree(kdTreeTriangleIndexForGPU);
 	
     checkCUDAError("pathtraceFree");
 }
@@ -344,17 +233,24 @@ __host__ __device__ Point2f GenerateStratifiedSamples(int index_x, int index_y, 
 	return Point2f((x + rn_x) *invSqrtValX + index_x/ SRT_SPP, (y + rn_y) * invSqrtValY + index_y/ SRT_SPP);
 }
 
-/*
-__host__ __device__ bool computeIntersection(
+
+__host__ __device__ bool shadowIntersection(
 	Ray &ray
 	, Geom * geoms
+	, Triangle * triangles
 	, int geoms_size
-	, ShadeableIntersection &intersections)
+	, ShadeableIntersection &intersections
+	, Image* ImageHeader
+	, glm::vec3* imageData
+	, Material* materials
+	, KDtreeNodeForGPU *pkdTreeForGPU
+	, int *pkdTreeTriangleIndexForGPU)
 {
 
 	float t;
 	glm::vec3 intersect_point;
 	glm::vec3 normal;
+	glm::vec2 uv;
 	glm::mat4 transfromMat;
 	glm::mat4 invtransfromMat;
 	float t_min = FLT_MAX;
@@ -363,6 +259,7 @@ __host__ __device__ bool computeIntersection(
 
 	glm::vec3 tmp_intersect;
 	glm::vec3 tmp_normal;
+	glm::vec2 tmp_uv;
 	glm::mat4 tmp_transfromMat;
 	glm::mat4 tmp_invtransfromMat;
 
@@ -372,16 +269,55 @@ __host__ __device__ bool computeIntersection(
 	{
 		Geom & geom = geoms[i];
 
-		if (geom.type == CUBE)
+#if USE_BVIC
+		//Check AABB first
+		if (BBIntersect(ray, geom.boundingBox, &t))
 		{
-			t = boxIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside);
-		}
-		else if (geom.type == SPHERE)
-		{
-			t = sphereIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside);			
-			
-		}
+#endif
+			if (geom.type == CUBE)
+			{
+				t = boxIntersectionTest(geom, ray, tmp_intersect, tmp_normal, tmp_uv, outside, materials[geom.materialid].normalTexID, ImageHeader, imageData);
+			}
+			else if (geom.type == SPHERE)
+			{
+				t = sphereIntersectionTest(geom, ray, tmp_intersect, tmp_normal, tmp_uv, outside, materials[geom.materialid].normalTexID, ImageHeader, imageData);
 
+			}
+			else if (geom.type == PLANE)
+			{
+				t = planeIntersectionTest(geom, ray, tmp_intersect, tmp_normal, tmp_uv, outside, materials[geom.materialid].normalTexID, ImageHeader, imageData);
+
+			}
+			else if (geom.type == MESH)
+			{
+#if USE_KDTREE
+				t = traverseKDtree(ray, pkdTreeForGPU, geom.meshInfo.KDtreeID, geom, triangles, pkdTreeTriangleIndexForGPU, tmp_intersect, tmp_normal, tmp_uv, materials[geom.materialid].normalTexID, ImageHeader, imageData);
+#else
+
+				int size = geom.meshInfo.triangleBeginIndex + geom.meshInfo.size;
+
+				for (int k = geom.meshInfo.triangleBeginIndex; k < size; k++)
+				{
+					t = triangleIntersectionTest(geom, triangles[k], ray, tmp_intersect, tmp_normal, tmp_uv, outside, materials[geom.materialid].normalTexID, ImageHeader, imageData);
+
+					if (t > 0.0f && t_min > t)
+					{
+						t_min = t;
+						hit_geom_index = i;
+						intersect_point = tmp_intersect;
+						normal = tmp_normal;
+						uv = tmp_uv;
+					}
+				}
+#endif
+
+			}
+#if USE_BVIC
+		}
+		else
+			t = -1.0f;
+#endif
+	
 		if (t > 0.0f && t_min > t)
 		{
 			t_min = t;
@@ -411,10 +347,20 @@ __host__ __device__ bool computeIntersection(
 		intersections.IntersectedInvTransfrom = hitGeom->inverseTransform;
 		intersections.intersectPoint = intersect_point;
 
+		/*
+		Vector3f originOffset = normal * ShadowEpsilon;
+
+		if (glm::dot(ray.direction, normal) < 0.0f)
+			originOffset = -originOffset;
+
+		intersections.intersectPoint += originOffset;
+		*/
+		
+
 		return true;
 	}
 }
-*/
+
 
 /**
 * Generate PathSegments with rays from the camera through the screen into the
@@ -437,7 +383,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		segment.ray.origin = cam.position;
 		segment.accumulatedColor = glm::vec3(0.0f);
 		segment.throughputColor = glm::vec3(1.0f);
-			   
+		segment.specularBounce = false;
 
 		thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
 		thrust::uniform_real_distribution<float> u01(0, 1);
@@ -540,7 +486,8 @@ __global__ void computeIntersections(
 	, Image* ImageHeader
 	, glm::vec3* imageData
 	, Material* materials
-	
+	, KDtreeNodeForGPU *pkdTreeForGPU
+	, int *pkdTreeTriangleIndexForGPU
 	)
 {
 	int path_index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -572,45 +519,34 @@ __global__ void computeIntersections(
 		{
 			Geom & geom = geoms[i];			
 
-			if (geom.type == CUBE)
-			{
-				t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, outside, materials[geom.materialid].normalTexID, ImageHeader, imageData);
-			}
-			else if (geom.type == SPHERE)
-			{
-				t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, outside, materials[geom.materialid].normalTexID, ImageHeader, imageData);
-			}
-			// TODO: add more intersection tests here... triangle? metaball? CSG?
-			else if (geom.type == MESH)
-			{
 #if USE_BVIC
-				//Check AABB first
-				if (BBIntersect(pathSegment.ray, geom.meshInfo.boundingBox, &t))
-				{
+			//Check AABB first
+			if (BBIntersect(pathSegment.ray, geom.boundingBox, &t))
+			{
 #endif
-	
-
-#if USE_OCTREE
-					
-				
-					
-					t = traverseOctree(pathSegment.ray, octreees, geom.meshInfo.OctreeID, octree_size, geom, triangles, tmp_intersect, tmp_normal, t_min);
-					
-					/*
-					if (t > 0.0f && t_min > t)
-					{
-						t_min = t;
-						hit_geom_index = i;
-						intersect_point = tmp_intersect;
-						normal = tmp_normal;
-					}
-					*/
+				if (geom.type == CUBE)
+				{
+					t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, outside, materials[geom.materialid].normalTexID, ImageHeader, imageData);
+				}
+				else if (geom.type == SPHERE)
+				{
+					t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, outside, materials[geom.materialid].normalTexID, ImageHeader, imageData);
+				}
+				// TODO: add more intersection tests here... triangle? metaball? CSG?
+				else if (geom.type == PLANE)
+				{
+					t = planeIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, outside, materials[geom.materialid].normalTexID, ImageHeader, imageData);
+				}
+				else if (geom.type == MESH)
+				{
+#if USE_KDTREE
+					t = traverseKDtree(pathSegment.ray, pkdTreeForGPU, geom.meshInfo.KDtreeID, geom, triangles, pkdTreeTriangleIndexForGPU, tmp_intersect, tmp_normal, tmp_uv, materials[geom.materialid].normalTexID, ImageHeader, imageData);
 #else
 					int size = geom.meshInfo.triangleBeginIndex + geom.meshInfo.size;
-					
+				
 					for (int k = geom.meshInfo.triangleBeginIndex; k < size; k++)
 					{
-						t = triangleIntersectionTest(geom, triangles[k], pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, outside, materials[geom.materialid].normalTexID,  ImageHeader, imageData);
+						t = triangleIntersectionTest(geom, triangles[k], pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, outside, materials[geom.materialid].normalTexID, ImageHeader, imageData);
 
 						if (t > 0.0f && t_min > t)
 						{
@@ -620,21 +556,18 @@ __global__ void computeIntersections(
 							normal = tmp_normal;
 							uv = tmp_uv;
 						}
-					}					
+					}
 #endif
-					
-					
+				}			
+				else if (geom.type == TRIANGLE)
+				{
+					t = triangleIntersectionTest(geom, triangles[0], pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, outside, materials[geom.materialid].normalTexID, ImageHeader, imageData);
+				}					
 #if USE_BVIC
-				}
-				else
-					t = -1.0f;
+			}
+			else
+				t = -1.0f;
 #endif
-			}
-			else if (geom.type == TRIANGLE)
-			{
-				t = triangleIntersectionTest(geom, triangles[0], pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, outside, materials[geom.materialid].normalTexID, ImageHeader, imageData);
-			}
-
 			// Compute the minimum t from the intersection tests to determine what
 			// scene geometry object was hit first.
 			if (t > 0.0f && t_min > t)
@@ -667,7 +600,7 @@ __global__ void computeIntersections(
 			SI.IntersectedInvTransfrom = hitGeom->inverseTransform;
 
 			SI.intersectPoint = intersect_point;
-			SI.uv = uv;
+			SI.uv = uv;		
 		}
 	}
 }
@@ -741,6 +674,9 @@ __global__ void Shading(
 	, glm::vec3 * ImageData
 	, int envMapID
 	, int * terminated
+	, Triangle * trianglesData
+	, KDtreeNodeForGPU *pkdTreeForGPU
+	, int *pkdTreeTriangleIndexForGPU
 )
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -785,17 +721,9 @@ __global__ void Shading(
 			// like what you would expect from shading in a rasterizer like OpenGL.
 			// TODO: replace this! you should be able to start with basically a one-liner
 			else
-			{
-				//glm::mat4 worldToLocal = intersection.IntersectedInvTransfrom;
-				//glm::mat4 LocalToWorld = intersection.ratationMat;
-				
-				glm::vec3 woW = -pathSegment.ray.direction;
-
-				//float AcceptablePdfEpsilon = 0.00001f;
-
-#define DEBUG_NORMAL 0
-#define DEBUG_UV 0
-#define DEBUG_ROUGHNESS 0
+			{				
+				glm::vec3 woW = -pathSegment.ray.direction;				
+				Vector3f wiW;
 
 #if DEBUG_UV
 				Terminator = 0;
@@ -808,24 +736,6 @@ __global__ void Shading(
 				pathSegment.accumulatedColor = (intersection.surfaceNormal + glm::vec3(1.0f))*0.5f;
 				return;
 #endif
-
-				//global illumination
-				Float GlobalPdf = 0.0f;
-
-				//thrust::uniform_real_distribution<float> u01(0, 1);
-				
-				Color3f f;
-				Vector3f wiW;
-				
-				if (pathSegment.accumulatedColor == glm::vec3(1.0f, 0.5f, 0.0f))
-				{
-					if (glm::dot(intersection.surfaceNormal, woW) <= 0.0f)
-					{
-						Terminator = 0;
-						pathSegment.accumulatedColor = glm::vec3(0.0f, 1.0f, 1.0f);
-						return;
-					}					
-				}
 
 				if (material.diffuseTexID >= 0)
 				{
@@ -850,44 +760,162 @@ __global__ void Shading(
 
 					material.Roughness = glm::clamp(material.Roughness * roughness.x, 0.05f, 1.0f);
 				}
-								
-#if DEBUG_ROUGHNESS
-				Terminator = 0;
-				pathSegment.accumulatedColor = Color3f(material.Roughness);
-#endif
 
-				scatterRay(pathSegment, intersection.intersectPoint, woW, wiW, intersection.surfaceNormal, f, GlobalPdf, material, rng);
+#if NAIVE_ITERGRATOR
+
+				Color3f f;
+
+				//global illumination
+				Float GlobalPdf = 0.0f;
+							
 				
-				/*
-				if (glm::dot(intersection.surfaceNormal, wiW) < 0.0f)
-				{
-					terminated[idx] = true;
-					pathSegment.accumulatedColor = glm::vec3(1.0f, 0.0f, 1.0f);
-					return;
-				}
-				*/
+				scatterRay(pathSegment, intersection.intersectPoint, woW, wiW, intersection.surfaceNormal, f, GlobalPdf, material, rng);
+
 
 				if (IsBlack(f) || GlobalPdf <= 0.0f)
 				{
 					Terminator = 0;
-					/*
-					if (GlobalPdf == 0.0f)
-						pathSegment.accumulatedColor = glm::vec3(1.0f, 1.0f, 0.0f);
-					else if (IsBlack(f))
-						pathSegment.accumulatedColor = glm::vec3(1.0f, 0.0f, 1.0f);
-					*/
 					return;
 				}
 
 				pathSegment.throughputColor *= (f * glm::abs(glm::dot(wiW, intersection.surfaceNormal))) / GlobalPdf;
 				Terminator = 1;
 				return;
-			}
+#endif
 
-			// If there was no intersection, color the ray black.
-			// Lots of renderers use 4 channel color, RGBA, where A = alpha, often
-			// used for opacity, in which case they can indicate "no opacity".
-			// This can be useful for post-processing and image compositing.
+#if MIS_ITERGRATOR
+
+				thrust::uniform_real_distribution<float> u01(0, 1);
+
+				int ChosenLightIndex = (int)glm::min(u01(rng) * num_lights, (float)(num_lights - 1));
+				float DLightPdf = 0.0f;
+				float ScatteringPdf = 0.0f;
+
+				Color3f Ld = Color3f(0.0f);
+
+				PathSegment pathSegmentforDummy = pathSegment;
+				
+				Geom &selectedLight = lights[ChosenLightIndex];
+							
+				
+				//Computing the direct lighting component (DL)
+				
+				if (!(pathSegment.specularBounce || material.hasRefractive > 0.0f))
+				{
+					Color3f f_DL;
+
+					Color3f Li = Sample_Li(intersection, Point2f(u01(rng), u01(rng)), &wiW, &DLightPdf, selectedLight, materials);							
+
+					GetFandPDF(intersection.intersectPoint, woW, wiW, intersection.surfaceNormal, f_DL, ScatteringPdf, material);
+
+					if (ScatteringPdf < ShadowEpsilon)
+						ScatteringPdf = 0.0f;
+
+					f_DL = f_DL * glm::abs(glm::dot(wiW, intersection.surfaceNormal));					
+
+					if (!IsBlack(Li) && !IsBlack(f_DL) && DLightPdf > 0)
+					{
+						//Shadow Test
+						Ray ShadowRay = SpawnRay(intersection, wiW);
+						ShadeableIntersection Shadowisect;
+
+						if (shadowIntersection(ShadowRay, geoms, trianglesData, num_geoms, Shadowisect, ImageHeader, ImageData, materials, pkdTreeForGPU, pkdTreeTriangleIndexForGPU))
+						{
+							if (Shadowisect.geomId == selectedLight.ID)
+							{
+								float weight = PowerHeuristic(1, DLightPdf, 1, ScatteringPdf);
+								Ld += f_DL * Li * weight / DLightPdf;
+							}
+						}
+					}
+				}
+				
+				
+				//Sample BSDF with multiple importance sampling				
+				if (!(pathSegment.specularBounce || material.hasRefractive > 0.0f))
+				{
+					Color3f f_MIS;
+
+					scatterRay(pathSegmentforDummy, intersection.intersectPoint, woW, wiW, intersection.surfaceNormal, f_MIS, ScatteringPdf, material, rng);
+					f_MIS *= glm::abs(glm::dot(wiW, intersection.surfaceNormal));					
+
+					if (ScatteringPdf < ShadowEpsilon)
+						ScatteringPdf = 0.0f;
+
+					if (!IsBlack(f_MIS) && ScatteringPdf > 0)
+					{
+						float weight = 1.0f;
+
+						DLightPdf = Pdf_Li(intersection, wiW, selectedLight, material.normalTexID, ImageHeader, ImageData);
+						weight = PowerHeuristic(1, ScatteringPdf, 1, DLightPdf);						
+
+						if (DLightPdf > 0.0f)
+						{
+							Color3f Ldi(0.0f);
+							Ray ShadowRay = SpawnRay(intersection, wiW);
+
+							ShadeableIntersection Shadowisect;
+							if (shadowIntersection(ShadowRay, geoms, trianglesData, num_geoms, Shadowisect, ImageHeader, ImageData, &material))
+							{
+								if (Shadowisect.geomId == selectedLight.ID)
+								{
+									Ldi = Li(intersection.surfaceNormal, -wiW, selectedLight, &material);
+								}
+							}
+							else
+								Ldi = Color3f(0.0f);
+
+							if (!IsBlack(Ldi))
+							{
+								Ld += f_MIS * Ldi * weight / ScatteringPdf;
+							}
+						}
+					}
+				}
+				
+
+				Ld *= num_lights;
+
+				pathSegment.accumulatedColor += Ld * pathSegment.throughputColor;
+				//Terminator = 0;
+				//return;
+
+				//global illumination
+				Float GlobalPdf = 0.0f;
+
+				Color3f globalf;
+
+				scatterRay(pathSegment, intersection.intersectPoint, woW, wiW, intersection.surfaceNormal, globalf, GlobalPdf, material, rng);
+
+				if (GlobalPdf < ShadowEpsilon)
+					GlobalPdf = 0.0f;
+
+				if (IsBlack(globalf) || GlobalPdf <= 0.0f)
+				{
+					Terminator = 0;
+					return;
+				}
+
+
+				pathSegment.throughputColor *= (globalf * glm::abs(glm::dot(wiW, intersection.surfaceNormal))) / GlobalPdf;
+				
+
+
+				if (material.Roughness == 0.0f)
+					pathSegment.specularBounce = true;
+
+				Terminator = 1;
+				return;
+#endif
+
+
+#if DEBUG_ROUGHNESS
+				Terminator = 0;
+				pathSegment.accumulatedColor = Color3f(material.Roughness);
+#endif
+
+				
+			}
 		}
 		else
 		{
@@ -896,189 +924,12 @@ __global__ void Shading(
 			if (envMapID >= 0)
 			{
 				pathSegment.accumulatedColor += pathSegment.throughputColor * InfiniteAreaLight_L(-pathSegment.ray.direction, ImageHeader[envMapID], ImageData);;
-
-				//pathSegment.accumulatedColor = InfiniteAreaLight_L(pathSegment.ray.direction, ImageHeader[envMapID], ImageData);
 			}
 			
 			return;
 		}
 	}
 }
-	/*
-__global__ void PBR_Material(
-	int iter
-	, int depth
-	, int maxDepth
-	, int num_paths
-	, int num_geoms
-	, Geom * geoms
-	, int num_lights
-	, Geom * lights
-	, ShadeableIntersection * shadeableIntersections
-	, PathSegment * pathSegments
-	, Material * materials
-	, bool * terminated
-)
-{
-	int idx = blockIdx.x * blockDim.x + threadIdx.x;
-
-	PathSegment &pathSegment = pathSegments[idx];
-
-	if (idx < num_paths)
-	{
-		if (terminated[idx])
-		{
-			return;
-		}
-
-		if (maxDepth <= depth)
-		{
-			terminated[idx] = true;
-			return;
-		}
-
-		ShadeableIntersection &intersection = shadeableIntersections[idx];
-		
-		glm::vec3 woW = -pathSegment.ray.direction;
-
-		//Hit something
-		if (intersection.t > 0.0f)
-		{		
-
-			thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, (int)intersection.t);
-			thrust::uniform_real_distribution<float> u01(0, 1);
-			thrust::uniform_real_distribution<float> u02(0, 1);
-			
-			//rng.discard(idx);
-
-			Material material = materials[intersection.materialId];
-			glm::vec3 materialColor = material.color;
-
-			//Hit the light
-			if (material.emittance > 0.0f)
-			{
-				terminated[idx] = true;
-
-				if (geoms[intersection.geomId].type == CUBE)
-				{
-					//tow side
-					pathSegment.accumulatedColor += pathSegment.throughputColor * (materialColor * material.emittance);
-				}
-
-				
-				
-				// *= (materialColor * material.emittance);
-				return;
-			}
-			
-			// Otherwise, do some pseudo-lighting computation. This is actually more
-			// like what you would expect from shading in a rasterizer like OpenGL.
-			// TODO: replace this! you should be able to start with basically a one-liner
-			else
-			{
-				glm::mat4 worldToLocal = intersection.IntersectedInvTransfrom;
-				glm::mat4 LocalToWorld = intersection.ratationMat;
-				float ShadowEpsilon = 0.0001f;
-
-				//DirectLighting Term
-				Color3f Ld = Color3f(0.0f);
-				Vector3f wiW;
-
-				thrust::uniform_real_distribution<float> randlight(0, 1);
-
-				int ChosenLightIndex = (int)(randlight(rng) * num_lights);
-				float DLightPdf = 0.0f;
-				float ScatteringPdf = 0.0f;
-
-
-				//Computing the direct lighting component (DL)
-				{
-					Geom &selectedLight = lights[ChosenLightIndex];
-
-					thrust::uniform_real_distribution<float> sampleX(0, 1);
-					thrust::uniform_real_distribution<float> sampleY(0, 1);
-
-					Color3f Li = Sample_Li(intersection, Point2f(sampleX(rng), sampleY(rng)), &wiW, &DLightPdf, selectedLight, materials);
-					
-					Color3f f = BSDF_f(&material, woW, wiW, worldToLocal) * glm::abs(glm::dot(wiW, intersection.surfaceNormal));
-
-					ScatteringPdf = BSDF_Pdf(&material, woW, wiW, worldToLocal);
-										
-					//if (ScatteringPdf < ShadowEpsilon)
-					//	ScatteringPdf = 0.0f;
-
-					if (!IsBlack(f))
-					{
-						//Shadow Test
-						Ray ShadowRay = SpawnRay(intersection, wiW);
-						ShadeableIntersection Shadowisect;
-
-						if(computeIntersection(ShadowRay, geoms, num_geoms, Shadowisect))
-						{
-							//if (Shadowisect.objectHit->areaLight == scene.lights.at(ChosenLightIndex) && DLightPdf > 0.0f)
-							if ( Shadowisect.geomId == selectedLight.ID && DLightPdf > 0.0f)
-							{
-								float weight = PowerHeuristic(1, DLightPdf, 1, ScatteringPdf);
-								Ld += f * Li * weight / DLightPdf;
-							}
-						}
-					}					
-				}
-
-
-				Ld *= num_lights;
-
-				pathSegment.accumulatedColor += Ld * pathSegment.throughputColor;
-				
-
-
-				
-				//global illumination
-				Float GlobalPdf = 0.0f;
-				
-				thrust::uniform_real_distribution<float> sampleX(0, 1);
-				thrust::uniform_real_distribution<float> sampleY(0, 1);
-				thrust::uniform_real_distribution<float> sampleZ(0, 1);
-
-				Color3f f = BSDF_Sample_f(&material, 1, woW, &wiW, Point2f(sampleX(rng), sampleY(rng)), sampleZ(rng), &GlobalPdf, worldToLocal, LocalToWorld);
-				
-
-				//Color3f f = isect.bsdf->Sample_f(woW, &wiW, sampler->Get2D(), sampler->Get1D(), &GlobalPdf, BSDF_ALL, &flags);
-								
-				if (IsBlack(f) || GlobalPdf <= ShadowEpsilon)
-				{
-					terminated[idx] = true;
-					//pathSegment.accumulatedColor = glm::vec3(0.0f);
-					return;
-				}
-					
-
-				pathSegment.throughputColor *= (f * glm::abs(glm::dot(wiW, intersection.surfaceNormal))) / GlobalPdf;
-				//specularBounce = (flags & BSDF_SPECULAR) != 0;
-
-
-				//new Ray				
-				pathSegment.ray = SpawnRay(intersection, wiW);
-
-
-			}					
-		
-			// If there was no intersection, color the ray black.
-			// Lots of renderers use 4 channel color, RGBA, where A = alpha, often
-			// used for opacity, in which case they can indicate "no opacity".
-			// This can be useful for post-processing and image compositing.
-		}
-		else
-		{
-			terminated[idx] = true;
-			//pathSegment.throughputColor = glm::vec3(0.0f);
-			//pathSegment.accumulatedColor = glm::vec3(0.0f);
-			return;
-		}
-	}
-}
-*/
-
 
 //Extended version
 __global__ void UpSweep(int *g_idata, int n, int lvloffset)
@@ -1158,35 +1009,6 @@ __global__ void DownSweep(int *g_idata, int n, int lvloffset)
 	g_idata[t2] = temp[index + 1];
 }
 
-/*
-__global__ void ClearLast(int *g_idata, int n)
-{
-	if (threadIdx.x == 0)
-	{
-		g_idata[((blockIdx.x + 1) * n) - 1] = 0;
-	}
-}
-
-__global__ void SumTotal(int *g_idata, int *g_odata, int n)
-{
-	int index = threadIdx.x;
-
-	g_odata[index] = g_idata[((blockIdx.x + 1) * n) - 1];
-}
-
-__global__ void SpreadTotal(int *g_odata, int *g_idata, int n)
-{
-	int thid = threadIdx.x;
-	int index = 2 * thid;
-
-	int total = g_idata[blockIdx.x];
-
-	g_odata[(index + 1) - 1 + (blockIdx.x * blockDim.x) * 2] += total;
-	g_odata[(index + 2) - 1 + (blockIdx.x * blockDim.x) * 2] += total;
-}
-*/
-
-
 __global__ void kernScatter(int n, PathSegment *odata, const PathSegment *idata, const int *bools, const int *indices, glm::vec3* image) {
 	// TODO
 	int index = threadIdx.x + (blockIdx.x * blockDim.x);
@@ -1211,17 +1033,7 @@ __global__ void kernEarray(int *g_e, ShadeableIntersection *g_idata, int n, int 
 {
 	int index = threadIdx.x + (blockIdx.x * blockDim.x);
 
-	/*
-	if (index >= n)
-		return;
-
 	g_e[index] = (g_idata[index].materialId >> digit & 0x01) ? 0 : 1;
-	*/
-	
-	//if (index >= n)	
-	//	g_e[index] = (99 >> digit & 0x01) ? 0 : 1;
-	//else
-		g_e[index] = (g_idata[index].materialId >> digit & 0x01) ? 0 : 1;
 	
 }
 
@@ -1300,9 +1112,8 @@ __global__ void averageColor(int iter, glm::ivec2 Resolution, glm::vec3 * image,
 #endif
 
 	//Denoise
-	glm::vec3 preAvg = resultImage[resultIndex] / (float) iter;
-	
-	tempResult = glm::max(glm::clamp(tempResult, preAvg - Color3f(30.0f), preAvg + Color3f(30.0f)), Color3f(0.0f));
+	//glm::vec3 preAvg = resultImage[resultIndex] / (float) iter;	
+	//tempResult = glm::max(glm::clamp(tempResult, preAvg - Color3f(30.0f), preAvg + Color3f(30.0f)), Color3f(0.0f));
 
 	resultImage[resultIndex] += tempResult;
 }
@@ -1549,6 +1360,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 			, ImageHeader
 			, imageDatas
 			, dev_materials
+			, kdTreeForGPU
+		    , kdTreeTriangleIndexForGPU
 			);
 		checkCUDAError("trace one bounce");
 		cudaDeviceSynchronize();
@@ -1583,7 +1396,10 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		ImageHeader,
 		imageDatas,
 		hst_scene->envMapId,
-		terminateBuffer
+		terminateBuffer,
+		dev_Triangles,
+		kdTreeForGPU,
+		kdTreeTriangleIndexForGPU
 		);
 		checkCUDAError("Shading");
 
