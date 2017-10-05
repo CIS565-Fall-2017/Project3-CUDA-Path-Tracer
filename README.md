@@ -1,7 +1,7 @@
 CUDA Path Tracer
 ================
 
-**University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 2**
+**University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 3**
 
 * Name: William Ho
 * Email: willho@seas.upenn.edu
@@ -68,4 +68,8 @@ The memory access patterns of my kernels could use significant optimization. I e
 ![](img/cornell.2017-09-28_19-31-31z.7samp.png)
 ![](img/cornell.2017-09-28_18-29-39z.10samp.png)
 ![](img/cornell.2017-09-26_15-32-21z.105samp.png)
+
+## References
+[Path Tracing Lecture Slides](https://docs.google.com/presentation/d/1q3h2GVDorEFzmESNfFwR6mODnzS6WbftiVsvaFNGihQ/edit)
+Physically Based Rendering by Greg Humphrey
 
