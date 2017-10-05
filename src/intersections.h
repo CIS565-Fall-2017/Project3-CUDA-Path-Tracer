@@ -646,6 +646,195 @@ __host__ __device__ float triangleIntersectionTest(Geom geom, Triangle triangle,
 }
 
 
+__host__ __device__ float traverseBVHtree(const Ray &r, const BVHNodeForGPU *bvhTreeForGPU, int TreeBegin, Geom geom, const Triangle* triangles, const int* triangleIndex,
+	glm::vec3 &intersectionPoint, glm::vec3 &normal, glm::vec2 &uv, int normalTexID, Image* ImageHeader, glm::vec3* imageData)
+{
+	float min_t = FLT_MAX;
+	BVHNodeForGPU Stack[KDTREE_MAX_STACK];
+	int stackIndicator = -1;
+
+	BVHNodeForGPU thisNode = bvhTreeForGPU[TreeBegin];
+
+	//root
+	stackIndicator++;
+	Stack[stackIndicator] = thisNode;
+
+	while (true)
+	{
+		if (thisNode.bLeaf)
+		{
+			glm::vec3 tmp_intersect;
+			glm::vec3 tmp_normal;
+			glm::vec2 tmp_uv;
+			bool bOutside;
+
+			for (int i = 0; i < thisNode.size; i++)
+			{
+				float t = triangleIntersectionTest(geom, triangles[triangleIndex[thisNode.TriangleArrayIndex + i]], r,
+					tmp_intersect, tmp_normal, tmp_uv, bOutside, normalTexID, ImageHeader, imageData);
+
+				if (t > 0.0f && min_t > t)
+				{
+					min_t = t;
+					intersectionPoint = tmp_intersect;
+					normal = tmp_normal;
+					uv = tmp_uv;
+				}
+			}
+		}
+		else
+		{
+			float t;
+
+			BVHNodeForGPU LeftNode = bvhTreeForGPU[thisNode.LeftID];
+			BVHNodeForGPU RightNode = bvhTreeForGPU[thisNode.RightID];
+
+			if ((!Stack[stackIndicator].bLeftTraversed && thisNode.LeftID > -1) &&
+				(!Stack[stackIndicator].bRightTraversed && thisNode.RightID > -1))
+			{
+				float left_t; float right_t;
+				bool bleft; bool bright;
+
+				bleft = BBIntersect(r, LeftNode.boundingBox, &left_t);
+				bright = BBIntersect(r, RightNode.boundingBox, &right_t);
+
+				Stack[stackIndicator].bLeftIntersected = bleft;
+				Stack[stackIndicator].bLeftIntersected = bright;
+
+				if (bleft && bright)
+				{
+					if (left_t < right_t)
+					{
+						if (min_t >= left_t)
+						{
+							thisNode = LeftNode;
+
+							Stack[stackIndicator].bLeftTraversed = true;
+
+							stackIndicator++;
+							Stack[stackIndicator] = thisNode;
+
+							continue;
+						}
+					}
+					else
+					{
+						if (min_t >= right_t)
+						{
+							thisNode = RightNode;
+
+							Stack[stackIndicator].bRightTraversed = true;
+
+							stackIndicator++;
+							Stack[stackIndicator] = thisNode;
+							continue;
+						}
+					}
+				}
+				else if (bleft)
+				{
+					if (min_t >= left_t)
+					{
+						thisNode = LeftNode;
+
+						Stack[stackIndicator].bLeftTraversed = true;
+
+						stackIndicator++;
+						Stack[stackIndicator] = thisNode;
+
+						continue;
+					}
+				}
+				else if (bright)
+				{
+					if (min_t >= right_t)
+					{
+						thisNode = RightNode;
+
+						Stack[stackIndicator].bRightTraversed = true;
+
+						stackIndicator++;
+						Stack[stackIndicator] = thisNode;
+						continue;
+					}
+				}
+			}
+			else if (!Stack[stackIndicator].bLeftTraversed && thisNode.LeftID > -1)
+			{
+				/*
+				if (Stack[stackIndicator].bLeftIntersected)
+				{
+					if (min_t >= t)
+					{
+						thisNode = LeftNode;
+
+						Stack[stackIndicator].bLeftTraversed = true;
+
+						stackIndicator++;
+						Stack[stackIndicator] = thisNode;
+
+						continue;
+					}
+				}
+				else*/ if (BBIntersect(r, LeftNode.boundingBox, &t))
+				{
+					if (min_t >= t)
+					{
+						thisNode = LeftNode;
+
+						Stack[stackIndicator].bLeftTraversed = true;
+
+						stackIndicator++;
+						Stack[stackIndicator] = thisNode;
+
+						continue;
+					}
+				}
+			}
+			else if (!Stack[stackIndicator].bRightTraversed && thisNode.RightID > -1)
+			{
+				/*
+				if (Stack[stackIndicator].bRightIntersected)
+				{
+					if (min_t >= t)
+					{
+						thisNode = RightNode;
+
+						Stack[stackIndicator].bRightTraversed = true;
+
+						stackIndicator++;
+						Stack[stackIndicator] = thisNode;
+						continue;
+					}
+				}
+				else*/ if (BBIntersect(r, RightNode.boundingBox, &t))
+				{
+					if (min_t >= t)
+					{
+						thisNode = RightNode;
+
+						Stack[stackIndicator].bRightTraversed = true;
+
+						stackIndicator++;
+						Stack[stackIndicator] = thisNode;
+						continue;
+					}
+				}
+			}
+		}
+
+		//back to parent
+		stackIndicator--;
+
+		if (stackIndicator < 0)
+			break;
+
+		thisNode = Stack[stackIndicator];
+	}
+
+	return min_t;
+}
+
 __host__ __device__ float traverseKDtree(const Ray &r, const KDtreeNodeForGPU *kdTreeForGPU, int TreeBegin, Geom geom, const Triangle* triangles, const int* triangleIndex,	
 	glm::vec3 &intersectionPoint, glm::vec3 &normal, glm::vec2 &uv, int normalTexID, Image* ImageHeader, glm::vec3* imageData)
 {
@@ -686,13 +875,17 @@ __host__ __device__ float traverseKDtree(const Ray &r, const KDtreeNodeForGPU *k
 		{
 			float t;
 
+			KDtreeNodeForGPU LeftNode = kdTreeForGPU[thisNode.LeftID];
+			KDtreeNodeForGPU RightNode = kdTreeForGPU[thisNode.RightID];
+
 			if ((!Stack[stackIndicator].bLeftTraversed && thisNode.LeftID > -1) &&
 				(!Stack[stackIndicator].bRightTraversed && thisNode.RightID > -1))
 			{
 				float left_t; float right_t;
 				bool bleft; bool bright;
-				bleft = BBIntersect(r, kdTreeForGPU[thisNode.LeftID].boundingBox, &left_t);
-				bright = BBIntersect(r, kdTreeForGPU[thisNode.RightID].boundingBox, &right_t);
+
+				bleft = BBIntersect(r, LeftNode.boundingBox, &left_t);
+				bright = BBIntersect(r, RightNode.boundingBox, &right_t);
 
 				Stack[stackIndicator].bLeftIntersected = bleft;
 				Stack[stackIndicator].bLeftIntersected = bright;
@@ -703,7 +896,7 @@ __host__ __device__ float traverseKDtree(const Ray &r, const KDtreeNodeForGPU *k
 					{
 						if (min_t >= left_t)
 						{
-							thisNode = kdTreeForGPU[thisNode.LeftID];
+							thisNode = LeftNode;
 
 							Stack[stackIndicator].bLeftTraversed = true;
 
@@ -717,7 +910,7 @@ __host__ __device__ float traverseKDtree(const Ray &r, const KDtreeNodeForGPU *k
 					{
 						if (min_t >= right_t)
 						{
-							thisNode = kdTreeForGPU[thisNode.RightID];
+							thisNode = RightNode;
 
 							Stack[stackIndicator].bRightTraversed = true;
 
@@ -731,7 +924,7 @@ __host__ __device__ float traverseKDtree(const Ray &r, const KDtreeNodeForGPU *k
 				{
 					if (min_t >= left_t)
 					{
-						thisNode = kdTreeForGPU[thisNode.LeftID];
+						thisNode = LeftNode;
 
 						Stack[stackIndicator].bLeftTraversed = true;
 
@@ -745,7 +938,7 @@ __host__ __device__ float traverseKDtree(const Ray &r, const KDtreeNodeForGPU *k
 				{
 					if (min_t >= right_t)
 					{
-						thisNode = kdTreeForGPU[thisNode.RightID];
+						thisNode = RightNode;
 
 						Stack[stackIndicator].bRightTraversed = true;
 
@@ -761,7 +954,7 @@ __host__ __device__ float traverseKDtree(const Ray &r, const KDtreeNodeForGPU *k
 				{
 					if (min_t >= t)
 					{
-						thisNode = kdTreeForGPU[thisNode.LeftID];
+						thisNode = LeftNode;
 
 						Stack[stackIndicator].bLeftTraversed = true;
 
@@ -771,11 +964,11 @@ __host__ __device__ float traverseKDtree(const Ray &r, const KDtreeNodeForGPU *k
 						continue;
 					}
 				}
-				else if (BBIntersect(r, kdTreeForGPU[thisNode.LeftID].boundingBox, &t))
+				else if (BBIntersect(r, LeftNode.boundingBox, &t))
 				{
 					if (min_t >= t)
 					{
-						thisNode = kdTreeForGPU[thisNode.LeftID];
+						thisNode = LeftNode;
 
 						Stack[stackIndicator].bLeftTraversed = true;
 
@@ -792,7 +985,7 @@ __host__ __device__ float traverseKDtree(const Ray &r, const KDtreeNodeForGPU *k
 				{
 					if (min_t >= t)
 					{
-						thisNode = kdTreeForGPU[thisNode.RightID];
+						thisNode = RightNode;
 
 						Stack[stackIndicator].bRightTraversed = true;
 
@@ -801,11 +994,11 @@ __host__ __device__ float traverseKDtree(const Ray &r, const KDtreeNodeForGPU *k
 						continue;
 					}
 				}
-				else if (BBIntersect(r, kdTreeForGPU[thisNode.RightID].boundingBox, &t))
+				else if (BBIntersect(r, RightNode.boundingBox, &t))
 				{
 					if (min_t >= t)
 					{
-						thisNode = kdTreeForGPU[thisNode.RightID];
+						thisNode = RightNode;
 
 						Stack[stackIndicator].bRightTraversed = true;
 

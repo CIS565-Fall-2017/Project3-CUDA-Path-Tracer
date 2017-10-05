@@ -59,6 +59,10 @@ public:
 	std::vector<KDtreeNodeForGPU> kdTreeForGPU;
 	std::vector<int> kdTreeTriangleIndexForGPU;
 
+	std::vector<BVHNode> bvhTree;
+	std::vector<BVHNodeForGPU> bvhTreeForGPU;
+	std::vector<int> bvhTreeTriangleIndexForGPU;
+
 	std::vector<Image> Images;
 	std::vector<glm::vec3> imageData;
 

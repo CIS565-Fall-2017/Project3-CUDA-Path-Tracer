@@ -23,7 +23,8 @@
 #define USE_RADIX_SORT 0
 #define USE_BVIC 1 // bounding volume intersection culling
 #define USE_OCTREE 0
-#define USE_KDTREE 1
+#define USE_KDTREE 0
+#define USE_BVH 1
 
 #define NAIVE_ITERGRATOR 1
 #define MIS_ITERGRATOR 0
@@ -128,7 +129,8 @@ static glm::vec3 * imageDatas = NULL;
 static KDtreeNodeForGPU *kdTreeForGPU = NULL;
 static int *kdTreeTriangleIndexForGPU = NULL;
 
-
+static BVHNodeForGPU *bvhTreeForGPU = NULL;
+static int *bvhTreeTriangleIndexForGPU = NULL;
 
 //static bool *dev_bTraversed = NULL;
 
@@ -191,6 +193,11 @@ void pathtraceInit(Scene *scene) {
 	cudaMalloc(&kdTreeTriangleIndexForGPU, scene->kdTreeTriangleIndexForGPU.size() * sizeof(int));
 	cudaMemcpy(kdTreeTriangleIndexForGPU, scene->kdTreeTriangleIndexForGPU.data(), scene->kdTreeTriangleIndexForGPU.size() * sizeof(int), cudaMemcpyHostToDevice);
 
+	cudaMalloc(&bvhTreeForGPU, scene->bvhTreeForGPU.size() * sizeof(BVHNodeForGPU));
+	cudaMemcpy(bvhTreeForGPU, scene->bvhTreeForGPU.data(), scene->bvhTreeForGPU.size() * sizeof(BVHNodeForGPU), cudaMemcpyHostToDevice);
+
+	cudaMalloc(&bvhTreeTriangleIndexForGPU, scene->bvhTreeTriangleIndexForGPU.size() * sizeof(int));
+	cudaMemcpy(bvhTreeTriangleIndexForGPU, scene->bvhTreeTriangleIndexForGPU.data(), scene->bvhTreeTriangleIndexForGPU.size() * sizeof(int), cudaMemcpyHostToDevice);
 	
     checkCUDAError("pathtraceInit");
 }
@@ -219,6 +226,8 @@ void pathtraceFree() {
 	cudaFree(kdTreeForGPU);
 	cudaFree(kdTreeTriangleIndexForGPU);
 	
+	cudaFree(bvhTreeForGPU);	
+	cudaFree(bvhTreeTriangleIndexForGPU);
     checkCUDAError("pathtraceFree");
 }
 
@@ -244,7 +253,10 @@ __host__ __device__ bool shadowIntersection(
 	, glm::vec3* imageData
 	, Material* materials
 	, KDtreeNodeForGPU *pkdTreeForGPU
-	, int *pkdTreeTriangleIndexForGPU)
+	, int *pkdTreeTriangleIndexForGPU
+	, BVHNodeForGPU *pbvhTreeForGPU
+	, int *pbvhTreeTriangleIndexForGPU
+)
 {
 
 	float t;
@@ -292,6 +304,8 @@ __host__ __device__ bool shadowIntersection(
 			{
 #if USE_KDTREE
 				t = traverseKDtree(ray, pkdTreeForGPU, geom.meshInfo.KDtreeID, geom, triangles, pkdTreeTriangleIndexForGPU, tmp_intersect, tmp_normal, tmp_uv, materials[geom.materialid].normalTexID, ImageHeader, imageData);
+#elif USE_BVH
+				t = traverseBVHtree(ray, pbvhTreeForGPU, geom.meshInfo.BVHtreeID, geom, triangles, pbvhTreeTriangleIndexForGPU, tmp_intersect, tmp_normal, tmp_uv, materials[geom.materialid].normalTexID, ImageHeader, imageData);
 #else
 
 				int size = geom.meshInfo.triangleBeginIndex + geom.meshInfo.size;
@@ -488,6 +502,8 @@ __global__ void computeIntersections(
 	, Material* materials
 	, KDtreeNodeForGPU *pkdTreeForGPU
 	, int *pkdTreeTriangleIndexForGPU
+	, BVHNodeForGPU *pbvhTreeForGPU
+	, int *pbvhTreeTriangleIndexForGPU
 	)
 {
 	int path_index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -541,6 +557,8 @@ __global__ void computeIntersections(
 				{
 #if USE_KDTREE
 					t = traverseKDtree(pathSegment.ray, pkdTreeForGPU, geom.meshInfo.KDtreeID, geom, triangles, pkdTreeTriangleIndexForGPU, tmp_intersect, tmp_normal, tmp_uv, materials[geom.materialid].normalTexID, ImageHeader, imageData);
+#elif USE_BVH
+					t = traverseBVHtree(pathSegment.ray, pbvhTreeForGPU, geom.meshInfo.BVHtreeID, geom, triangles, pbvhTreeTriangleIndexForGPU, tmp_intersect, tmp_normal, tmp_uv, materials[geom.materialid].normalTexID, ImageHeader, imageData);
 #else
 					int size = geom.meshInfo.triangleBeginIndex + geom.meshInfo.size;
 				
@@ -677,6 +695,8 @@ __global__ void Shading(
 	, Triangle * trianglesData
 	, KDtreeNodeForGPU *pkdTreeForGPU
 	, int *pkdTreeTriangleIndexForGPU
+	, BVHNodeForGPU *pbvhTreeForGPU
+	, int *pbvhTreeTriangleIndexForGPU
 )
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -819,7 +839,7 @@ __global__ void Shading(
 						Ray ShadowRay = SpawnRay(intersection, wiW);
 						ShadeableIntersection Shadowisect;
 
-						if (shadowIntersection(ShadowRay, geoms, trianglesData, num_geoms, Shadowisect, ImageHeader, ImageData, materials, pkdTreeForGPU, pkdTreeTriangleIndexForGPU))
+						if (shadowIntersection(ShadowRay, geoms, trianglesData, num_geoms, Shadowisect, ImageHeader, ImageData, materials, pkdTreeForGPU, pkdTreeTriangleIndexForGPU, pbvhTreeForGPU, pbvhTreeTriangleIndexForGPU))
 						{
 							if (Shadowisect.geomId == selectedLight.ID)
 							{
@@ -855,7 +875,7 @@ __global__ void Shading(
 							Ray ShadowRay = SpawnRay(intersection, wiW);
 
 							ShadeableIntersection Shadowisect;
-							if (shadowIntersection(ShadowRay, geoms, trianglesData, num_geoms, Shadowisect, ImageHeader, ImageData, &material))
+							if (shadowIntersection(ShadowRay, geoms, trianglesData, num_geoms, Shadowisect, ImageHeader, ImageData, &material, pkdTreeForGPU, pkdTreeTriangleIndexForGPU, pbvhTreeForGPU, pbvhTreeTriangleIndexForGPU))
 							{
 								if (Shadowisect.geomId == selectedLight.ID)
 								{
@@ -1362,6 +1382,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 			, dev_materials
 			, kdTreeForGPU
 		    , kdTreeTriangleIndexForGPU
+			, bvhTreeForGPU
+			, bvhTreeTriangleIndexForGPU
 			);
 		checkCUDAError("trace one bounce");
 		cudaDeviceSynchronize();
@@ -1399,7 +1421,9 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 		terminateBuffer,
 		dev_Triangles,
 		kdTreeForGPU,
-		kdTreeTriangleIndexForGPU
+		kdTreeTriangleIndexForGPU,
+		bvhTreeForGPU,
+		bvhTreeTriangleIndexForGPU
 		);
 		checkCUDAError("Shading");
 

@@ -8,7 +8,7 @@
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
 
 #define  MAX_OCTREE_CELL 100
-#define  KDTREE_MAX_STACK 128
+#define  KDTREE_MAX_STACK 256
 
 typedef float Float;
 typedef glm::vec3 Color3f;
@@ -152,12 +152,54 @@ struct KDtreeNode
 	std::vector<Triangle> triangles;
 };
 
+struct BVHNodeForGPU
+{
+	int ID;
+	bool bLeaf;
+
+	int ParentID;
+	AABB boundingBox;
+
+	int LeftID;
+	int RightID;
+
+	int size;
+
+	int TriangleArrayIndex;
+
+	bool bLeftTraversed;
+	bool bRightTraversed;
+
+	bool bLeftIntersected;
+	bool bRightIntersected;
+
+	float minT;
+	float maxT;
+};
+
+struct BVHNode
+{
+	int ID;
+	bool bLeaf;
+
+	int ParentID;
+	AABB boundingBox;
+
+	int LeftID;
+	int RightID;
+
+	int size;
+
+	std::vector<Triangle> triangles;
+};
+
 struct Mesh {
 	int size;
 	int triangleBeginIndex;
 	//AABB boundingBox;
 	int OctreeID;
 	int KDtreeID;
+	int BVHtreeID;
 };
 
 struct Geom {

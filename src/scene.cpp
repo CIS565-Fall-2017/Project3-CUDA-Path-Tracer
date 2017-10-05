@@ -343,12 +343,7 @@ bool sortByZ(Triangle t1, Triangle t2)
 void createKDtree(std::vector<KDtreeNode> &KDtree, int thisIndex, int MaxTriangles)
 {
 	KDtreeNode &thisNode = KDtree[thisIndex];
-
-	if (thisNode.ID == 472)
-	{
-		int debug = 4;
-	}
-
+	
 	if (KDtree[thisIndex].triangles.size() <= MaxTriangles)
 	{
 		KDtree[thisIndex].bLeaf = true;
@@ -358,9 +353,24 @@ void createKDtree(std::vector<KDtreeNode> &KDtree, int thisIndex, int MaxTriangl
 	}
 
 	//Find the widest Axis
+
+	/*
+	AABB innerBox = KDtree[thisIndex].triangles[0].boundingBox;
+	
+	for (int i = 1; i < KDtree[thisIndex].triangles.size(); i++)
+	{
+		innerBox = Union(innerBox, KDtree[thisIndex].triangles[i].boundingBox);
+	}
+
+	
+	float x_width = glm::abs(innerBox.max.x - innerBox.min.x);
+	float y_width = glm::abs(innerBox.max.y - innerBox.min.y);
+	float z_width = glm::abs(innerBox.max.z - innerBox.min.z);
+	*/
+	
 	float x_width = glm::abs(KDtree[thisIndex].boundingBox.max.x - KDtree[thisIndex].boundingBox.min.x);
 	float y_width = glm::abs(KDtree[thisIndex].boundingBox.max.y - KDtree[thisIndex].boundingBox.min.y);
-	float z_width = glm::abs(KDtree[thisIndex].boundingBox.max.z - KDtree[thisIndex].boundingBox.min.z);
+	float z_width = glm::abs(KDtree[thisIndex].boundingBox.max.z - KDtree[thisIndex].boundingBox.min.z);	
 
 	int wAxis = -1;
 
@@ -377,10 +387,7 @@ void createKDtree(std::vector<KDtreeNode> &KDtree, int thisIndex, int MaxTriangl
 		wAxis = 2;
 	}
 
-	
-
-	//sort by the axis
-	
+	//sort by the axis	
 	if (wAxis == 0)
 	{
 		std::sort(KDtree[thisIndex].triangles.begin(), KDtree[thisIndex].triangles.end(), sortByX);
@@ -430,28 +437,6 @@ void createKDtree(std::vector<KDtreeNode> &KDtree, int thisIndex, int MaxTriangl
 
 		int leftCount = 0;
 		int rightCount = 0;
-
-		/*
-		for (int j = 0; j < KDtree[thisIndex].triangles.size(); j++)
-		{
-			if (bSpan(LeftAABB, KDtree[thisIndex].triangles[j].boundingBox))
-			{
-				leftCount++;
-			}
-			else
-				break;
-		}
-
-		for (int j = KDtree[thisIndex].triangles.size() - 1; j >= 0; j--)
-		{
-			if (bSpan(RightAABB, KDtree[thisIndex].triangles[j].boundingBox))
-			{
-				rightCount++;
-			}
-			else
-				break;
-		}
-		*/
 
 		for (int j = 0; j < KDtree[thisIndex].triangles.size(); j++)
 		{
@@ -546,6 +531,180 @@ void createKDtree(std::vector<KDtreeNode> &KDtree, int thisIndex, int MaxTriangl
 
 
 }
+
+void createBVHtree(std::vector<BVHNode> &BVHtree, int thisIndex, int MaxTriangles)
+{
+	BVHNode &thisNode = BVHtree[thisIndex];
+
+	if (BVHtree[thisIndex].triangles.size() <= MaxTriangles)
+	{
+		BVHtree[thisIndex].bLeaf = true;
+		BVHtree[thisIndex].LeftID = -1;
+		BVHtree[thisIndex].RightID = -1;
+		return;
+	}
+
+	//Find the widest Axis
+	float x_width = glm::abs(thisNode.boundingBox.max.x - thisNode.boundingBox.min.x);
+	float y_width = glm::abs(thisNode.boundingBox.max.y - thisNode.boundingBox.min.y);
+	float z_width = glm::abs(thisNode.boundingBox.max.z - thisNode.boundingBox.min.z);	
+
+	int wAxis = -1;
+
+	if (x_width >= y_width && x_width >= z_width)
+	{
+		wAxis = 0;
+	}
+	else if (y_width >= x_width && y_width >= z_width)
+	{
+		wAxis = 1;
+	}
+	else if (z_width >= x_width && z_width >= y_width)
+	{
+		wAxis = 2;
+	}
+
+	//sort by the axis	
+	if (wAxis == 0)
+	{
+		std::sort(BVHtree[thisIndex].triangles.begin(), BVHtree[thisIndex].triangles.end(), sortByX);
+	}
+	else if (wAxis == 1)
+	{
+		std::sort(BVHtree[thisIndex].triangles.begin(), BVHtree[thisIndex].triangles.end(), sortByY);
+	}
+	else if (wAxis == 2)
+	{
+		std::sort(BVHtree[thisIndex].triangles.begin(), BVHtree[thisIndex].triangles.end(), sortByZ);
+	}
+	else
+		return;
+
+	float min_cost = FLT_MAX;
+	int min_index = -1;
+	AABB min_LeftAABB;
+	AABB min_RightAABB;
+	int min_Leftcount;
+	int min_Rightcount;
+
+	std::vector<AABB> LeftAABB_container;
+	std::vector<AABB> RightAABB_container;
+
+	LeftAABB_container.push_back(BVHtree[thisIndex].triangles[0].boundingBox);
+	RightAABB_container.push_back(BVHtree[thisIndex].triangles[BVHtree[thisIndex].triangles.size() - 1].boundingBox);
+	
+	for (int i = 1; i < BVHtree[thisIndex].triangles.size() - 1; i++)
+	{
+		LeftAABB_container.push_back(Union(LeftAABB_container[i - 1], BVHtree[thisIndex].triangles[i].boundingBox));
+		RightAABB_container.push_back(Union(RightAABB_container[i - 1], BVHtree[thisIndex].triangles[BVHtree[thisIndex].triangles.size() - 1 - i].boundingBox));
+	}
+
+	AABB LeftAABB;
+	int leftCount = 0;
+
+	AABB RightAABB;
+	int rightCount = BVHtree[thisIndex].triangles.size();
+
+	for (int i = 0; i < BVHtree[thisIndex].triangles.size() - 1; i++)
+	{
+		LeftAABB = LeftAABB_container[i];
+		RightAABB = RightAABB_container[BVHtree[thisIndex].triangles.size() - i - 2];
+
+		leftCount++;
+		rightCount--;
+		/*
+		if (i == 0)
+		{
+			LeftAABB = BVHtree[thisIndex].triangles[0].boundingBox;
+		}
+		else
+			LeftAABB = Union(LeftAABB, BVHtree[thisIndex].triangles[i].boundingBox);
+
+		leftCount++;
+		
+		AABB RightAABB;
+		int rightCount = 0;
+		for (int j = i + 1; j < BVHtree[thisIndex].triangles.size(); j++)
+		{
+			if (j == i + 1)
+			{
+				RightAABB = BVHtree[thisIndex].triangles[j].boundingBox;
+			}
+			else
+				RightAABB = Union(RightAABB, BVHtree[thisIndex].triangles[j].boundingBox);
+
+			rightCount++;
+		}
+		*/
+
+		float cost = (SurfaceArea(LeftAABB) * leftCount + SurfaceArea(RightAABB) * rightCount) / SurfaceArea(BVHtree[thisIndex].boundingBox);
+
+		if (min_cost > cost)
+		{
+			min_cost = cost;
+			min_index = i;
+			min_LeftAABB = LeftAABB;
+			min_RightAABB = RightAABB;
+			min_Leftcount = leftCount;
+			min_Rightcount = rightCount;
+		}
+	}
+
+	if (BVHtree[thisIndex].triangles.size() == min_Leftcount || BVHtree[thisIndex].triangles.size() == min_Rightcount)
+	{
+		BVHtree[thisIndex].bLeaf = true;
+		BVHtree[thisIndex].LeftID = -1;
+		BVHtree[thisIndex].RightID = -1;
+		return;
+	}
+
+
+	//Divide
+
+	BVHNode LNode;
+	BVHNode RNode;
+
+	LNode.boundingBox = min_LeftAABB;
+	RNode.boundingBox = min_RightAABB;
+
+	LNode.ID = BVHtree.size();
+	LNode.ParentID = BVHtree[thisIndex].ID;
+	LNode.bLeaf = false;
+	BVHtree[thisIndex].LeftID = LNode.ID;
+	BVHtree.push_back(LNode);
+
+	RNode.ID = BVHtree.size();
+	RNode.ParentID = BVHtree[thisIndex].ID;
+	RNode.bLeaf = false;
+	BVHtree[thisIndex].RightID = RNode.ID;
+	BVHtree.push_back(RNode);
+
+	for (int j = 0; j < BVHtree[thisIndex].triangles.size(); j++)
+	{
+		if (j <= min_index)
+		{
+			BVHtree[LNode.ID].triangles.push_back(BVHtree[thisIndex].triangles[j]);
+		}
+		else
+		{
+			BVHtree[RNode.ID].triangles.push_back(BVHtree[thisIndex].triangles[j]);
+		}
+	}
+	
+
+	BVHtree[LNode.ID].size = BVHtree[LNode.ID].triangles.size();
+	BVHtree[RNode.ID].size = BVHtree[RNode.ID].triangles.size();
+
+	BVHtree[thisIndex].triangles.clear();
+
+
+	createBVHtree(BVHtree, LNode.ID, MaxTriangles);
+	createBVHtree(BVHtree, RNode.ID, MaxTriangles);
+
+
+
+}
+
 
 void createOCtree(std::vector<Octree> *octreeStructure, int thisOctreeIndex, std::vector<Triangle> &triangles, const std::vector<int> &IncludeTriIndices)
 {
@@ -1191,12 +1350,12 @@ int Scene::loadGeom(std::string objectid) {
 
 							newGeom.ID = (int)geoms.size();
 
-							newGeom.meshInfo.KDtreeID = kdTree.size();
+							//BVH
+							newGeom.meshInfo.BVHtreeID = bvhTree.size();
 
-							KDtreeNode root;
-							root.ID = kdTree.size();
-							root.ParentID = -1;
-							//root.firstElement = newGeom.meshInfo.triangleBeginIndex;
+							BVHNode root;
+							root.ID = bvhTree.size();
+							root.ParentID = -1;							
 							root.size = tricount;
 
 							root.bLeaf = false;
@@ -1206,6 +1365,61 @@ int Scene::loadGeom(std::string objectid) {
 							{
 								root.triangles.push_back(triangles[z]);
 							}
+
+							bvhTree.push_back(root);
+
+							createBVHtree(bvhTree, root.ID, 4);
+
+							for (int h = root.ID; h < bvhTree.size(); h++)
+							{
+								BVHNodeForGPU temp;
+
+								temp.bLeaf = bvhTree[h].bLeaf;
+								temp.boundingBox = bvhTree[h].boundingBox;
+								temp.ID = bvhTree[h].ID;
+								temp.LeftID = bvhTree[h].LeftID;
+								temp.RightID = bvhTree[h].RightID;
+								temp.ParentID = bvhTree[h].ParentID;
+								temp.size = bvhTree[h].size;
+
+								temp.bLeftTraversed = false;
+								temp.bRightTraversed = false;
+
+								temp.bLeftIntersected = false;
+								temp.bRightIntersected = false;
+
+								temp.minT = FLT_MAX;
+								temp.maxT = -FLT_MAX;
+
+								if (temp.bLeaf == true)
+								{
+									temp.TriangleArrayIndex = bvhTreeTriangleIndexForGPU.size();
+									for (int k = 0; k < bvhTree[h].triangles.size(); k++)
+									{
+										bvhTreeTriangleIndexForGPU.push_back(bvhTree[h].triangles[k].triangleID);
+									}
+								}
+
+								bvhTreeForGPU.push_back(temp);
+							}
+
+							/*
+							newGeom.meshInfo.KDtreeID = kdTree.size();
+
+							KDtreeNode root;
+							root.ID = kdTree.size();
+							root.ParentID = -1;							
+							root.size = tricount;
+
+							root.bLeaf = false;
+							root.boundingBox = newGeom.boundingBox;
+
+							for (int z = 0; z < tricount; z++)
+							{
+								root.triangles.push_back(triangles[z]);
+							}
+
+
 
 							kdTree.push_back(root);
 														
@@ -1244,7 +1458,10 @@ int Scene::loadGeom(std::string objectid) {
 
 								kdTreeForGPU.push_back(temp);
 							}
-							
+							*/
+
+
+
 							geoms.push_back(newGeom);
 
 							//This is light
