@@ -64,6 +64,13 @@ struct PathSegment {
 	glm::vec3 color;
 	int pixelIndex;
 	int remainingBounces;
+	bool outside;
+	struct is_active {
+		__host__ __device__
+			bool operator()(const PathSegment &p) {
+			return p.remainingBounces > 0;
+		}
+	};
 };
 
 // Use with a corresponding PathSegment to do:

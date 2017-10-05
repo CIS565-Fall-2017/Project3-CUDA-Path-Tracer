@@ -6,7 +6,7 @@ SPECRGB     0 0 0
 REFL        0
 REFR        0
 REFRIOR     0
-EMITTANCE   5
+EMITTANCE   2
 
 // Diffuse white
 MATERIAL 1
@@ -73,7 +73,7 @@ CAMERA
 RES         800 800
 FOVY        45
 ITERATIONS  5000
-DEPTH       64
+DEPTH       8
 FILE        cornell
 EYE         0.0 5 10.5
 LOOKAT      0 5 0
@@ -131,39 +131,7 @@ SCALE       .01 10 10
 // Sphere
 OBJECT 6
 sphere
-material 6
+material 3
 TRANS       -1 4 -1
 ROTAT       0 0 0
 SCALE       3 3 3
-
-//// Sphere 2
-OBJECT 7
-sphere
-material 2
-TRANS       1 2 1
-ROTAT       0 0 0 
-SCALE       2 2 2
-
-// Light 2
-//OBJECT 7
-//cube
-//material 0
-//TRANS       0 0 0
-//ROTAT       0 0 0
-//SCALE       3 .3 3
-
-// Blue Cube
-OBJECT 8
-cube
-material 5
-TRANS       2 5 -2
-ROTAT       .5 -45 0
-SCALE      4 4 0.3
-
-//Refractive sphere
-OBJECT 9
-cube
-material 6
-TRANS 0 1 0
-ROTAT 0 0 0
-SCALE 8 .1 8

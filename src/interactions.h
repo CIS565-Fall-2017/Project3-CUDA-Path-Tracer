@@ -76,4 +76,54 @@ void scatterRay(
     // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
+	thrust::uniform_real_distribution<float> u01(0, 1);
+	float probability = (m.hasReflective > 0) ? u01(rng) : 1.0f;
+	Ray& ray = pathSegment.ray;
+	if (m.hasRefractive > 0) {
+		float cosTheta = glm::dot(glm::normalize(-pathSegment.ray.direction), normal);
+		float fresnelCoeff = ((1.0f - m.indexOfRefraction) / (1.0f + m.indexOfRefraction)) * ((1.0f - m.indexOfRefraction) / (1.0f + m.indexOfRefraction));
+		fresnelCoeff = fresnelCoeff + (1.0f - fresnelCoeff) * powf(1.0f - cosTheta, 5.0f);
+		if (probability < fresnelCoeff) {
+			ray.direction = glm::reflect(ray.direction, normal);
+		}
+		else {
+			float eta = pathSegment.outside ? 1.0f / m.indexOfRefraction : m.indexOfRefraction;
+			ray.direction = glm::normalize(glm::refract(ray.direction, normal, eta));
+		}
+	}
+	else {
+		if (probability > 0.5f) {
+			ray.direction = glm::normalize(calculateRandomDirectionInHemisphere(normal, rng));
+		}
+		else {
+			ray.direction = glm::reflect(ray.direction, normal);
+		}
+	}
+	pathSegment.color *= m.color;// *glm::clamp(glm::abs(glm::dot(ray.direction, normal)), 0.0f, 1.0f);
+	ray.origin = 0.05f * ray.direction + intersect;	
+
+
 }
+
+__host__ __device__
+void scatterRayDirectLighting(
+	PathSegment & pathSegment,
+	glm::vec3 intersect,
+	glm::vec3 normal,
+	const Material &m,
+	const Geom &light,
+	thrust::default_random_engine &rng) {
+	thrust::uniform_real_distribution<float> rx(-1, 1);
+	thrust::uniform_real_distribution<float> ry(-1, 1);
+	thrust::uniform_real_distribution<float> rz(-1, 1);
+
+	glm::vec3 sample = glm::vec3(rx(rng), ry(rng), rz(rng));
+	sample = multiplyMV(light.transform, glm::vec4(sample, 1.0f));
+	Ray& ray = pathSegment.ray;
+	ray.direction = glm::normalize(sample - intersect);
+	pathSegment.color *= m.color * glm::clamp(glm::dot(ray.direction, normal), 0.0f, 1.0f);
+	ray.origin = (glm::dot(ray.direction, normal) > 0) ? 0.05f * ray.direction + intersect : 0.05f * -ray.direction + intersect;
+
+
+}
+
