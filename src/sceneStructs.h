@@ -7,9 +7,13 @@
 
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
 
+#define ETA_REFRACT 1.33f
+
 enum GeomType {
     SPHERE,
     CUBE,
+	PLANE,
+	TRIANGLE
 };
 
 struct Ray {
@@ -26,6 +30,10 @@ struct Geom {
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+	//If Is Mesh
+	glm::vec3 positions[3];
+	glm::vec3 normals[3];
+	glm::vec2 uvs[3];
 };
 
 struct Material {
@@ -38,6 +46,7 @@ struct Material {
     float hasRefractive;
     float indexOfRefraction;
     float emittance;
+	int bsdf;
 };
 
 struct Camera {
@@ -64,6 +73,8 @@ struct PathSegment {
 	glm::vec3 color;
 	int pixelIndex;
 	int remainingBounces;
+	bool specularBounce;
+	glm::vec3 throughput;
 };
 
 // Use with a corresponding PathSegment to do:
@@ -72,5 +83,6 @@ struct PathSegment {
 struct ShadeableIntersection {
   float t;
   glm::vec3 surfaceNormal;
+  glm::vec3 point;
   int materialId;
 };

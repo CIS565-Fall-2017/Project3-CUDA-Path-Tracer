@@ -1,5 +1,6 @@
 set(SOURCE_FILES
     "stb.cpp"
+    "misHelper.h"
     "image.cpp"
     "image.h"
     "interactions.h"
@@ -11,6 +12,8 @@ set(SOURCE_FILES
     "scene.cpp"
     "scene.h"
     "sceneStructs.h"
+    "tiny_obj_loader.cc"
+    "tiny_obj_loader.h"
     "preview.h"
     "preview.cpp"
     "utilities.cpp"
@@ -19,5 +22,5 @@ set(SOURCE_FILES
 
 cuda_add_library(src
     ${SOURCE_FILES}
-    OPTIONS -arch=sm_20
+    OPTIONS -arch=sm_61
     )
