@@ -144,7 +144,7 @@ SCALE       0.1 0.1 0.1
 OBJECT 8
 mesh
 ../scenes/dragon.obj
-material 2
+material 4
 TRANS       0 2 -4
 ROTAT       0 0 0
 SCALE       2 2 2
