@@ -133,6 +133,8 @@ static int textureMapSize = 0;
 static Texture * dev_normalMap = NULL;
 static int normalMapSize = 0;
 
+static Texture * dev_environmentMap = NULL;
+
 
 #ifdef  ENABLE_DIR_LIGHTING
 static Light * dev_lights = NULL;
@@ -251,6 +253,24 @@ void pathtraceInit(Scene *scene) {
 		cudaMemcpy(dev_normalMap, scene->normalMap.data(), normalMapSize * sizeof(Texture), cudaMemcpyHostToDevice);
 	}
 
+	// environment Map -> GPU side
+	// ONLY ONE environment map or nothing
+	int environmentMapSize = scene->EnvironmentMap.size();
+	if (environmentMapSize > 0) {
+		cudaMalloc(&dev_environmentMap, sizeof(Texture));
+		
+		int num_of_elements = scene->EnvironmentMap[0].width * scene->EnvironmentMap[0].height * scene->EnvironmentMap[0].n_comp;
+		// assgin new GPU side data ptr
+		cudaMalloc(&(scene->EnvironmentMap[0].dev_data), num_of_elements * sizeof(unsigned char));
+		// move texture data first
+		cudaMemcpy(scene->EnvironmentMap[0].dev_data, scene->EnvironmentMap[0].host_data, num_of_elements * sizeof(unsigned char), cudaMemcpyHostToDevice);
+		
+		// move whole texture
+		cudaMemcpy(dev_environmentMap, scene->EnvironmentMap.data(), sizeof(Texture), cudaMemcpyHostToDevice);
+	}
+
+
+
 	cudaDeviceSynchronize();
 
     checkCUDAError("pathtraceInit");
@@ -314,6 +334,11 @@ void pathtraceFree() {
 	if (normalMapSize > 0) {
 		//...
 		cudaFree(dev_normalMap);
+	}
+
+	if (dev_environmentMap != NULL) {
+		//...
+		cudaFree(dev_environmentMap);
 	}
 
     checkCUDAError("pathtraceFree");
@@ -586,6 +611,7 @@ __global__ void shadeMaterialNaive(
 	, Material * materials
 	, Texture * textures
 	, Texture * normalMaps
+	, Texture * environmentMap
 #ifdef ENABLE_DIR_LIGHTING
 	, Light * lights
 	, int lightSize
@@ -675,6 +701,10 @@ __global__ void shadeMaterialNaive(
 		// This can be useful for post-processing and image compositing.
 		else {
 			pathSegment.color = glm::vec3(0.0f);
+
+			if (environmentMap != NULL) {
+				pathSegment.color = environmentMap[0].getEnvironmentColor(pathSegment.ray.direction);
+			}
 
 			pathSegment.remainingBounces = 0;
 		}
@@ -1020,7 +1050,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 			dev_paths,
 			dev_materials,
 			dev_textureMap,
-			dev_normalMap
+			dev_normalMap,
+			dev_environmentMap
 #ifdef ENABLE_DIR_LIGHTING
 			, dev_lights
 			, lightSize

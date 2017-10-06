@@ -38,7 +38,10 @@ Scene::Scene(string filename) {
             } else if (strcmp(tokens[0].c_str(), "CAMERA") == 0) {
                 loadCamera();
                 cout << " " << endl;
-            }
+            } else if (strcmp(tokens[0].c_str(), "ENVIRONMENTMAP") == 0) {
+				loadEnvironment();
+				cout << " " << endl;
+			}
         }
     }
 	fp_in.close();
@@ -68,24 +71,6 @@ Scene::Scene(string filename) {
 	}
 
 
-	//Texture test
-
-	//int width, height, n;
-	//unsigned char *data = stbi_load("../scenes/tex_nor_maps/wahoo.bmp", &width, &height, &n, 0);
-
-	//if (data == NULL) {
-	//	cout << "texture load error" << endl;
-	//}
-
-	//glm::vec2 text_uv(0.5f, 0.5f);
-	//int X = glm::min((float)width * text_uv.x, (float)width - 1.0f);
-	//int Y = glm::min((float)height * (1.0f - text_uv.y), (float)height - 1.0f);
-	//int texel_index = Y * width + X;
-
-	//glm::vec3 color_vec3(data[texel_index * n], data[texel_index * n + 1], data[texel_index * n + 2]);
-
-	//stbi_image_free(data);
-
 }
 
 Scene::~Scene() {
@@ -103,6 +88,11 @@ Scene::~Scene() {
 	// Free normal map
 	for (int i = 0; i < normalMap.size(); i++) {
 		normalMap[i].Free();
+	}
+
+	// Free environment map
+	for (int i = 0; i < EnvironmentMap.size(); i++) {
+		EnvironmentMap[i].Free();
 	}
 
 }
@@ -460,5 +450,25 @@ void Scene::loadObj(string objPath, Geom& newGeom, const glm::mat4& transform, c
 	else
 	{
 		std::cout << errors << std::endl;
+	}
+}
+
+
+int Scene::loadEnvironment() {
+	cout << "Loading Environment Map ..." << endl;
+
+	string line;
+	utilityCore::safeGetline(fp_in, line);
+	if (!line.empty() && fp_in.good()) {
+		string texturePath = GetLocalPath() + "tex_nor_maps/" + line;
+
+		Texture newTexture;
+
+		newTexture.LoadFromFile(texturePath.c_str());
+
+		EnvironmentMap.push_back(newTexture);
+	}
+	else {
+		cout << "ERROR : Loading Environment Map failed" << endl;
 	}
 }

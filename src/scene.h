@@ -35,6 +35,8 @@ private:
     int loadGeom(string objectid);
     int loadCamera();
 
+	int loadEnvironment();
+
 	void loadObj(string objPath, Geom& newGeom, const glm::mat4& transform, const glm::mat4& invTranspose);
 
 public:
@@ -56,6 +58,8 @@ public:
 	// Texture part
 	std::vector<Texture> textureMap;
 	std::vector<Texture> normalMap;
+	std::vector<Texture> EnvironmentMap;
+
 
 #ifdef ENABLE_BVH
 	LinearBVHNode *bvh_nodes; //Output

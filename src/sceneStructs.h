@@ -8,22 +8,29 @@
 
 #include <iostream>
 #include <stb_image.h>
+#include <cmath>
 
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
 
 #define COLORDIVIDOR 0.003921568627f
+
+
+#define InvPi 0.31830988618379067154f
+#define Inv2Pi 0.15915494309189533577f
+
+#define Pi 3.14159265358979323846f
 
 // ----------------------------------------------------------------
 //----------------------- Toggle Here -----------------------------
 // ----------------------------------------------------------------
 
 // Uncomment to enable direct lighting
-#define ENABLE_DIR_LIGHTING
+// #define ENABLE_DIR_LIGHTING
 
 
 // MIS is NOT finished yet Just ignore it!!!!!!!
 // Should uncomment dir lighting first to uncomment mis
-#define ENABLE_MIS_LIGHTING
+// #define ENABLE_MIS_LIGHTING
 
 
 // ----------------------------------------------------------------
@@ -265,7 +272,7 @@ struct Texture {
 
 	// ONLY Used on Device side
 	__host__ __device__
-		glm::vec3 getNormal(glm::vec2& uv) {
+	glm::vec3 getNormal(glm::vec2& uv) {
 		int X = glm::min((float)width * uv.x, (float)width - 1.0f);
 		int Y = glm::min((float)height * (1.0f - uv.y), (float)height - 1.0f);
 		int texel_index = Y * width + X;
@@ -274,6 +281,21 @@ struct Texture {
 		normal = 2.0f * COLORDIVIDOR * normal;
 		normal = glm::vec3(normal.x - 1.0f, normal.y - 1.0f, normal.z - 1.0f);
 		return normal;
+	}
+
+	// ONLY Used on Device side
+	__host__ __device__
+	glm::vec3 getEnvironmentColor(glm::vec3& normalized_dir) {
+		// Convert (normalized) dir to spherical coordinates.	
+
+		float phi = std::atan2(normalized_dir.z, normalized_dir.x);
+		phi = (phi < 0.f) ? (phi + 2.f * Pi) : phi;
+
+		float theta = glm::acos(normalized_dir.y);
+		
+		glm::vec2 uv = glm::vec2(phi * Inv2Pi, 1.0f - theta * InvPi);
+		
+		return getColor(uv);
 	}
 
 };
