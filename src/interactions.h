@@ -394,6 +394,8 @@ void scatterRay(
 		pathSegment.ray.origin = intersect;
 		pathSegment.ThroughputColor = throughputColor * real_color;
 
+		//pathSegment.ThroughputColor = throughputColor * real_color * AbsDot(pathSegment.ray.direction, normal) ;
+
 		// ************** MIS  END *************************
 
 

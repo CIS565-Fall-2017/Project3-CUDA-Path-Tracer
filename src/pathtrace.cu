@@ -312,6 +312,7 @@ void pathtraceFree() {
 	}
 
 	if (normalMapSize > 0) {
+		//...
 		cudaFree(dev_normalMap);
 	}
 
