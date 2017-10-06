@@ -53,6 +53,10 @@ public:
 	std::vector<Triangle> tris;
 	std::vector<Bounds3f> worldBounds;
 
+	// Texture part
+	std::vector<Texture> textureMap;
+	std::vector<Texture> normalMap;
+
 #ifdef ENABLE_BVH
 	LinearBVHNode *bvh_nodes; //Output
 	int bvh_totalNodes;

@@ -122,15 +122,23 @@ static ShadeableIntersection * dev_intersections_after_sort = NULL;
 // mesh part
 static Triangle * dev_tris = NULL;
 
-static int worldBoundsSize;
-static int bvhNodesSize;
+static int worldBoundsSize = 0;
+static int bvhNodesSize = 0;
+
+
+// texture part
+static Texture * dev_textureMap = NULL;
+static int textureMapSize = 0;
+
+static Texture * dev_normalMap = NULL;
+static int normalMapSize = 0;
 
 
 #ifdef  ENABLE_DIR_LIGHTING
 static Light * dev_lights = NULL;
 #endif
 
-static int lightSize;
+static int lightSize = 0;
 
 #ifdef ENABLE_MESHWORLDBOUND
 static Bounds3f * dev_worldBounds = NULL;
@@ -213,7 +221,35 @@ void pathtraceInit(Scene *scene) {
 	}
 #endif
 
+	// Texture -> GPU side
+	textureMapSize = scene->textureMap.size();
+	if (textureMapSize > 0) {
+		cudaMalloc(&dev_textureMap, textureMapSize * sizeof(Texture));
+		for (int i = 0; i < textureMapSize; i++) {
+			int num_of_elements = scene->textureMap[i].width * scene->textureMap[i].height * scene->textureMap[i].n_comp;
+			// assgin new GPU side data ptr
+			cudaMalloc(&(scene->textureMap[i].dev_data), num_of_elements * sizeof(unsigned char));
+			// move texture data first
+			cudaMemcpy(scene->textureMap[i].dev_data, scene->textureMap[i].host_data, num_of_elements * sizeof(unsigned char), cudaMemcpyHostToDevice);
+		}
+		// move whole texture
+		cudaMemcpy(dev_textureMap, scene->textureMap.data(), textureMapSize * sizeof(Texture), cudaMemcpyHostToDevice);
+	}
 
+	// noraml Map -> GPU side
+	normalMapSize = scene->normalMap.size();
+	if (normalMapSize > 0) {
+		cudaMalloc(&dev_normalMap, normalMapSize * sizeof(Texture));
+		for (int i = 0; i < normalMapSize; i++) {
+			int num_of_elements = scene->normalMap[i].width * scene->normalMap[i].height * scene->normalMap[i].n_comp;
+			// assgin new GPU side data ptr
+			cudaMalloc(&(scene->normalMap[i].dev_data), num_of_elements * sizeof(unsigned char));
+			// move texture data first
+			cudaMemcpy(scene->normalMap[i].dev_data, scene->normalMap[i].host_data, num_of_elements * sizeof(unsigned char), cudaMemcpyHostToDevice);
+		}
+		// move whole texture
+		cudaMemcpy(dev_normalMap, scene->normalMap.data(), normalMapSize * sizeof(Texture), cudaMemcpyHostToDevice);
+	}
 
 	cudaDeviceSynchronize();
 
@@ -264,6 +300,20 @@ void pathtraceFree() {
 		cudaFree(dev_lights);
 	}
 #endif
+
+	if (textureMapSize > 0) {
+		// TODO : Unknown error here, try to fix it
+		// Or is this the right way?
+		//for (int i = 0; i < textureMapSize; i++) {
+		//	cudaFree(dev_textureMap[i].dev_data);
+		//}
+		//cudaDeviceSynchronize();
+		cudaFree(dev_textureMap);
+	}
+
+	if (normalMapSize > 0) {
+		cudaFree(dev_normalMap);
+	}
 
     checkCUDAError("pathtraceFree");
 }
@@ -533,6 +583,8 @@ __global__ void shadeMaterialNaive(
 	, ShadeableIntersection * shadeableIntersections
 	, PathSegment * pathSegments
 	, Material * materials
+	, Texture * textures
+	, Texture * normalMaps
 #ifdef ENABLE_DIR_LIGHTING
 	, Light * lights
 	, int lightSize
@@ -585,11 +637,19 @@ __global__ void shadeMaterialNaive(
 			}
 			
 			else {
+				glm::vec3 isect_normal = intersection.surfaceNormal;
+
+				if (material.normalID != -1) {
+					isect_normal = normalMaps[material.normalID].getNormal(intersection.uv);
+				}
+
 				scatterRay(pathSegment, 
 						   getPointOnRay(pathSegment.ray, intersection.t),
-						   intersection.surfaceNormal,
+						   isect_normal,
+						   intersection.uv,
 					       material,
-						   rng
+						   rng,
+						   textures
 #ifdef	ENABLE_DIR_LIGHTING
 						  , lights
 						  , lightSize
@@ -957,7 +1017,9 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 			depth,
 			dev_intersections,
 			dev_paths,
-			dev_materials
+			dev_materials,
+			dev_textureMap,
+			dev_normalMap
 #ifdef ENABLE_DIR_LIGHTING
 			, dev_lights
 			, lightSize

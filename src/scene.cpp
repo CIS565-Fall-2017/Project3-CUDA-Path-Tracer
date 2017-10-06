@@ -9,6 +9,9 @@
 #include "tiny_obj_loader.h"
 #include <memory>
 
+
+
+
 string input_filename;
 
 Scene::Scene(string filename) {
@@ -53,7 +56,7 @@ Scene::Scene(string filename) {
 
 #endif  
 
-//Proces lights
+	//Process lights
 	float sum_area = 0.f;
 	for (int i = 0; i < lights.size(); i++) {
 		sum_area += lights[i].SurfaceArea;
@@ -63,6 +66,26 @@ Scene::Scene(string filename) {
 		accum_area += lights[i].SurfaceArea;
 		lights[i].selectedProb = accum_area / sum_area;
 	}
+
+
+	//Texture test
+
+	//int width, height, n;
+	//unsigned char *data = stbi_load("../scenes/tex_nor_maps/wahoo.bmp", &width, &height, &n, 0);
+
+	//if (data == NULL) {
+	//	cout << "texture load error" << endl;
+	//}
+
+	//glm::vec2 text_uv(0.5f, 0.5f);
+	//int X = glm::min((float)width * text_uv.x, (float)width - 1.0f);
+	//int Y = glm::min((float)height * (1.0f - text_uv.y), (float)height - 1.0f);
+	//int texel_index = Y * width + X;
+
+	//glm::vec3 color_vec3(data[texel_index * n], data[texel_index * n + 1], data[texel_index * n + 2]);
+
+	//stbi_image_free(data);
+
 }
 
 Scene::~Scene() {
@@ -72,6 +95,27 @@ Scene::~Scene() {
 
 #endif 
 
+	// Free Texture
+	for (int i = 0; i < textureMap.size(); i++) {
+		textureMap[i].Free();
+	}
+
+	// Free normal map
+	for (int i = 0; i < normalMap.size(); i++) {
+		normalMap[i].Free();
+	}
+
+}
+
+
+string GetLocalPath() {
+	// Get local path
+	int len = input_filename.length() - 1;
+	while (input_filename[len] != '/')
+	{
+		len--;
+	}
+	return input_filename.substr(0, len + 1);
 }
 
 int Scene::loadGeom(string objectid) {
@@ -135,16 +179,9 @@ int Scene::loadGeom(string objectid) {
 
 		//load mesh obj
 		if (isMesh) {
-			int len = input_filename.length() - 1;
-			while (input_filename[len] != '/')
-			{
-				len--;
-			}
-			string local_path = input_filename.substr(0, len + 1);
-
 			// get obj file name
 			utilityCore::safeGetline(fp_in, line);
-			string objPath = local_path + line;
+			string objPath = GetLocalPath() + line;
 			cout << "Obj file to open : " << objPath << endl;
 
 			loadObj(objPath, newGeom, newGeom.transform, newGeom.invTranspose);
@@ -261,10 +298,10 @@ int Scene::loadMaterial(string materialid) {
     } else {
         cout << "Loading Material " << id << "..." << endl;
         Material newMaterial;
+		string line;
 
         //load static properties
-        for (int i = 0; i < 7; i++) {
-            string line;
+        for (int i = 0; i < 7; i++) {   
             utilityCore::safeGetline(fp_in, line);
             vector<string> tokens = utilityCore::tokenizeString(line);
             if (strcmp(tokens[0].c_str(), "RGB") == 0) {
@@ -288,6 +325,45 @@ int Scene::loadMaterial(string materialid) {
 				}
             }
         }
+
+		newMaterial.textureID = -1;
+		newMaterial.normalID = -1;
+
+		// load extra map information
+		utilityCore::safeGetline(fp_in, line);
+		while (!line.empty() && fp_in.good()) {
+			vector<string> tokens = utilityCore::tokenizeString(line);
+
+			if (strcmp(tokens[0].c_str(), "textureMap") == 0) {
+				
+				string texturePath = GetLocalPath() + "tex_nor_maps/" + tokens[1];
+
+				Texture newTexture;
+				newTexture.LoadFromFile(texturePath.c_str());
+
+				newMaterial.textureID = textureMap.size();
+				textureMap.push_back(newTexture);
+			}
+			else if (strcmp(tokens[0].c_str(), "normalMap") == 0) {
+
+				string texturePath = GetLocalPath() + "tex_nor_maps/" + tokens[1];
+
+				Texture newTexture;
+				newTexture.LoadFromFile(texturePath.c_str());
+
+				newMaterial.normalID = normalMap.size();
+				normalMap.push_back(newTexture);
+			}
+			// Handle other maps here!
+			//else if ()
+			//{
+
+			//}
+
+			utilityCore::safeGetline(fp_in, line);
+		}
+
+
         materials.push_back(newMaterial);
         return 1;
     }

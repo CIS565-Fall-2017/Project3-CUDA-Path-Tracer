@@ -6,7 +6,12 @@
 #include "glm\gtx\intersect.hpp"
 #include "bounds.h"
 
+#include <iostream>
+#include <stb_image.h>
+
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
+
+#define COLORDIVIDOR 0.003921568627f
 
 // ----------------------------------------------------------------
 //----------------------- Toggle Here -----------------------------
@@ -100,6 +105,8 @@ struct Material {
     float hasRefractive;
     float indexOfRefraction;
     float emittance;
+	int textureID;
+	int normalID;
 };
 
 struct Camera {
@@ -220,4 +227,53 @@ struct Triangle {
 		}
 
 	}
+};
+
+struct Texture {
+	int width;
+	int height;
+	int n_comp;
+	unsigned char *host_data;
+	unsigned char *dev_data;
+
+	void LoadFromFile(char const *filename) {
+		host_data = stbi_load(filename, &width, &height, &n_comp, 0);
+		if (host_data == NULL) {
+				std::cout << "ERROR : texture load fail!" << std::endl;
+		}
+		dev_data = NULL;
+	}
+
+	void Free() {
+		// Already done CPU Side Free on pathtraceInit()
+		stbi_image_free(host_data);
+	}
+
+	// ONLY Used on Device side
+	__host__ __device__
+	glm::vec3 getColor(glm::vec2& uv) {
+		int X = glm::min((float)width * uv.x, (float)width - 1.0f);
+		int Y = glm::min((float)height * (1.0f - uv.y), (float)height - 1.0f);
+		int texel_index = Y * width + X;
+
+		//Assume n_comp is always 3, which includes red, green and blue three channels
+		glm::vec3 col = glm::vec3(dev_data[texel_index * n_comp], dev_data[texel_index * n_comp + 1], dev_data[texel_index * n_comp + 2]);
+		col = COLORDIVIDOR * col;
+		return col;
+	}
+
+
+	// ONLY Used on Device side
+	__host__ __device__
+		glm::vec3 getNormal(glm::vec2& uv) {
+		int X = glm::min((float)width * uv.x, (float)width - 1.0f);
+		int Y = glm::min((float)height * (1.0f - uv.y), (float)height - 1.0f);
+		int texel_index = Y * width + X;
+
+		glm::vec3 normal = glm::vec3(dev_data[texel_index * n_comp], dev_data[texel_index * n_comp + 1], dev_data[texel_index * n_comp + 2]);
+		normal = 2.0f * COLORDIVIDOR * normal;
+		normal = glm::vec3(normal.x - 1.0f, normal.y - 1.0f, normal.z - 1.0f);
+		return normal;
+	}
+
 };

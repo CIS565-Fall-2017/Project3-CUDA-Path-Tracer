@@ -152,8 +152,10 @@ void scatterRay(
 		PathSegment& pathSegment,
         glm::vec3 intersect,
         glm::vec3 normal,
+		glm::vec2 uv,
         const Material &m,
-        thrust::default_random_engine &rng
+        thrust::default_random_engine &rng,
+		Texture * texutres
 #ifdef	ENABLE_DIR_LIGHTING
 		,const Light* lights
 		,const int& lightSize
@@ -286,6 +288,13 @@ void scatterRay(
 	// ------------------- Non-specular / Diffuse Part ---------------------
 	else 
 	{
+		glm::vec3 real_color = m.color;
+		if (m.textureID != -1) {
+			// get texture color here
+			real_color *= texutres[m.textureID].getColor(uv);
+		}
+
+
 #ifdef ENABLE_DIR_LIGHTING
 		if (pathSegment.remainingBounces == 0) {
 			return;
@@ -329,7 +338,7 @@ void scatterRay(
 #endif
 							) == selectedLight.geomIdx) {
 
-			pathSegment.color += (((m.color / PI) * selectedLight.emittance * AbsDot(normal, shadowFeelRay.direction) / pdf_direct) / 2.f);
+			pathSegment.color += (((real_color / PI) * selectedLight.emittance * AbsDot(normal, shadowFeelRay.direction) / pdf_direct) / 2.f);
 		}
 #else
 
@@ -353,8 +362,8 @@ void scatterRay(
 						   , nodes
 #endif
 						   ) == selectedLight.geomIdx) {
-			OneLightColor += ((m.color / PI) * selectedLight.emittance * AbsDot(normal, shadowFeelRay.direction) * weigh_direct / pdf_direct);
-			//OneLightColor += (((m.color / PI) * selectedLight.emittance * AbsDot(normal, shadowFeelRay.direction) / pdf_direct) / 2.f);
+			OneLightColor += ((real_color / PI) * selectedLight.emittance * AbsDot(normal, shadowFeelRay.direction) * weigh_direct / pdf_direct);
+			//OneLightColor += (((real_color / PI) * selectedLight.emittance * AbsDot(normal, shadowFeelRay.direction) / pdf_direct) / 2.f);
 		}
 
 		// ********** MIS Direct bsdf part ********************
@@ -370,7 +379,7 @@ void scatterRay(
 						   , nodes
 #endif
 						  ) == selectedLight.geomIdx) {
-			OneLightColor += ((m.color / PI) * selectedLight.emittance * AbsDot(normal, shadowFeelRay.direction) * weigh_bsdf / pdf_bsdf);
+			OneLightColor += ((real_color / PI) * selectedLight.emittance * AbsDot(normal, shadowFeelRay.direction) * weigh_bsdf / pdf_bsdf);
 		}
 
 		/*throughputColor *= ((float)lightSize * OneLightColor);
@@ -383,8 +392,7 @@ void scatterRay(
 		newDirection = calculateRandomDirectionInHemisphere(normal, rng);
 		pathSegment.ray.direction = glm::normalize(newDirection);
 		pathSegment.ray.origin = intersect;
-		pathSegment.ThroughputColor = throughputColor * m.color;
-		//pathSegment.ThroughputColor = throughputColor * m.color * AbsDot(normal, glm::normalize(newDirection));
+		pathSegment.ThroughputColor = throughputColor * real_color;
 
 		// ************** MIS  END *************************
 
@@ -409,7 +417,7 @@ void scatterRay(
 		// Lambert pdf == 1 / Pi
 		// Lambert f == Albedo / Pi 
 		// -> f * AbsDot / pdf == Albedo(Color) So we directly multiply color here
-		pathSegment.color *= m.color;
+		pathSegment.color *= real_color;
 #endif
 	}
 }
