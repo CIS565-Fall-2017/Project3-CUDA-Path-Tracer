@@ -33,7 +33,7 @@
 						// caching more intersections
 //Naive Integration is the default if nothing else is toggled
 #define DIRECT_LIGHTING_INTEGRATOR 0
-#define FULL_LIGHTING_INTEGRATOR 1
+#define FULL_LIGHTING_INTEGRATOR 0
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -446,9 +446,11 @@ __global__ void shadeMaterialsFullLighting(int iter, int maxtraceDepth, int numA
 
 		// if the intersection exists and the itersection is not a light then
 		//deal with the material and end up changing the pathSegment color and its ray direction
-		fullLightingIntegrator(maxtraceDepth, pathSegments[idx], intersection, material,
-							geoms[shadeableIntersections[idx].hitGeomIndex],
-							geoms, numGeoms, lights, numLights,
+		fullLightingIntegrator(maxtraceDepth, 
+							pathSegments[idx], intersection, 
+							materials, material,
+							geoms, geoms[shadeableIntersections[idx].hitGeomIndex], numGeoms, 
+							lights, numLights,
 							rayAccumulatedThroughput, rayAccumulatedColor,
 							rng);
 	}

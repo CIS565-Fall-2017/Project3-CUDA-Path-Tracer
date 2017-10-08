@@ -72,7 +72,33 @@ __host__ __device__ BxDFType chooseBxDF(const Material &m, thrust::default_rando
 	return bxdf;
 }
 
-__host__ __device__ Color3f sample_f(const Material &m, thrust::default_random_engine &rng,
+__host__ __device__ float sample_material_Pdf(const Material &m, BxDFType bxdf, const Vector3f &woW, Vector3f &wiW, const Vector3f& normal)
+{
+	float pdf = 0.0f;
+	for (int i = 0; i<m.numBxDFs; ++i)
+	{
+		if (m.bxdfs[i] != bxdf && MatchesFlags(m.bxdfs[i]))
+		{
+			//overall pdf!!!! so get all pdfs for the
+			//different bxdfs and average it out for the bsdf
+			if (bxdf == BSDF_SPECULAR_BRDF)
+			{
+				pdf += pdf_Specular();
+			}
+			else if (bxdf == BSDF_LAMBERT)
+			{
+				pdf += pdf_Lambert(woW, wiW, normal);
+			}
+			else if (bxdf == BxDF_SUBSURFACE)
+			{
+				pdf += pdf_Subsurface(woW, wiW, m.thetaMin);
+			}
+		}
+	}
+	return pdf;
+}
+
+__host__ __device__ Color3f sample_material_f(const Material &m, thrust::default_random_engine &rng,
 									const Vector3f& woW, const Vector3f& normal,
 									Geom& geom, ShadeableIntersection& intersection,
 									PathSegment pathsegment, Geom * geoms, int numGeoms,

@@ -67,7 +67,7 @@ __host__ __device__ void naiveIntegrator(PathSegment & pathSegment,
 	float pdf = 0.0f;
 
 	//sampleMaterials(m, wo, normal, sampledColor, wi, pdf, rng);
-	sample_f(m, rng, wo, normal, geom, intersection, pathSegment, geoms, numGeoms, sampledColor, wi, pdf);
+	sample_material_f(m, rng, wo, normal, geom, intersection, pathSegment, geoms, numGeoms, sampledColor, wi, pdf);
 
 	if (pdf != 0.0f)
 	{
@@ -141,8 +141,8 @@ __host__ __device__ void directLightingIntegrator(PathSegment & pathSegment,
 __host__ __device__ void fullLightingIntegrator(int maxTraceDepth, 
 												PathSegment & pathSegment,
 												ShadeableIntersection& intersection,
-												Material &m, Geom& geom, 
-												Geom * geoms, int numGeoms,
+												Material* materials, Material &m, 
+												Geom * geoms, Geom& geom, int numGeoms,
 												Light * lights, int &numLights,
 												Color3f accumulatedThroughput, Color3f accumulatedColor,
 												thrust::default_random_engine &rng)
@@ -152,15 +152,19 @@ __host__ __device__ void fullLightingIntegrator(int maxTraceDepth,
 	Vector3f wi = glm::vec3(0.0f);
 	Color3f directLightingColor = Color3f(0.0);
 	Vector3f normal = intersection.surfaceNormal;
+	Vector3f intersectionPoint = intersection.intersectPoint;
 	thrust::uniform_real_distribution<float> u01(0, 1);
 
+	int randomLightIndex = std::min((int)std::floor(u01(rng)*numLights), numLights - 1);
+	Light selectedLight = lights[randomLightIndex];
+	Geom lightGeom = geoms[selectedLight.lightGeomIndex];
+	Material lightMat = materials[lightGeom.materialid];
+	Vector3f wi_towardsLight;
 	//----------------------- Actual Direct Lighting ----------------------
 	Vector3f wi_Direct_Light;
 	float pdf_Direct_Light;
 	Point2f xi_Direct_Light = Point2f(u01(rng), u01(rng));
 	Color3f LTE_Direct_Light = Color3f(0.0f);
-
-
 
 	//----------------------- BSDF based Direct Lighting ------------------
 	Vector3f wiW_BSDF_Light;
@@ -174,6 +178,16 @@ __host__ __device__ void fullLightingIntegrator(int maxTraceDepth,
 	//MIS can only work on one type of light  energy, and so we use MIS for direct lighting only
 	float weight_BSDF_Light = 0.0;
 	float weight_Direct_Light = 0.0;
+
+	if (randomLightIndex != -1)
+	{
+		weight_BSDF_Light = PowerHeuristic(1, pdf_BSDF_Light, 1, (sampleLightPDF(lightMat, normal, wi_towardsLight, intersectionPoint, lightGeom)));
+		weight_Direct_Light = PowerHeuristic(1, pdf_Direct_Light, 1, sample_material_Pdf(m, sampledType, wo, wi_Direct_Light, normal));
+	}
+
+	Color3f weighted_BSDF_Light_color = LTE_BSDF_Light * weight_BSDF_Light;
+	Color3f weighted_Direct_Light_color = LTE_Direct_Light * weight_Direct_Light;
+	directLightingColor = (weighted_BSDF_Light_color + weighted_Direct_Light_color) * (float)numLights;
 
 	//----------------------- Update Overall DirectLightingColor ----------
 	directLightingColor *= accumulatedThroughput;

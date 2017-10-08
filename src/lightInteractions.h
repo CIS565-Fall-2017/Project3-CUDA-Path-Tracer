@@ -14,6 +14,13 @@ __host__ __device__ bool fequals_Vec(Vector3f& v1, Vector3f& v2)
 	return false;
 }
 
+__host__ __device__ float sampleLightPDF(Material &m, Vector3f& normal, Vector3f& wi,
+										Vector3f& refPoint, Geom& geom)
+{
+	float light_pdf = 0.0f;
+	return light_pdf;
+}
+
 __host__ __device__ Color3f sampleLights(Material &m, Vector3f& normal, Vector3f& wi,
 										Vector2f &xi, float& pdf, Vector3f& refPoint, Geom& geom)
 {
