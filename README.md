@@ -9,8 +9,10 @@ CUDA Path Tracer
 Project Features
 ================
 #### Final Renders (5000 samples per pixel) :
-![](img/5000samp_cornell2.png) |  ![](img/5000samp_cornell_mesh.png)
+![](img/104_EnvironmentMap_Dragon_MIS_5000samp.png) |  ![](img/110_BayonettaTable_NormalMap_MIS_2000samp.png)
 ------------ | -------------
+EnvironmentMap_Dragon.txt | Bayonetta_Table.txt(2000 sample)
+![](img/5000samp_cornell2.png) |  ![](img/5000samp_cornell_mesh.png)
 cornell2.txt | cornell_mesh.txt
 ![](img/5000samp_cornell_thin_lens.png) |  ![](img/5000samp_cornell_wahoo.png)
 cornell.txt with thin lens | cornell_wahoo.txt with BVH
@@ -20,7 +22,7 @@ cornell.txt (Direct Lighting) | cornell2.txt
 
 #### Part 1 : Core Features
 - Shading kernel with BSDF evaluation
-- Path continuation/termination using Stream Compaction
+- Path continuation/termination using Stream Compaction(Remove path with 0 remaining bounce for each iteration)
 - Sorting Path segments & intersections by Material ID using Radix Sort / thrust::sort_by_key
 - First bounce intersections and Camera ray cache
 
@@ -31,9 +33,11 @@ cornell.txt (Direct Lighting) | cornell2.txt
   - Pure specualr refractive material & Glass(Specualr reflection + Specualr refraction)
   - Thin lens camera(depth-of-field)
   - Stochastic sampled antialiasing
-- Direct Lighting
+- Direct Lighting + MIS (Multiple Importance Sampling)
 - Arbitrary mesh loading with bounding volume intersection culling
 - BVH (Hierarchical spatial data structures)
+- Texture Map & Normal Map
+- Environment Map (Infinite Area Light)
 
 ##### **About Toggleable Macros** :
   To enable/disable some features, just uncomment/comment Macros in ***scene.h***, ***sceneStructs.h***, ***pathtracer.cu***
@@ -43,8 +47,8 @@ cornell.txt (Direct Lighting) | cornell2.txt
  - #define **ENABLE_BVH** : Should first enable mesh world bound to enable BVH. All meshes(triangles) will form one BHV tree in CPU side and used for intersection test in GPU side.Default **ON**.
 
 - sceneStructs.h :
- - #define **ENABLE_DIR_LIGHTING** : enable/disable Direct lighting. Default **OFF**.
- - Please just ignore MIS lighting part. I haven't finished it yet. Still have some bugs :(
+ - #define **ENABLE_DIR_LIGHTING** : enable/disable Direct lighting. Default **ON**.
+ - #define **ENABLE_MIS_LIGHTING** : enable/disable MIS lighting. Enable Direct lighting first to enable this. Default **ON**.
 
 - pathtracer.cu :
  - #define **NO_FIRSTBOUNCECACHE** : Uncommment to disable First bounce ray and intersections cache. Default **OFF**
@@ -142,7 +146,7 @@ len radius = 3.0, focal length = 10.0 | len radius = 3.0, focal length = 13.0 | 
  ###### Analysis:
  Like comparison shown above, direct lighting converges much quicker and thus definitely much cheaper. Basically, there is no clear difference for 50spp and 5000 spp for direct lighting except for so complex places, like the lower right glass ball, and only this ball converges relatively slow, and can see clear noises in it for 50spp and 100spp. There is no performance difference between two methods in terms of the time need for each iteration.
 
- - #### Arbitrary mesh and acceleration analysis
+- #### Arbitrary mesh and acceleration analysis
    ###### In this analysis, different methods to accelerate rendering especially for arbitrary mesh are analyzed. Basically, I start from naive method, which means just testing every triangle in the mesh, to one bounding box culling, which means before testing every triangle of a mesh, I test it's whole bounding box first, and finally to BVH, which builds on CPU, and is used in GPU intersections tests. Vertical axis represents for the average time used for each iteration after 50 iterations.
 
   ![](img/chart_3.jpg)
@@ -150,3 +154,10 @@ len radius = 3.0, focal length = 10.0 | len radius = 3.0, focal length = 13.0 | 
    ###### Analysis:
    The blue line refers to cornell_mesh.txt, which is the **pyramid(6 triangles)** shown at the very beginning of README and red for **wahoo(5172 triangles)**. As we can see, when triangles number for a mesh is low, it doesn't influence performance much. However, when mesh becomes more complex and triangle number increases, even testing for one bounding box before test each triangle of a mesh helps a lot, and saves around 25% time incase of wahoo.
    Of course, as I imagine, BVH works best, and is almost 8 times faster than the naive method. So far, I regard all meshes(triangle) as one BVH, in the future, this can be optimized and BVH creation can also transfer to GPU if possible in the future.
+
+
+- #### Texture & Normal Map
+
+![](img/110_BayonettaTable_NoNormalMap_MIS_2000samp.png) |![](img/110_BayonettaTable_NormalMap_MIS_2000samp.png)
+------------ | -------------
+Bayonetta_Table without Normal map | Bayonetta_Table with Normal map
