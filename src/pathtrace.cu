@@ -24,15 +24,16 @@
 //--------------------
 //Toggle-able OPTIONS
 //--------------------
-#define FIRST_BOUNCE_INTERSECTION_CACHING 1
+#define FIRST_BOUNCE_INTERSECTION_CACHING 0
 #define MATERIAL_SORTING 1
-#define INACTIVE_RAY_CULLING 1 //Stream Compaction of rays
-#define DEPTH_OF_FIELD 1
+#define INACTIVE_RAY_CULLING 0 //Stream Compaction of rays
+#define DEPTH_OF_FIELD 0
 #define ANTI_ALIASING 1 // if you use first bounce caching, antialiasing will not work --> can make it work with 
 						// a more deterministic Supersampling approach to AA but requires more memory for 
 						// caching more intersections
 //Naive Integration is the default if nothing else is toggled
 #define DIRECT_LIGHTING_INTEGRATOR 0
+#define FULL_LIGHTING_INTEGRATOR 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -95,15 +96,24 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
 
 // Static Variables
 static Scene * hst_scene = NULL;
-static glm::vec3 * dev_image = NULL;
+static Color3f * dev_image = NULL;
+//Geometries, Lights, and Materials
 static Geom * dev_geoms = NULL; //Geoms array contains all the lights in the scene as well
 static Light * dev_lights = NULL;
 static Material * dev_materials = NULL;
+//PathSegments and Intersections
 static PathSegment * dev_paths = NULL;
 static ShadeableIntersection * dev_intersections = NULL;
+//Iterative Integration Necessary Variables
+static int * dev_rayPixelIndex = NULL; // dont want to sort more and more arrays --> so just sort this one
+									   // also helpful when moving to a Struct of Arrays format	
+static Color3f * dev_accumulatedThroughputColor = NULL;
+static Color3f * dev_accumulatedRayColor = NULL;
+static Color3f * dev_totalPixelColor = NULL;
 // Cache First Bounce
 static int *dev_intersectionsCached = NULL;
 // Sort by material
+static int *dev_sortingPixelIndices = NULL;
 static int *dev_pathMaterialIndices = NULL;
 static int *dev_intersectionMaterialIndices = NULL;
 
@@ -130,15 +140,26 @@ void pathtraceInit(Scene *scene)
   	cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
   	cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
+	//To access the correct pixel after sorting
+	cudaMalloc(&dev_rayPixelIndex, pixelcount * sizeof(int));
+	//Iterative Integration Necessary Variables
+	cudaMalloc(&dev_totalPixelColor, pixelcount * sizeof(Color3f));
+	cudaMemset(dev_totalPixelColor, 0, pixelcount * sizeof(Color3f));
+	cudaMalloc(&dev_accumulatedRayColor, pixelcount * sizeof(Color3f));
+	cudaMemset(dev_accumulatedRayColor, 0, pixelcount * sizeof(Color3f));
+	cudaMalloc(&dev_accumulatedThroughputColor, pixelcount * sizeof(Color3f));
+	cudaMemset(dev_accumulatedThroughputColor, 0, pixelcount * sizeof(Color3f));
+
 	// Caching the first Intersection for evey iteration
 	cudaMalloc(&dev_intersectionsCached, pixelcount * sizeof(ShadeableIntersection));
 	cudaMemset(dev_intersectionsCached, 0, pixelcount * sizeof(ShadeableIntersection));
-	// Paths by material
+	
+	// sort Paths by material
 	cudaMalloc(&dev_pathMaterialIndices, pixelcount * sizeof(int));
-	cudaMemset(dev_pathMaterialIndices, 0, pixelcount * sizeof(int));
-	// Intersections by material
+	// sort Intersections by material
 	cudaMalloc(&dev_intersectionMaterialIndices, pixelcount * sizeof(int));
-	cudaMemset(dev_intersectionMaterialIndices, 0, pixelcount * sizeof(int));
+	// sorting pixelIndices array in accordance to how pathsegments were sorted
+	cudaMalloc(&dev_sortingPixelIndices, pixelcount * sizeof(int));
 
     checkCUDAError("pathtraceInit");
 }
@@ -151,8 +172,15 @@ void pathtraceFree()
 	cudaFree(dev_lights);
   	cudaFree(dev_materials);
   	cudaFree(dev_intersections);
-    
+	
+	cudaFree(dev_rayPixelIndex);
+
+	cudaFree(dev_accumulatedRayColor);
+	cudaFree(dev_accumulatedThroughputColor);
+	cudaFree(dev_totalPixelColor);
+
 	cudaFree(dev_intersectionsCached);
+	cudaFree(dev_sortingPixelIndices);
 	cudaFree(dev_pathMaterialIndices);
 	cudaFree(dev_intersectionMaterialIndices);
 
@@ -167,7 +195,7 @@ void pathtraceFree()
 * motion blur - jitter rays "in time"
 * lens effect - jitter ray origin positions based on a lens
 */
-__global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, PathSegment* pathSegments)
+__global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, PathSegment* pathSegments, int * pixelIndices)
 {
 	int x = (blockIdx.x * blockDim.x) + threadIdx.x;
 	int y = (blockIdx.y * blockDim.y) + threadIdx.y;
@@ -215,6 +243,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 #endif
 
 		segment.pixelIndex = index;
+		pixelIndices[index] = index;
 		segment.remainingBounces = traceDepth;
 	}
 }
@@ -281,13 +310,15 @@ __global__ void computeIntersections(int numActiveRays, PathSegment * pathSegmen
 	}
 }
 
-__global__ void sortIndicesByMaterial(int numActiveRays, ShadeableIntersection *intersections, int *pathIndices, int *intersectionIndices)
+__global__ void sortIndicesByMaterial(int numActiveRays, ShadeableIntersection *intersections, 
+									  int *pathIndices, int *intersectionIndices, int *rayIndices)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (idx < numActiveRays) {
 		int materialId = intersections[idx].materialId;
 		pathIndices[idx] = materialId;
 		intersectionIndices[idx] = materialId;
+		rayIndices[idx] = materialId;
 	}
 }
 
@@ -373,6 +404,56 @@ __global__ void shadeMaterialsDirect(int iter, int numActiveRays, ShadeableInter
 	}
 }
 
+__global__ void shadeMaterialsFullLighting(int iter, int maxtraceDepth, int numActiveRays,
+										   ShadeableIntersection * shadeableIntersections,
+										   PathSegment * pathSegments, 
+										   Material * materials, 
+										   Geom * geoms, int numGeoms,
+										   Light * lights, int numLights, 
+										   Color3f * accumulatedThroughput, Color3f * accumulatedColor )
+{
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (idx < numActiveRays)
+	{
+		if (pathSegments[idx].remainingBounces <= 0)
+		{
+			return;
+		}
+
+		ShadeableIntersection intersection = shadeableIntersections[idx];
+		Material material = materials[intersection.materialId];
+		Color3f rayAccumulatedThroughput = accumulatedThroughput[idx];
+		Color3f rayAccumulatedColor = accumulatedColor[idx];
+
+		//If the ray didnt intersect with objects in the scene
+		if (intersection.t < 0.0f)
+		{
+			rayAccumulatedColor = Color3f(0.0f);
+			pathSegments[idx].remainingBounces = 0; //to make thread stop executing things
+			return;
+		}
+
+		//If the ray hit a light in the scene
+		if (material.emittance > 0.0f)
+		{
+			rayAccumulatedColor *= material.color*material.emittance;
+			pathSegments[idx].remainingBounces = 0; //equivalent of breaking out of the thread
+			return;
+		}
+
+		// Set up the RNG
+		thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegments[idx].remainingBounces);
+
+		// if the intersection exists and the itersection is not a light then
+		//deal with the material and end up changing the pathSegment color and its ray direction
+		fullLightingIntegrator(maxtraceDepth, pathSegments[idx], intersection, material,
+							geoms[shadeableIntersections[idx].hitGeomIndex],
+							geoms, numGeoms, lights, numLights,
+							rayAccumulatedThroughput, rayAccumulatedColor,
+							rng);
+	}
+}
+
 // Add the current iteration's output to the overall image
 __global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterationPaths)
 {
@@ -382,6 +463,19 @@ __global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterati
 	{
 		PathSegment iterationPath = iterationPaths[index];
 		image[iterationPath.pixelIndex] += iterationPath.color;
+	}
+}
+
+__global__ void averagePixelColor(int nPaths, Color3f * image, int * pixelIndices, int iter,
+									Color3f * accumulatedColor, Color3f * totalPixelColor)
+{
+	int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+
+	if (index < nPaths)
+	{
+		int pixelIndex = pixelIndices[index];
+		totalPixelColor[pixelIndex] += accumulatedColor[pixelIndex];
+		image[pixelIndex] += totalPixelColor[pixelIndex]/float(iter);
 	}
 }
 
@@ -411,10 +505,10 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 	// 1D block for path tracing
 	const int blockSize1d = 128;
 
-	////------------------------------------------------
-	////Timer Start
-	timeStartCpu = std::chrono::high_resolution_clock::now();
-	////------------------------------------------------
+	//------------------------------------------------
+	//Timer Start
+	//timeStartCpu = std::chrono::high_resolution_clock::now();
+	//------------------------------------------------
 
 	// Recap:
 	// * Initialize array of path rays (using rays that come out of the camera)
@@ -435,7 +529,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 	//     since some shaders you write may also cause a path to terminate.
 	//	 * Finally, add this iteration's results to the image.
 
-	generateRayFromCamera <<<blocksPerGrid2d, blockSize2d >>>(cam, iter, traceDepth, dev_paths);
+	generateRayFromCamera <<<blocksPerGrid2d, blockSize2d >>>(cam, iter, traceDepth, dev_paths, dev_rayPixelIndex);
 	checkCUDAError("generate camera ray");
 
 	int depth = 0;
@@ -448,6 +542,14 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 	// Shoot ray into scene, bounce between objects, push shading chunks
 	bool iterationComplete = false;
 	int activeRays = num_paths;
+
+#if FULL_LIGHTING_INTEGRATOR
+	// reset accumulatedThroughputColor, accumulatedRayColor, and totalPixelColor for fullLighting
+	cudaMemset(dev_totalPixelColor, 0.0f, pixelcount * sizeof(Color3f));
+	cudaMemset(dev_accumulatedRayColor, 0.0f, pixelcount * sizeof(Color3f));
+	cudaMemset(dev_accumulatedThroughputColor, 1.0f, pixelcount * sizeof(Color3f));
+#endif
+
 	while (!iterationComplete) 
 	{
 		dim3 numblocksPathSegmentTracing = (activeRays + blockSize1d - 1) / blockSize1d;
@@ -498,10 +600,12 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 		//------------------------------------------------
 		sortIndicesByMaterial <<<numblocksPathSegmentTracing, blockSize1d>>> (activeRays, dev_intersections, 
 																			  dev_pathMaterialIndices, 
-																			  dev_intersectionMaterialIndices);
+																			  dev_intersectionMaterialIndices,
+																			  dev_sortingPixelIndices);
 		
 		thrust::sort_by_key(thrust::device, dev_pathMaterialIndices, dev_pathMaterialIndices + activeRays, dev_paths);
 		thrust::sort_by_key(thrust::device, dev_intersectionMaterialIndices, dev_intersectionMaterialIndices + activeRays, dev_intersections);
+		thrust::sort_by_key(thrust::device, dev_sortingPixelIndices, dev_sortingPixelIndices + activeRays, dev_rayPixelIndex);
 #endif
 
 		//------------------------------------------------
@@ -512,6 +616,13 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 																			 dev_paths, dev_materials, 
 																			 dev_geoms, hst_scene->geoms.size(), 
 																			 dev_lights, hst_scene->lights.size());
+#elif FULL_LIGHTING_INTEGRATOR
+		shadeMaterialsFullLighting <<<numblocksPathSegmentTracing, blockSize1d>>> (iter, traceDepth, activeRays, 
+																				dev_intersections, dev_paths, dev_materials,
+																				dev_geoms, hst_scene->geoms.size(),
+																				dev_lights, hst_scene->lights.size(),
+																				dev_accumulatedThroughputColor, 
+																				dev_accumulatedRayColor);
 #else // NAIVE_INTEGRATOR
 		shadeMaterialsNaive <<<numblocksPathSegmentTracing, blockSize1d>>> (iter, activeRays, dev_intersections, 
 																			dev_paths, dev_geoms, hst_scene->geoms.size(),
@@ -538,15 +649,21 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 
 	// Assemble this iteration and apply it to the image
 	dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
-	finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
+#if FULL_LIGHTING_INTEGRATOR
+	averagePixelColor <<<numBlocksPixels, blockSize1d>>> (num_paths, dev_image, 
+														dev_rayPixelIndex, iter,
+														dev_accumulatedRayColor, dev_totalPixelColor);
+#else
+	finalGather <<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
+#endif
 
-	////------------------------------------------------
-	////Timer End
-	timeEndCpu = std::chrono::high_resolution_clock::now();
-	std::chrono::duration<double, std::milli> duration = timeEndCpu - timeStartCpu;
-	prevElapsedTime = static_cast<decltype(prevElapsedTime)>(duration.count());
-	printTimerDetails(iter, depth, prevElapsedTime);
-	////------------------------------------------------
+	//------------------------------------------------
+	//Timer End
+	//timeEndCpu = std::chrono::high_resolution_clock::now();
+	//std::chrono::duration<double, std::milli> duration = timeEndCpu - timeStartCpu;
+	//prevElapsedTime = static_cast<decltype(prevElapsedTime)>(duration.count());
+	//printTimerDetails(iter, depth, prevElapsedTime);
+	//------------------------------------------------
 
     // Send results to OpenGL buffer for rendering
     sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image);

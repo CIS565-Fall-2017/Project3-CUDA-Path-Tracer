@@ -176,7 +176,7 @@ SCALE       3 3 3
 // Subsurface Sphere
 OBJECT 7
 sphere
-material 6
+material 5
 TRANS       3 4 -1
 ROTAT       0 0 0
 SCALE       3 3 3
