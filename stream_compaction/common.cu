@@ -1,6 +1,9 @@
 #include "common.h"
 
-void checkCUDAErrorFn(const char *msg, const char *file, int line) {
+#define ERRORCHECK 1
+void StreamCompaction::Common::checkCUDAErrorFn(const char *msg, const char *file, int line) {
+#if ERRORCHECK
+    cudaDeviceSynchronize();
     cudaError_t err = cudaGetLastError();
     if (cudaSuccess == err) {
         return;
@@ -11,7 +14,11 @@ void checkCUDAErrorFn(const char *msg, const char *file, int line) {
         fprintf(stderr, " (%s:%d)", file, line);
     }
     fprintf(stderr, ": %s: %s\n", msg, cudaGetErrorString(err));
+#  ifdef _WIN32
+    getchar();
+#  endif
     exit(EXIT_FAILURE);
+#endif
 }
 
 
@@ -37,6 +44,9 @@ namespace StreamCompaction {
         __global__ void kernScatter(int n, int *odata,
                 const int *idata, const int *bools, const int *indices) {
 		int index = threadIdx.x + blockIdx.x * blockDim.x;
+		if ( index >= n) {
+			return;
+		}
                 if ( bools[index] == 1) {
 			odata[indices[index]] = idata[index];
 		}

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "intersections.h"
-
+#include <thrust/functional.h>
 // CHECKITOUT
 /**
  * Computes a cosine-weighted random direction in a hemisphere.
@@ -45,11 +45,11 @@ glm::vec3 calculateRandomDirectionInHemisphere(
 // compute the Phong spectral light.
 __host__ __device__ float clamp(float d)
 {
-	return (d > 0) ? d : 0.0;
+	return (d > 0) ? d : 0.0f;
 }
 // wo, wi are both out of the surface
 __host__ __device__ glm::vec3 phongColor(const glm::vec3& wi, const glm::vec3& w0, 
-	                      const ShadeableIntersection& intersect, const Material& m)
+                   const ShadeableIntersection& intersect, const Material& m)
 {
 	glm::vec3 reflectwi{ glm::reflect(-wi, intersect.surfaceNormal) };
 	float amplitude{ glm::dot(reflectwi, w0) };
@@ -75,7 +75,7 @@ __host__ __device__ float numMaterials(const Material& m)
 // a random one is chosen and the number of materials = 1/(prob of choosing that material) is returned.
 // The color needs this to correctly weigh the chances of that material being selected.
 __host__ __device__ MaterialType getMaterialType(const Material& m, 
-		    thrust::default_random_engine& rng)
+	 thrust::default_random_engine& rng)
 {
 	int lambert    { (m.summaryState & MaterialType::Lambert)  > 0  };
 	int reflective { (m.summaryState & MaterialType::Reflective) > 0 };
@@ -154,66 +154,101 @@ __host__ __device__ float evaluateGeneral(float cosThetaI, float eta)
  */
 // shader handles refraction and reflection but we could put in the Fresnel
 // attenuation
+//   Some common cases were removed from this: Now Emissive materials are handled
+//   earlier because they terminate the ray.  There still are case that would terminate
+//   the ray here:  inside a Lmbertian surface or some No Material (which should never occur).
 __host__ __device__
 void scatterRay(
+        PathSegment & pathSegment,
+        const ShadeableIntersection& intersect,
+        const Material &m,
+        thrust::default_random_engine &rng) {
+        // TODO: implement this.
+        // A basic implementation of pure-diffuse shading will just call the
+        // calculateRandomDirectionInHemisphere defined above.
+        float numM{ numMaterials(m) };
+
+        if (intersect.matl == MaterialType::Lambert)
+        {
+		
+                if (!intersect.outside) {
+                    pathSegment.color = glm::vec3(0.0f);
+                    pathSegment.remainingBounces = 0;
+                }
+                else {
+          --pathSegment.remainingBounces;
+          glm::vec3 wi{ calculateRandomDirectionInHemisphere(
+			  intersect.surfaceNormal, rng) };
+          glm::vec3 color{ phongColor(wi, 
+			  -pathSegment.ray.direction, intersect, m) };
+          color += m.color;
+          // cos weighted the pdf is cos (theta incident)/(PI * numMaterials); 
+          // normally would multiply by the cos (theta I)  but these cancel
+          // also the brdf for a constant is R/PI the PIs cancel
+          pathSegment.color *= color * numM;
+          spawn_ray(pathSegment.ray, intersect.surfaceNormal, wi, intersect.t);
+         	}
+        }	
+
+        else if (intersect.matl == MaterialType::Reflective)
+        {
+         	spawn_ray(pathSegment.ray, intersect.surfaceNormal, glm::reflect(pathSegment.ray.direction,
+         		intersect.surfaceNormal), intersect.t);
+         	pathSegment.color *= m.specular.color * numM;
+         	--pathSegment.remainingBounces;
+        }
+        else if (intersect.matl == MaterialType::Refractive)
+        {
+        	float ior{ (intersect.outside) ? m.indexOfRefraction : 1 / m.indexOfRefraction };
+        	//float costhetaI{ abs(glm::dot(pathSegment.ray.direction, intersect.surfaceNormal)) };
+        	pathSegment.color *= m.specular.color * numM;
+        	// ior  indexOf refraction is the index away from normal/ index on side of normal.
+        	// if the ray came from outside (wo is on the same side of the normal) wi would be 
+        	// in the material. glm::refract assumes ior is the incident/transmitted indices or 
+        	// if outside far index over the near index since the light wi is coming through the material.
+        	spawn_ray(pathSegment.ray, intersect.surfaceNormal, glm::refract(pathSegment.ray.direction,
+        		intersect.surfaceNormal, ior), intersect.t);
+        	--pathSegment.remainingBounces;
+        }
+        else { // 
+        	pathSegment.remainingBounces = 0;
+        	pathSegment.color = glm::vec3(0.0f);
+        	
+        }
+
+}
+// Determine the color of rays that intersect with a light directly or emissive rays.
+//  MaterialType must be emissive to call this and the number of remaining Bounces must
+//   be greater than 0.
+__host__ __device__
+void ColorEmissive(
 	PathSegment & pathSegment,
 	const ShadeableIntersection& intersect,
-	const Material &m,
-	thrust::default_random_engine &rng) {
+	const Material &m)
+{
 	// TODO: implement this.
 	// A basic implementation of pure-diffuse shading will just call the
 	// calculateRandomDirectionInHemisphere defined above.
-	if (pathSegment.remainingBounces == 0) {
-		return;
-	}
-	float numM{ numMaterials(m) };
 
-	if (!intersect.outside && (intersect.matl == MaterialType::Lambert ||
-		intersect.matl == MaterialType::Emissive)) {
+	if (!intersect.outside) {
 		pathSegment.color = glm::vec3(0.0f);
-		pathSegment.remainingBounces = 0;
 		return;
 	}
-	else if (intersect.matl == MaterialType::Emissive) {
+	else
+	{
+     float numM{ numMaterials(m) };
 		pathSegment.color *= m.color *  numM * m.emittance;
-		pathSegment.remainingBounces = 0; // terminate the ray
 	}
-	else if (intersect.matl == MaterialType::Lambert)
-	{
-		--pathSegment.remainingBounces;
-		glm::vec3 wi{ calculateRandomDirectionInHemisphere(intersect.surfaceNormal, rng) };
-		glm::vec3 color{ phongColor(wi, -pathSegment.ray.direction, intersect, m) };
-		color += m.color;
-		// cos weighted the pdf is cos (theta incident)/(PI * numMaterials); 
-		// normally would multiply by the cos (theta I)  but these cancel
-		// also the brdf for a constant is R/PI the PIs cancel
-		pathSegment.color *= color * numM;
-		spawn_ray(pathSegment.ray, intersect.surfaceNormal, wi, intersect.t);
+        pathSegment.remainingBounces = 0; // terminate the ray
+}
+// used for sorting matl is the single material that this intersection will use.
+__host__ __device__ bool thrust::less<ShadeableIntersection>::operator()
+    (const ShadeableIntersection &v1, const ShadeableIntersection& v2) const
+{
+	if (v1.matl != v2.matl) {
+		return int(v1.matl) < int(v2.matl);
 	}
-	else if (intersect.matl == MaterialType::Reflective)
-	{
-		spawn_ray(pathSegment.ray, intersect.surfaceNormal, glm::reflect(pathSegment.ray.direction,
-			intersect.surfaceNormal), intersect.t);
-		pathSegment.color *= m.specular.color * numM;
-		--pathSegment.remainingBounces;
+	else {
+		return v1.outside < v2.outside;
 	}
-    else if (intersect.matl == MaterialType::Refractive)
-	{
-		float ior{ (intersect.outside) ? m.indexOfRefraction : 1 / m.indexOfRefraction };
-		//float costhetaI{ abs(glm::dot(pathSegment.ray.direction, intersect.surfaceNormal)) };
-		pathSegment.color *= m.specular.color * numM;
-		// ior  indexOf refraction is the index away from normal/ index on side of normal.
-		// if the ray came from outside (wo is on the same side of the normal) wi would be 
-		// in the material. glm::refract assumes ior is the incident/transmitted indices or 
-		// if outside far index over the near index since the light wi is coming through the material.
-		spawn_ray(pathSegment.ray, intersect.surfaceNormal, glm::refract(pathSegment.ray.direction,
-			intersect.surfaceNormal, ior), intersect.t);
-		--pathSegment.remainingBounces;
-	}
-	else { // 
-		pathSegment.remainingBounces = 0;
-		pathSegment.color = glm::vec3(0.0f);
-		
-	}
-
 }

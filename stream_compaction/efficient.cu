@@ -3,13 +3,12 @@
 #include "common.h"
 #include "efficient.h"
 #include <vector>
-static const int blockSize{ 64 };
 // Shared memory is 50 Kbyte per SM and an int is 4 Bytes so 
 // if the TILE is greater than MAXTILE the array will not fit
 // in shared memory
 static constexpr int MAXTILE_Shared { 8192};
-static constexpr int MAXTILE { ( MAXTILE_Shared < 2 * blockSize) ?
-	MAXTILE_Shared : 2 * blockSize};
+static constexpr int MAXTILE { ( MAXTILE_Shared < 2 * StreamCompaction::Efficient::blockSize) ?
+	MAXTILE_Shared : 2 * StreamCompaction::Efficient::blockSize};
 
 //static constexpr int devStart{ 0 };
 //static constexpr int scanStart{ 0 };
@@ -66,9 +65,11 @@ namespace StreamCompaction {
 		        int size {sizeof(int)};
 			cudaMalloc(reinterpret_cast<void**>(scan_sum), numblocks * size);
 			checkCUDAError("Allocating Scan Efficient shared  Error");
+		
 		}
+
 		// transfer scan data back to host
-		void transferScan(int N, int * odata, int * dev_odata)
+		void transferIntToHost(int N, int * odata, int * dev_odata)
 		{
 			cudaMemcpy(odata, dev_odata, N * sizeof(int), cudaMemcpyDeviceToHost);
 		}
@@ -78,7 +79,7 @@ namespace StreamCompaction {
 				return;
 			}
 			int * copy = new int[n - start];
-			transferScan(n - start, copy, devA + start);
+		        transferIntToHost(n - start, copy, devA + start);
 			printf("sIdx %d: ", start);
 			printArray2(n - start,  copy, abridged);
 			delete[] copy;
@@ -88,7 +89,15 @@ namespace StreamCompaction {
 		{
 			cudaFree(dev_idata);
 		}
-
+            void freeScanShared(const SharedScan scan){
+			cudaFree(scan.dev_idata);
+			cudaFree(scan.scan_sum);
+		}
+		void freeCompaction(const CompactSupport compactSupport)
+		{
+			freeScanShared(compactSupport.scan);
+			cudaFree(compactSupport.bool_data);
+		}
 		// Kernel Reduction and downsweep in Shared Memory. TILE is the width of the TILE 
 		// and the max thread is TILE/2.
 
@@ -172,7 +181,6 @@ namespace StreamCompaction {
 		   dev_idata[devindex] = xy[Sharedindex];
 		   dev_idata[devindex + 1] = xy[Sharedindex + 1];
 		}
-
 		// kernParallelReduction uses contiguous threads to do the parallel reduction
 		// There is one thread for every two elements
 		__global__ void kernParallelReduction(int N, int Stride,
@@ -298,7 +306,7 @@ namespace StreamCompaction {
 		// Tile is a multiple of 2 N is the size of dev_idata,
 		// 2^(dtile) = Tile,  scan_sum is a preallocated array of the correct blocksize
 		void efficientScanShared(int log2N, int log2Tile, int * dev_idata,  int* scan_sum, 
-			                     int printoffset = 0)
+			                     int printoffset)
 		{
 			int n = (1 << log2N);
 			// updates log2N for next iteration and log2Tile in case
@@ -307,11 +315,10 @@ namespace StreamCompaction {
 			int numblocks {blocksNeeded(log2N, log2Tile)};
 			int maxThreads{ 1 << (log2Tile - 1) };
 			//maxThreads = std::max(maxThreads, 32);
-			ptrdiff_t Tile{ 1 << log2Tile };
+			int Tile{ 1 << log2Tile };
 			dim3 numThreads ( maxThreads);
 			dim3 numBLOCKS(numblocks);
 			int size { sizeof(int)};
-		        // allocate space for the scan array;
 			kernScanShared<<< numBLOCKS, numThreads, Tile * size >>>(
 						Tile, dev_idata, scan_sum);
 			checkCUDAError("find Cuda Error");
@@ -320,7 +327,8 @@ namespace StreamCompaction {
 			if (numblocks == 1) {
 				return;
                		}
-            efficientScanShared( log2N,  log2Tile, scan_sum, scan_sum + numblocks, 0);
+                        efficientScanShared( log2N,  log2Tile, scan_sum, 
+					       scan_sum + numblocks, 0);
 			numBLOCKS = dim3(numblocks - 1);
 			kernAddSumToTile<<< numBLOCKS, numThreads, Tile * size >>>(
 						Tile, dev_idata + Tile, scan_sum + 1);
@@ -328,6 +336,39 @@ namespace StreamCompaction {
 			printDevArray(n, printoffset, dev_idata, true);
 			//cudaThreadSynchronize();
 		}
+
+		// init device arrays necessary to sum N items in shared Memory
+		SharedScan  initSharedScan(const int n, int tileSize)
+		{
+			// d is the number of scans needed and also the
+			// upper bound for log2 of the number of elements
+			SharedScan shared;
+			shared.log2N = ilog2ceil(n); //
+			int N{ 1 << shared.log2N };
+			// Tile should be less than or equal to N, TILEMAX, Tile
+			// inputted
+			tileSize = (tileSize == -1) ? std::min(MAXTILE, N):
+				              std::min({MAXTILE, N, tileSize});
+			tileSize = std::max(tileSize, 2);
+			shared.log2T = ilog2(tileSize);
+			// Tile must be a multiple of 2 to divide N so Tile
+			// will actually be less than this
+			// calculate Total scan size
+			int ScanSize { TotalBlocksNeeded(shared.log2N, shared.log2T)};
+			//if (ScanSize != TotalBlocksNeeded2(shared.log2N, shared.log2T)){
+			//	throw std::runtime_error("blocks needed may not be correct");
+			//} can check if TotalBlocksNeeded is correct. It passed each time
+			initScanSum(ScanSize, &shared.scan_sum);
+			initScanSum(N, &shared.dev_idata);
+			return shared;
+		}
+		CompactSupport initCompactSupport(const SharedScan scan){
+			CompactSupport compact { scan, NULL};
+			int N {1 << compact.scan.log2N};
+			initScanSum(N, &compact.bool_data);
+			return compact;
+		}
+
 	//  does the scan but now puts 
 		void scanShared (int n, int *odata, const int *idata, int Tile)
 		{
@@ -347,9 +388,9 @@ namespace StreamCompaction {
 			// will actually be less than this
 			// calculate Total scan size
 			int ScanSize { TotalBlocksNeeded(d, dtile)};
-			if (ScanSize != TotalBlocksNeeded2(d, dtile)){
-				throw std::runtime_error("blocks needed may not be correct");
-			}
+			//if (ScanSize != TotalBlocksNeeded2(d, dtile)){
+			//	throw std::runtime_error("blocks needed may not be correct");
+			//}
 			initScan(N, n, idata, &dev_idata);
 			timer().startGpuTimer();
 			initScanSum(ScanSize, &scan_sum);
@@ -357,7 +398,7 @@ namespace StreamCompaction {
 			timer().endGpuTimer();
 			// only transfer tho first n elements of the 
 			// exclusive scan
-			transferScan(n, odata, dev_idata);
+			transferIntToHost(n, odata, dev_idata);
 			endScan(dev_idata);
 			endScan(scan_sum);
 		}
@@ -374,7 +415,7 @@ namespace StreamCompaction {
 			timer().endGpuTimer();
 			// only transfer tho first n elements of the 
 			// exclusive scan
-			transferScan(n, odata, dev_idata);
+			transferIntToHost(n, odata, dev_idata);
 			endScan(dev_idata);
 		}
 
@@ -427,20 +468,20 @@ namespace StreamCompaction {
 					dev_booldata, dev_indices);
 			timer().endGpuTimer();
 			int  lastIndex;
-			transferScan(1, &lastIndex, dev_indices + N - 1);
+			transferIntToHost(1, &lastIndex, dev_indices + N - 1);
 			int lastIncluded;
-			transferScan(1, &lastIncluded, dev_booldata + N - 1);
+			transferIntToHost(1, &lastIncluded, dev_booldata + N - 1);
 			std::vector<int> input(n);
 			std::vector<int> bools(n);
 			std::vector<int> indices(n);
-			transferScan(n, input.data(), dev_idata);
-			transferScan(n, bools.data(), dev_booldata);
-			transferScan(n, indices.data(), dev_indices);
+			transferIntToHost(n, input.data(), dev_idata);
+			transferIntToHost(n, bools.data(), dev_booldata);
+			transferIntToHost(n, indices.data(), dev_indices);
 			printArray2(n,  input.data(), true);
 			printArray2(n, bools.data(), true);
 			printArray2(n, indices.data(), true);
 			n = lastIncluded + lastIndex;
-			transferScan(n, odata, dev_odata);
+			transferIntToHost(n, odata, dev_odata);
 			printArray2(n, odata, true);
 			endScan(dev_odata);
 			endScan(dev_idata);
@@ -448,5 +489,6 @@ namespace StreamCompaction {
 			endScan(dev_booldata);
 			return n;
 		}
+
 	}
 }

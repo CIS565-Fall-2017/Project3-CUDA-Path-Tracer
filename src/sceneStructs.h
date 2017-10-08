@@ -68,13 +68,14 @@ struct Camera {
     glm::vec2 fov;
     glm::vec2 pixelLength;
 };
-
+enum pathTraceMethod { NoCompaction, Compaction, CompactionWithSorting };
 struct RenderState {
     Camera camera;
     unsigned int iterations;
     int traceDepth;
     std::vector<glm::vec3> image;
     std::string imageName;
+	pathTraceMethod method;
 };
 // Material type is the randomly selected material for the next round
 struct PathSegment {
@@ -98,5 +99,3 @@ struct ShadeableIntersection {
   bool outside;
 };
 
-// used for sorting matl is the single material that this intersection will use.
-bool operator<(ShadeableIntersection &v1, ShadeableIntersection& v2);
