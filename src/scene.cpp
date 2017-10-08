@@ -14,6 +14,8 @@
 
 string input_filename;
 
+static int tri_index = 0;
+
 Scene::Scene(string filename) {
     cout << "Reading scene from " << filename << " ..." << endl;
     cout << " " << endl;
@@ -60,15 +62,15 @@ Scene::Scene(string filename) {
 #endif  
 
 	//Process lights
-	float sum_area = 0.f;
-	for (int i = 0; i < lights.size(); i++) {
-		sum_area += lights[i].SurfaceArea;
-	}
-	float accum_area = 0.f;
-	for (int i = 0; i < lights.size(); i++) {
-		accum_area += lights[i].SurfaceArea;
-		lights[i].selectedProb = accum_area / sum_area;
-	}
+	//float sum_area = 0.f;
+	//for (int i = 0; i < lights.size(); i++) {
+	//	sum_area += lights[i].SurfaceArea;
+	//}
+	//float accum_area = 0.f;
+	//for (int i = 0; i < lights.size(); i++) {
+	//	accum_area += lights[i].SurfaceArea;
+	//	lights[i].selectedProb = accum_area / sum_area;
+	//}
 
 
 }
@@ -186,8 +188,10 @@ int Scene::loadGeom(string objectid) {
         geoms.push_back(newGeom);
 
 		// Load Lights
+		// if it's a emmisive geom shape light, regard it as a diffuse area light
 		if (find(emitMaterialId.begin(), emitMaterialId.end(), newGeom.materialid) != emitMaterialId.end()) {
 			Light newLight;
+			newLight.type = DiffuseAreaLight;
 			newLight.geom = newGeom;
 			newLight.geomIdx = id;
 			newLight.emittance = materials[newGeom.materialid].emittance * materials[newGeom.materialid].color;
@@ -397,6 +401,7 @@ void Scene::loadObj(string objPath, Geom& newGeom, const glm::mat4& transform, c
 				glm::vec3 p3 = glm::vec3(transform * glm::vec4(positions[indices[j + 2] * 3], positions[indices[j + 2] * 3 + 1], positions[indices[j + 2] * 3 + 2], 1));
 
 				Triangle t;
+				t.index = tri_index++;
 				t.vertices[0] = p1;
 				t.vertices[1] = p2;
 				t.vertices[2] = p3;
@@ -461,12 +466,15 @@ int Scene::loadEnvironment() {
 	utilityCore::safeGetline(fp_in, line);
 	if (!line.empty() && fp_in.good()) {
 		string texturePath = GetLocalPath() + "tex_nor_maps/" + line;
-
 		Texture newTexture;
-
 		newTexture.LoadFromFile(texturePath.c_str());
-
 		EnvironmentMap.push_back(newTexture);
+
+		Light newLight;
+		newLight.type = InfiniteAreaLight;
+		newLight.geomIdx = -1;
+
+		lights.push_back(newLight);
 	}
 	else {
 		cout << "ERROR : Loading Environment Map failed" << endl;

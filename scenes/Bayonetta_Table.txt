@@ -1,0 +1,136 @@
+// Emissive material (light)
+MATERIAL 0
+RGB         1 1 1
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   4
+
+// Diffuse white
+MATERIAL 1
+RGB         .98 .98 .98
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+
+// bayonetta material
+MATERIAL 2
+RGB         .98 .98 .98
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+textureMap  bary_texture.jpg
+normalMap   bary_normal.jpg 
+
+// table material
+MATERIAL 3
+RGB         .98 .98 .98
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+textureMap  TexturesCom_WoodPlanksOld.jpg
+normalMap   TexturesCom_WoodPlanksOld_normal.jpg
+
+// book material
+MATERIAL 4
+RGB         .98 .98 .98
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+textureMap  libro.jpg
+
+// jeanne material
+MATERIAL 5
+RGB         .98 .98 .98
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+textureMap  jean_texture.jpg
+normalMap   jean_normal.jpg
+
+// Camera
+CAMERA
+RES         800 800
+FOVY        45
+ITERATIONS  2000
+DEPTH       8
+FILE        cornell
+EYE         0 5 10.5
+LOOKAT      0 5 0
+UP          0 1 0
+
+// Left wall light
+OBJECT 0
+cube
+material 0
+TRANS       -20 15 7
+ROTAT       0 0 90
+SCALE       30 .01 30
+
+// Table
+OBJECT 1
+cube
+material 3
+TRANS       0 0 0
+ROTAT       0 0 0
+SCALE       60 .01 40
+
+// Right wall
+OBJECT 2
+cube
+material 1
+TRANS       40 15 0
+ROTAT       0 0 -90
+SCALE       30 .01 30
+
+// front wall
+OBJECT 3
+cube
+material 1
+TRANS       0 15 13
+ROTAT       0 0 0
+SCALE       30 30 .01
+
+// bayonetta
+OBJECT 4
+mesh
+material 2
+TRANS       3 0 0
+ROTAT       0 0 0
+SCALE       3 3 3
+bayo_figure.obj
+
+// old book
+OBJECT 5
+mesh
+material 4
+TRANS       -4 1.5 -6
+ROTAT       0 -25 0
+SCALE       0.8 0.8 0.8
+old_book.obj
+
+// jeanne
+OBJECT 6
+mesh
+material 5
+TRANS       8 0 1.5
+ROTAT       0 -40 0
+SCALE       3 3 3
+jeanne_figure.obj

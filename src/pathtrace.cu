@@ -39,8 +39,8 @@
 
 // Uncommment to enable len persoective camera
 //#define LENPERSPECTIVECAMERA
-//#define LEN_RADIUS 3.0f
-//#define FOCAL_LENGTH 13.0f
+//#define LEN_RADIUS 2.0f
+//#define FOCAL_LENGTH 5.0f
 // ----------------------------------------------------------------
 // ----------------------------------------------------------------
 
@@ -433,6 +433,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 	}
 }
 
+
 // computeIntersections handles generating ray intersections ONLY.
 // Generating new rays is handled in your shader(s).
 // Feel free to modify the code below.
@@ -467,9 +468,15 @@ __global__ void computeIntersections(
 		int hit_geom_index = -1;
 		bool outside = true;
 
+		glm::mat3 tangentToWorld;
+
 		//glm::vec3 tmp_intersect;
 		glm::vec3 tmp_normal;
 		glm::vec2 tmp_uv;
+
+		glm::mat3 tmp_tangentToWorld;
+
+		int hit_tri_index = -1;
 
 		// naive parse through global geoms
 
@@ -479,11 +486,11 @@ __global__ void computeIntersections(
 
 			if (geom.type == CUBE)
 			{
-				t = boxIntersectionTest(geom, pathSegment.ray, tmp_uv, tmp_normal, outside);
+				t = boxIntersectionTest(geom, pathSegment.ray, tmp_uv, tmp_normal, outside, tmp_tangentToWorld);
 			}
 			else if (geom.type == SPHERE)
 			{
-				t = sphereIntersectionTest(geom, pathSegment.ray, tmp_uv, tmp_normal, outside);
+				t = sphereIntersectionTest(geom, pathSegment.ray, tmp_uv, tmp_normal, outside, tmp_tangentToWorld);
 			}
 			// TODO: add more intersection tests here... triangle? metaball? CSG?
 			else if (geom.type == MESH)
@@ -492,10 +499,18 @@ __global__ void computeIntersections(
 #ifdef ENABLE_BVH
 				ShadeableIntersection temp_isect;
 				temp_isect.t = FLT_MAX;
-				if (IntersectBVH(pathSegment.ray, &temp_isect, nodes, tris)) {
-					t = temp_isect.t;
-					tmp_uv = temp_isect.uv;
-					tmp_normal = temp_isect.surfaceNormal;
+
+				if (IntersectBVH(pathSegment.ray, &temp_isect, hit_tri_index, nodes, tris)) {
+					if (hit_tri_index >= geom.meshTriangleStartIdx
+					 && hit_tri_index < geom.meshTriangleEndIdx) {
+						t = temp_isect.t;
+						tmp_uv = temp_isect.uv;
+						tmp_normal = temp_isect.surfaceNormal;
+						tmp_tangentToWorld = temp_isect.tangentToWorld;
+					}
+					else {
+						t = -1.0f;
+					}
 				}
 				else {
 					t = -1.0f;
@@ -504,7 +519,7 @@ __global__ void computeIntersections(
 				// Check geom related world bound first
 				float tmp_t;
 				if (worldBounds[geom.worldBoundIdx].Intersect(pathSegment.ray, &tmp_t)) {
-					t = meshIntersectionTest(geom, tris, pathSegment.ray, tmp_uv, tmp_normal, outside);
+					t = meshIntersectionTest(geom, tris, pathSegment.ray, tmp_uv, tmp_normal, outside, tmp_tangentToWorld);
 				}
 				else {
 					t = -1.0f;
@@ -512,7 +527,7 @@ __global__ void computeIntersections(
 #endif
 #else
 				// loop through all triangles in related mesh
-				t = meshIntersectionTest(geom, tris, pathSegment.ray, tmp_uv, tmp_normal, outside);
+				t = meshIntersectionTest(geom, tris, pathSegment.ray, tmp_uv, tmp_normal, outside, tmp_tangentToWorld);
 #endif		
 			}
 
@@ -526,6 +541,7 @@ __global__ void computeIntersections(
 				//intersect_point = tmp_intersect;
 				uv = tmp_uv;
 				normal = tmp_normal;
+				tangentToWorld = tmp_tangentToWorld;
 			}
 		}
 
@@ -542,6 +558,8 @@ __global__ void computeIntersections(
 			intersections[path_index].materialId = geoms[hit_geom_index].materialid;
 			intersections[path_index].uv = uv;
 			intersections[path_index].surfaceNormal = normal;
+
+			intersections[path_index].tangentToWorld = tangentToWorld;
 		}
 	}
 }
@@ -665,18 +683,23 @@ __global__ void shadeMaterialNaive(
 			
 			else {
 				glm::vec3 isect_normal = intersection.surfaceNormal;
+				glm::vec3 bsdf_normal = intersection.surfaceNormal;
 
+				// Handle normal map
 				if (material.normalID != -1) {
-					isect_normal = normalMaps[material.normalID].getNormal(intersection.uv);
+					bsdf_normal = intersection.tangentToWorld * normalMaps[material.normalID].getNormal(intersection.uv);
 				}
+				
 
 				scatterRay(pathSegment, 
 						   getPointOnRay(pathSegment.ray, intersection.t),
 						   isect_normal,
+						   bsdf_normal,
 						   intersection.uv,
 					       material,
 						   rng,
-						   textures
+						   textures,
+						   environmentMap
 #ifdef	ENABLE_DIR_LIGHTING
 						  , lights
 						  , lightSize
@@ -700,12 +723,21 @@ __global__ void shadeMaterialNaive(
 		// used for opacity, in which case they can indicate "no opacity".
 		// This can be useful for post-processing and image compositing.
 		else {
-			pathSegment.color = glm::vec3(0.0f);
 
+			// Use environment map value if it has a environment map
 			if (environmentMap != NULL) {
-				pathSegment.color = environmentMap[0].getEnvironmentColor(pathSegment.ray.direction);
+#ifdef ENABLE_MIS_LIGHTING
+				pathSegment.color += pathSegment.ThroughputColor * environmentMap[0].getEnvironmentColor(pathSegment.ray.direction);
+#else
+				pathSegment.color *= environmentMap[0].getEnvironmentColor(pathSegment.ray.direction);
+#endif
 			}
 
+//#ifndef ENABLE_MIS_LIGHTING
+			else {
+				pathSegment.color = glm::vec3(0.0f);
+			}
+//#endif
 			pathSegment.remainingBounces = 0;
 		}
 	}
@@ -722,7 +754,11 @@ __global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterati
 	if (index < nPaths)
 	{
 		PathSegment iterationPath = iterationPaths[index];
-		image[iterationPath.pixelIndex] += (iterationPath.color + ambientColor);
+		glm::vec3 col = iterationPath.color;
+		if (glm::isnan(col.x) || glm::isnan(col.y) || glm::isnan(col.z)) {
+			return;
+		}
+		image[iterationPath.pixelIndex] += (col + ambientColor);
 	}
 }
 

@@ -63,6 +63,7 @@ __host__ __device__ int intersectScene(
 	float t_min = FLT_MAX;
 	glm::vec2 tmp_uv;
 	glm::vec3 tmp_normal;
+	glm::mat3 tmp_tangentToWorld;
 	int hit_geom_index = -1;
 	bool outside;
 
@@ -72,11 +73,11 @@ __host__ __device__ int intersectScene(
 
 		if (geom.type == CUBE)
 		{
-			t = boxIntersectionTest(geom, shadowFeelRay, tmp_uv, tmp_normal, outside);
+			t = boxIntersectionTest(geom, shadowFeelRay, tmp_uv, tmp_normal, outside, tmp_tangentToWorld);
 		}
 		else if (geom.type == SPHERE)
 		{
-			t = sphereIntersectionTest(geom, shadowFeelRay, tmp_uv, tmp_normal, outside);
+			t = sphereIntersectionTest(geom, shadowFeelRay, tmp_uv, tmp_normal, outside, tmp_tangentToWorld);
 		}
 		// TODO: add more intersection tests here... triangle? metaball? CSG?
 		else if (geom.type == MESH)
@@ -85,10 +86,16 @@ __host__ __device__ int intersectScene(
 #ifdef ENABLE_BVH
 			ShadeableIntersection temp_isect;
 			temp_isect.t = FLT_MAX;
-			if (IntersectBVH(shadowFeelRay, &temp_isect, nodes, tris)) {
-				t = temp_isect.t;
-				tmp_uv = temp_isect.uv;
-				tmp_normal = temp_isect.surfaceNormal;
+			int hit_tri_index = -1;
+
+			if (IntersectBVH(shadowFeelRay, &temp_isect, hit_tri_index, nodes, tris)) {
+				if (hit_tri_index >= geom.meshTriangleStartIdx
+				 && hit_tri_index < geom.meshTriangleEndIdx) {
+					t = temp_isect.t;
+				}
+				else {
+					t = -1.0f;
+				}
 			}
 			else {
 				t = -1.0f;
@@ -152,10 +159,12 @@ void scatterRay(
 		PathSegment& pathSegment,
         glm::vec3 intersect,
         glm::vec3 normal,
+		glm::vec3 normal_bsdf,
 		glm::vec2 uv,
         const Material &m,
         thrust::default_random_engine &rng,
-		Texture * texutres
+		Texture * texutres,
+		Texture * environmentMap
 #ifdef	ENABLE_DIR_LIGHTING
 		,const Light* lights
 		,const int& lightSize
@@ -188,11 +197,11 @@ void scatterRay(
 		// Use Schlick's Approximation. No specific Frensel model
 		float temp = (1.0f - m.indexOfRefraction) / (1.0f + m.indexOfRefraction);
 		float R0 = temp * temp;
-		float cosineTheta = AbsDot(incidentDirection, normal);
+		float cosineTheta = AbsDot(incidentDirection, normal_bsdf);
 		float frenselCoefficient = R0 + (1.0f - R0) * (1.0f - cosineTheta) * (1.0f - cosineTheta);
 
 		if (probability < reflecProb) {
-			newDirection = Reflect(-incidentDirection, normal);
+			newDirection = Reflect(-incidentDirection, normal_bsdf);
 			newDirection = glm::normalize(newDirection);
 			pathSegment.ray.direction = newDirection;
 			pathSegment.ray.origin = intersect;
@@ -209,20 +218,20 @@ void scatterRay(
 		// then it's Refractive
 		else
 		{
-			bool entering = glm::dot(incidentDirection, normal) < 0;
+			bool entering = glm::dot(incidentDirection, normal_bsdf) < 0;
 			float indexOfRefraction = m.indexOfRefraction;
 			float eta = entering ? (1.0f / indexOfRefraction) : indexOfRefraction;
 
 			glm::vec3 wt;
-			if (!Refract(-incidentDirection, Faceforward(normal, -incidentDirection), eta, &wt)) {
-				newDirection = Reflect(-incidentDirection, Faceforward(normal, -incidentDirection));
+			if (!Refract(-incidentDirection, Faceforward(normal_bsdf, -incidentDirection), eta, &wt)) {
+				newDirection = Reflect(-incidentDirection, Faceforward(normal_bsdf, -incidentDirection));
 				newDirection = glm::normalize(newDirection);
 				pathSegment.ray.direction = newDirection;
 				pathSegment.ray.origin = intersect;
 			}
 			else {
 				pathSegment.ray.direction = glm::normalize(wt);
-				pathSegment.ray.origin = intersect + 0.0002f * incidentDirection + 0.0002f * Faceforward(normal, incidentDirection);
+				pathSegment.ray.origin = intersect + 0.0002f * incidentDirection + 0.0002f * Faceforward(normal_bsdf, incidentDirection);
 			}
 #ifndef ENABLE_DIR_LIGHTING
 			pathSegment.color *= ((1.f - frenselCoefficient) * m.specular.color / refractProb);  // divide the probability to counter the chance
@@ -237,7 +246,7 @@ void scatterRay(
 	// ----------------- Pure Specular reflection -------------------------
 	//else if (m.hasReflective == 1.f && m.hasRefractive == 0.f) {
 	else if (probability < m.hasReflective) {
-		newDirection = Reflect(-incidentDirection, normal);
+		newDirection = Reflect(-incidentDirection, normal_bsdf);
 		newDirection = glm::normalize(newDirection);
 		pathSegment.ray.direction = newDirection;
 		pathSegment.ray.origin = intersect;
@@ -255,7 +264,7 @@ void scatterRay(
 	//else if (m.hasReflective == 0.f && m.hasRefractive == 1.f) {
 	else if (probability < m.hasRefractive) {
 
-		bool entering = glm::dot(incidentDirection, normal) < 0;
+		bool entering = glm::dot(incidentDirection, normal_bsdf) < 0;
 		float indexOfRefraction = m.indexOfRefraction;
 		float eta = entering ? (1.0f / indexOfRefraction) : indexOfRefraction;
 
@@ -265,15 +274,15 @@ void scatterRay(
 		//pathSegment.color *= m.specular.color;
 
 		glm::vec3 wt;
-		if (!Refract(-incidentDirection, Faceforward(normal, -incidentDirection), eta, &wt)) {
-			newDirection = Reflect(-incidentDirection, Faceforward(normal, -incidentDirection));
+		if (!Refract(-incidentDirection, Faceforward(normal_bsdf, -incidentDirection), eta, &wt)) {
+			newDirection = Reflect(-incidentDirection, Faceforward(normal_bsdf, -incidentDirection));
 			newDirection = glm::normalize(newDirection);
 			pathSegment.ray.direction = newDirection;
 			pathSegment.ray.origin = intersect;
 		}
 		else {
 			pathSegment.ray.direction = glm::normalize(wt);
-			pathSegment.ray.origin = intersect + 0.0002f * incidentDirection + 0.0002f * Faceforward(normal, incidentDirection);
+			pathSegment.ray.origin = intersect + 0.0002f * incidentDirection + 0.0002f * Faceforward(normal_bsdf, incidentDirection);
 		}
 
 #ifndef ENABLE_DIR_LIGHTING
@@ -299,26 +308,32 @@ void scatterRay(
 		if (pathSegment.remainingBounces == 0) {
 			return;
 		}
+		
 		probability = u01(rng);
-		// Select a light based on surface area
-		int selectLightIdx = 0;
-		while (true) {
-			if (probability < lights[selectLightIdx].selectedProb) {
-				break;
-			}
-			selectLightIdx++;
-		}
+
+		if (lightSize == 0) { pathSegment.color = glm::vec3(0.f); return; }
+
+
+		// randomly select a light
+		int selectLightIdx = glm::min((int)(probability * lightSize), lightSize - 1);
+
 
 		// Sample a point on the light and get solid-angle related pdf
 		
 		float pdf_direct = 0.f;
-		float random_x = u01(rng);
-		float random_y = u01(rng);
 		const Light& selectedLight = lights[selectLightIdx];
-		glm::vec3 pointOnLight = selectedLight.sample(random_x, random_y, &pdf_direct);
+		glm::vec3 pointOnLight;
 
-		float distanceSquared = glm::distance2(intersect, pointOnLight);
-		pdf_direct *= distanceSquared / AbsDot(normal, glm::normalize(pointOnLight - intersect));
+
+		if (selectedLight.type == DiffuseAreaLight) {
+			float random_x = u01(rng);
+			float random_y = u01(rng);
+
+			pointOnLight = selectedLight.sample(random_x, random_y, &pdf_direct);
+
+			float distanceSquared = glm::distance2(intersect, pointOnLight);
+			pdf_direct *= distanceSquared / AbsDot(normal, glm::normalize(pointOnLight - intersect));
+		}
 
 #ifndef ENABLE_MIS_LIGHTING
 		pdf_direct /= (float)lightSize;
@@ -326,7 +341,18 @@ void scatterRay(
 
 		Ray shadowFeelRay;
 		shadowFeelRay.origin = intersect;
-		shadowFeelRay.direction = glm::normalize(pointOnLight - intersect);
+
+
+		if (selectedLight.type == DiffuseAreaLight) {
+			shadowFeelRay.direction = glm::normalize(pointOnLight - intersect);
+		}
+		else if (selectedLight.type == InfiniteAreaLight) {
+			// if it's an environment light map, use a cosine-weight distribution
+			shadowFeelRay.direction = calculateRandomDirectionInHemisphere(normal_bsdf, rng);
+			pdf_direct = AbsDot(shadowFeelRay.direction, normal_bsdf) * InvPi; // Trick.. For simplicity, just use Lambert bxdf pdf here
+		}
+
+
 
 #ifndef ENABLE_MIS_LIGHTING
 		if (intersectScene(shadowFeelRay, geoms, tris, geomSize
@@ -362,12 +388,16 @@ void scatterRay(
 						   , nodes
 #endif
 						   ) == selectedLight.geomIdx) {
-			OneLightColor += ((real_color / PI) * selectedLight.emittance * AbsDot(normal, shadowFeelRay.direction) * weigh_direct / pdf_direct);
-			//OneLightColor += (((real_color / PI) * selectedLight.emittance * AbsDot(normal, shadowFeelRay.direction) / pdf_direct) / 2.f);
+			if (selectedLight.type == DiffuseAreaLight) {
+				OneLightColor += ((real_color / PI) * selectedLight.emittance * AbsDot(normal, shadowFeelRay.direction) * weigh_direct / pdf_direct);
+			}
+			else if (selectedLight.type == InfiniteAreaLight) {
+				OneLightColor += ((real_color / PI) * environmentMap->getEnvironmentColor(shadowFeelRay.direction) * AbsDot(normal, shadowFeelRay.direction) * weigh_direct / pdf_direct);
+			}
 		}
 
 		// ********** MIS Direct bsdf part ********************
-		newDirection = calculateRandomDirectionInHemisphere(normal, rng);
+		newDirection = calculateRandomDirectionInHemisphere(normal_bsdf, rng);
 		//shadowFeelRay.origin = intersect;
 		shadowFeelRay.direction = glm::normalize(newDirection);
 
@@ -379,7 +409,12 @@ void scatterRay(
 						   , nodes
 #endif
 						  ) == selectedLight.geomIdx) {
-			OneLightColor += ((real_color / PI) * selectedLight.emittance * AbsDot(normal, shadowFeelRay.direction) * weigh_bsdf / pdf_bsdf);
+			if (selectedLight.type == DiffuseAreaLight) {
+				OneLightColor += ((real_color / PI) * selectedLight.emittance * AbsDot(normal, shadowFeelRay.direction) * weigh_bsdf / pdf_bsdf);
+			}
+			else if (selectedLight.type == InfiniteAreaLight) {
+				OneLightColor += ((real_color / PI) * environmentMap->getEnvironmentColor(shadowFeelRay.direction) * AbsDot(normal, shadowFeelRay.direction) * weigh_bsdf / pdf_bsdf);
+			}
 		}
 
 		/*throughputColor *= ((float)lightSize * OneLightColor);
@@ -389,7 +424,7 @@ void scatterRay(
 
 
 		// ************** MIS set new ray ******************
-		newDirection = calculateRandomDirectionInHemisphere(normal, rng);
+		newDirection = calculateRandomDirectionInHemisphere(normal_bsdf, rng);
 		pathSegment.ray.direction = glm::normalize(newDirection);
 		pathSegment.ray.origin = intersect;
 		pathSegment.ThroughputColor = throughputColor * real_color;
@@ -404,7 +439,7 @@ void scatterRay(
 
 
 #else
-		newDirection = calculateRandomDirectionInHemisphere(normal, rng);
+		newDirection = calculateRandomDirectionInHemisphere(normal_bsdf, rng);
 		newDirection = glm::normalize(newDirection);
 		pathSegment.ray.direction = newDirection;
 		pathSegment.ray.origin = intersect;

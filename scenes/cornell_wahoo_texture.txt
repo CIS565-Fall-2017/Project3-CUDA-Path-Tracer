@@ -6,7 +6,7 @@ SPECRGB     0 0 0
 REFL        0
 REFR        0
 REFRIOR     0
-EMITTANCE   5
+EMITTANCE   8
 
 // Diffuse white
 MATERIAL 1
@@ -53,7 +53,7 @@ textureMap  wahoo.bmp
 CAMERA
 RES         800 800
 FOVY        45
-ITERATIONS  50
+ITERATIONS  1000
 DEPTH       8
 FILE        cornell
 EYE         0.0 5 10.5

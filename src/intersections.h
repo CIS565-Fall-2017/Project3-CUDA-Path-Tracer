@@ -46,7 +46,7 @@ __host__ __device__ glm::vec3 multiplyMV(glm::mat4 m, glm::vec4 v) {
  * @return                   Ray parameter `t` value. -1 if no intersection.
  */
 __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
-         glm::vec2 &uv, glm::vec3 &normal, bool &outside) {
+         glm::vec2 &uv, glm::vec3 &normal, bool &outside, glm::mat3 &tangentToWorld) {
     Ray q;
     q.origin    =                multiplyMV(box.inverseTransform, glm::vec4(r.origin   , 1.0f));
     q.direction = glm::normalize(multiplyMV(box.inverseTransform, glm::vec4(r.direction, 0.0f)));
@@ -85,53 +85,73 @@ __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
 
 		glm::vec3 objspaceIntersection = getPointOnRay(q, tmin);
 
+		glm::vec3 tangent(0.f);
+
 		// UV
 		glm::vec3 abs = glm::min(glm::abs(objspaceIntersection), 0.5f);
 		glm::vec2 UV(0.0f);//Always offset lower-left corner
 		if (abs.x > abs.y && abs.x > abs.z)
 		{
-			UV = glm::vec2(objspaceIntersection.z + 0.5f, objspaceIntersection.y + 0.5f) / 3.0f;
-			//Left face
-			if (objspaceIntersection.x < 0)
-			{
-				UV += glm::vec2(0, 0.333f);
-			}
-			else
-			{
-				UV += glm::vec2(0, 0.667f);
-			}
+			//UV = glm::vec2(objspaceIntersection.z + 0.5f, objspaceIntersection.y + 0.5f) / 3.0f;
+			////Left face
+			//if (objspaceIntersection.x < 0)
+			//{
+			//	UV += glm::vec2(0, 0.333f);
+			//}
+			//else
+			//{
+			//	UV += glm::vec2(0, 0.667f);
+			//}
+
+			UV = glm::vec2(objspaceIntersection.z + 0.5f, objspaceIntersection.y + 0.5f);
+
+			tangent = glm::vec3(0.0f, 0.0f, 1.0f);
 		}
 		else if (abs.y > abs.x && abs.y > abs.z)
 		{
-			UV = glm::vec2(objspaceIntersection.x + 0.5f, objspaceIntersection.z + 0.5f) / 3.0f;
-			//Left face
-			if (objspaceIntersection.y < 0)
-			{
-				UV += glm::vec2(0.333f, 0.333f);
-			}
-			else
-			{
-				UV += glm::vec2(0.333f, 0.667f);
-			}
+			//UV = glm::vec2(objspaceIntersection.x + 0.5f, objspaceIntersection.z + 0.5f) / 3.0f;
+			////Left face
+			//if (objspaceIntersection.y < 0)
+			//{
+			//	UV += glm::vec2(0.333f, 0.333f);
+			//}
+			//else
+			//{
+			//	UV += glm::vec2(0.333f, 0.667f);
+			//}
+
+			UV = glm::vec2(objspaceIntersection.x + 0.5f, objspaceIntersection.z + 0.5f);
+
+			tangent = glm::vec3(0.0f, 0.0f, 1.0f);
 		}
 		else
 		{
-			UV = glm::vec2(objspaceIntersection.x + 0.5f, objspaceIntersection.y + 0.5f) / 3.0f;
-			//Left face
-			if (objspaceIntersection.z < 0)
-			{
-				UV += glm::vec2(0.667f, 0.333f);
-			}
-			else
-			{
-				UV += glm::vec2(0.667f, 0.667f);
-			}
+			//UV = glm::vec2(objspaceIntersection.x + 0.5f, objspaceIntersection.y + 0.5f) / 3.0f;
+			////Left face
+			//if (objspaceIntersection.z < 0)
+			//{
+			//	UV += glm::vec2(0.667f, 0.333f);
+			//}
+			//else
+			//{
+			//	UV += glm::vec2(0.667f, 0.667f);
+			//}
+
+			UV = glm::vec2(objspaceIntersection.x + 0.5f, objspaceIntersection.y + 0.5f);
+
+			tangent = glm::vec3(1.0f, 0.0f, 0.0f);
 		}
 		uv = UV;
 
+		tangent = glm::normalize(multiplyMV(box.transform, glm::vec4(tangent, 0.0f)));
 
 		glm::vec3 intersectionPoint = multiplyMV(box.transform, glm::vec4(objspaceIntersection, 1.0f));
         normal = glm::normalize(multiplyMV(box.transform, glm::vec4(tmin_n, 0.0f)));
+
+		glm::vec3 bitangent = glm::cross(normal, tangent);
+
+		tangentToWorld = glm::mat3(tangent, bitangent, normal);
+
         return glm::length(r.origin - intersectionPoint);
     }
     return -1;
@@ -148,7 +168,7 @@ __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
  * @return                   Ray parameter `t` value. -1 if no intersection.
  */
 __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
-         glm::vec2 &uv, glm::vec3 &normal, bool &outside) {
+         glm::vec2 &uv, glm::vec3 &normal, bool &outside, glm::mat3 &tangentToWorld) {
     float radius = .5;
 
     glm::vec3 ro = multiplyMV(sphere.inverseTransform, glm::vec4(r.origin, 1.0f));
@@ -199,6 +219,12 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
     //if (!outside) {
     //    normal = -normal;
     //}
+
+
+	glm::vec3 tangent = glm::normalize(multiplyMV(sphere.invTranspose, glm::vec4(glm::cross(glm::vec3(0.f, 1.f, 0.f), p), 0.f)));
+	glm::vec3 bitangent = glm::normalize(glm::cross(normal, tangent));
+
+	tangentToWorld = glm::mat3(tangent, bitangent, normal);
 
     return glm::length(r.origin - intersectionPoint);
 }
@@ -251,7 +277,7 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
 //}
 
 __host__ __device__ float meshIntersectionTest(Geom mesh, Triangle* tris, 
-	Ray r, glm::vec2 &uv, glm::vec3 &normal, bool &outside) {
+	Ray r, glm::vec2 &uv, glm::vec3 &normal, bool &outside, glm::mat3 &tangentToWorld) {
 
 	float tMin = FLT_MAX;
 	int nearestTriIndex = -1;
@@ -292,13 +318,41 @@ __host__ __device__ float meshIntersectionTest(Geom mesh, Triangle* tris,
 	// set uv and normal
 	Triangle nearestIntersectTri = tris[nearestTriIndex];
 
-	uv = nearestIntersectTri.uvs[0] * minBaryPosition.x +
-		nearestIntersectTri.uvs[1] * minBaryPosition.y +
-		nearestIntersectTri.uvs[2] * (1.0f - minBaryPosition.x - minBaryPosition.y);
+	uv = nearestIntersectTri.uvs[0] * (1.0f - minBaryPosition.x - minBaryPosition.y) +
+		 nearestIntersectTri.uvs[1] * minBaryPosition.x +
+		 nearestIntersectTri.uvs[2] * minBaryPosition.y;
 
-	normal = nearestIntersectTri.normals[0] * minBaryPosition.x +
-			nearestIntersectTri.normals[1] * minBaryPosition.y +
-			nearestIntersectTri.normals[2] * (1.0f - minBaryPosition.x - minBaryPosition.y);
+	normal = nearestIntersectTri.normals[0] * (1.0f - minBaryPosition.x - minBaryPosition.y) +
+			 nearestIntersectTri.normals[1] * minBaryPosition.x +
+			 nearestIntersectTri.normals[2] * minBaryPosition.y;
+
+
+	glm::vec3 objspaceIntersection = getPointOnRay(r, tMin);
+
+	glm::vec3 pos1 = nearestIntersectTri.vertices[1];
+	glm::vec3 pos2 = nearestIntersectTri.vertices[2];
+
+	glm::vec2 uv1 = nearestIntersectTri.uvs[1];
+	glm::vec2 uv2 = nearestIntersectTri.uvs[2];
+
+
+	// Edges of the triangle : postion delta
+	glm::vec3 deltaPos1 = pos1 - objspaceIntersection;
+	glm::vec3 deltaPos2 = pos2 - objspaceIntersection;;
+
+	// UV delta
+	glm::vec2 deltaUV1 = uv1 - uv;
+	glm::vec2 deltaUV2 = uv2 - uv;
+
+
+	float r_temp = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV1.y * deltaUV2.x);
+	glm::vec3 tangent = (deltaPos1 * deltaUV2.y - deltaPos2 * deltaUV1.y)*r_temp;
+	glm::vec3 bitangent = (deltaPos2 * deltaUV1.x - deltaPos1 * deltaUV2.x)*r_temp;
+
+	tangent = glm::normalize(tangent);
+	bitangent = glm::normalize(bitangent);
+
+	tangentToWorld = glm::mat3(tangent, bitangent, normal);
 
 	return tMin;
 }
@@ -340,7 +394,7 @@ __host__ __device__ inline bool Refract(const glm::vec3 &wi, const glm::vec3 &n,
 
 
 // Mainly target to Call in GPU
-__host__ __device__ bool IntersectBVH(const Ray &ray, ShadeableIntersection * isect,
+__host__ __device__ bool IntersectBVH(const Ray &ray, ShadeableIntersection * isect, int & hit_tri_index,
 	const LinearBVHNode *bvh_nodes,
 	const Triangle* primitives)
 {
@@ -385,10 +439,12 @@ __host__ __device__ bool IntersectBVH(const Ray &ray, ShadeableIntersection * is
 						// we need initialize it
 						if (isect->t == -1.0f) {
 							(*isect) = temp_isect;
+							hit_tri_index = primitives[node->primitivesOffset + i].index;
 						}
 						else {
 							if (temp_isect.t < isect->t) {
 								(*isect) = temp_isect;
+								hit_tri_index = primitives[node->primitivesOffset + i].index;
 							}
 						}
 					}

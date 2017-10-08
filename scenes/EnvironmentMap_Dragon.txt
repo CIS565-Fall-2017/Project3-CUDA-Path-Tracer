@@ -1,0 +1,76 @@
+// pure reflective white
+MATERIAL 0
+RGB         .98 .98 .98
+SPECEX      0
+SPECRGB     .98 .98 .98
+REFL        1
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+
+// Diffuse white
+MATERIAL 1
+RGB         .98 .98 .98
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+
+// glass
+MATERIAL 2
+RGB         .98 .98 .98
+SPECEX      0
+SPECRGB     .2 .98 .98
+REFL        0.5
+REFR        0.5
+REFRIOR     2.5
+EMITTANCE   0
+
+// Camera
+CAMERA
+RES         800 800
+FOVY        45
+ITERATIONS  5000
+DEPTH       8
+FILE        EnvironmentMap
+EYE         0.0 5 10.5
+LOOKAT      0 5 0
+UP          0 1 0
+
+// Cube 1
+OBJECT 0
+cube
+material 1
+TRANS       0 3.5 0
+ROTAT       0 0 0
+SCALE       50 0.1 20
+
+// Sphere 1 - Diffuse & refraction 
+OBJECT 1
+sphere
+material 0
+TRANS       -2 6 0
+ROTAT       0 0 0
+SCALE       5 5 5
+
+// Sphere 2 - Diffuse
+OBJECT 2
+sphere
+material 1
+TRANS       -10 6 0
+ROTAT       0 0 0
+SCALE       5 5 5
+
+// Dragon Mesh
+OBJECT 3
+mesh
+material 2
+TRANS       6 2 0
+ROTAT       0 0 0
+SCALE       3.5 3.5 3.5
+dragon_vrip_res2.obj
+
+ENVIRONMENTMAP
+Topanga_Forest_B_3k.hdr
