@@ -7,6 +7,16 @@
 #include "sampling.h"
 #include "materialInteractions.h"
 #include "lightInteractions.h"
+#define COMPEPSILON 0.000000001f
+
+__host__ __device__ bool fequals(float f1, float f2)
+{
+	if ((glm::abs(f1 - f2) < COMPEPSILON))
+	{
+		return true;
+	}
+	return false;
+}
 
 __host__ __device__ Ray spawnNewRay(ShadeableIntersection& intersection, Vector3f& wiW)
 {
@@ -32,6 +42,16 @@ __host__ __device__ void russianRoulette(Color3f& energy, float probability, int
 			currentdepth = 0;
 		}
 	}
+}
+
+__host__ __device__ float PowerHeuristic(int nf, Float fPdf, int ng, Float gPdf)
+{
+	float denominator = (fPdf*nf*fPdf*nf + gPdf*ng*gPdf*ng);
+	if (fequals(denominator, 0.0f))
+	{
+		return 0.0f;
+	}
+	return glm::pow((nf*fPdf), 2) / denominator;
 }
 
 __host__ __device__ void naiveIntegrator(PathSegment & pathSegment,
