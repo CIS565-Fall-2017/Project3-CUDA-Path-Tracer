@@ -11,6 +11,7 @@ enum GeomType
 {
     SPHERE,
     CUBE,
+	SQUAREPLANE,
 	TRIANGLE
 };
 
@@ -106,6 +107,8 @@ struct PathSegment
 {
 	Ray ray;
 	glm::vec3 color;
+	glm::vec3 accumulatedColor;
+	glm::vec3 accumulatedThroughput;
 	int pixelIndex;
 	int remainingBounces;
 };

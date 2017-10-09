@@ -33,29 +33,14 @@ __host__ __device__ int BxDFsMatchingFlags(const Material &m)
 	return num;
 }
 
-__host__ __device__ BxDFType chooseBxDF(const Material &m, thrust::default_random_engine &rng, 
-									   Color3f& sampledColor, Vector3f& wiW, float& pdf)
+__host__ __device__ BxDFType chooseBxDF(const Material &m, thrust::default_random_engine &rng)
 {
-	thrust::uniform_real_distribution<float> u01(0, 1);
-	thrust::uniform_real_distribution<float> u02(0, 1);
-
-	float xi0 = u01(rng);
-	float xi1 = u02(rng);
-
-	//----------------------------------------------
-
-	//choose which BxDF to sample
-	int matchingComps = BxDFsMatchingFlags(m);
-	if (matchingComps == 0)
-	{
-		pdf = 0.0f; //because we don't have a material to sample
-		sampledColor = Color3f(0.0f); //return black
-	}
-
-	//----------------------------------------------
-
-	// random bxdf choosing
+	//randomly choose which BxDF to sample
 	BxDFType bxdf;
+	thrust::uniform_real_distribution<float> u01(0, 1);
+	float xi0 = u01(rng);
+	
+	int matchingComps = BxDFsMatchingFlags(m);
 	int comp = glm::min((int)glm::floor(xi0 * matchingComps), matchingComps - 1);
 	int count = comp;
 
@@ -65,14 +50,14 @@ __host__ __device__ BxDFType chooseBxDF(const Material &m, thrust::default_rando
 		if (MatchesFlags(m.bxdfs[i]) && count-- == 0)
 		{
 			bxdf = m.bxdfs[i];
-			break;
+			return bxdf;
 		}
 	}
-
-	return bxdf;
 }
 
-__host__ __device__ float sample_material_Pdf(const Material &m, BxDFType bxdf, const Vector3f &woW, Vector3f &wiW, const Vector3f& normal)
+__host__ __device__ float material_Pdf(const Material &m, BxDFType bxdf, 
+									const Vector3f &woW, Vector3f &wiW, 
+									const Vector3f& normal)
 {
 	float pdf = 0.0f;
 	for (int i = 0; i<m.numBxDFs; ++i)
@@ -98,11 +83,45 @@ __host__ __device__ float sample_material_Pdf(const Material &m, BxDFType bxdf, 
 	return pdf;
 }
 
-__host__ __device__ Color3f sample_material_f(const Material &m, thrust::default_random_engine &rng,
-									const Vector3f& woW, const Vector3f& normal,
-									Geom& geom, ShadeableIntersection& intersection,
-									PathSegment pathsegment, Geom * geoms, int numGeoms,
-									Color3f& sampledColor, Vector3f& wiW, float& pdf)
+__host__ __device__ Color3f material_f(const Material &m, BxDFType bxdf,
+									const Vector3f &woW, Vector3f &wiW,
+									thrust::default_random_engine &rng)
+{
+	//compute value of BSDF for sampled direction
+	Color3f color = Color3f(0.0);
+	thrust::uniform_real_distribution<float> u01(0, 1);
+
+	//bool reflect = (glm::dot(wiW, mproperties.normal) * glm::dot(woW, mproperties.normal)) > 0;
+	//Color = Color3f(0.0); //because the material is reflective or
+	//					  //transmissive so doesn't have its own color
+	for (int i = 0; i<m.numBxDFs; ++i)
+	{
+		if (MatchesFlags(m.bxdfs[i]))
+		{
+			if (bxdf == BSDF_SPECULAR_BRDF)
+			{
+				color += f_Specular(m);
+			}
+			else if (bxdf == BSDF_LAMBERT)
+			{
+				
+				color += f_Lambert(m, woW, wiW);
+			}
+			else if (bxdf == BxDF_SUBSURFACE)
+			{
+				float samplePoint = u01(rng);
+				color += f_Subsurface(m, samplePoint);
+			}
+		}
+	}
+	return color;
+}
+
+__host__ __device__ Color3f material_sample_f(const Material &m, thrust::default_random_engine &rng,
+											const Vector3f& woW, const Vector3f& normal,
+											Geom& geom, ShadeableIntersection& intersection,
+											PathSegment pathsegment, Geom * geoms, int numGeoms,
+											Color3f& sampledColor, Vector3f& wiW, float& pdf, BxDFType& chosenBxdF)
 {
 	BxDFType sampledType;
 	thrust::uniform_real_distribution<float> u01(0, 1);
@@ -136,6 +155,8 @@ __host__ __device__ Color3f sample_material_f(const Material &m, thrust::default
 			break;
 		}
 	}
+
+	chosenBxdF = bxdf;
 
 	//Remap BxDF sample u to [0,1)
 	Point2f uRemapped = Point2f(glm::min(xi0 * matchingComps - comp, OneMinusEpsilon), xi1);
@@ -237,27 +258,4 @@ __host__ __device__ Color3f sample_material_f(const Material &m, thrust::default
 	}
 
 	return Color;
-}
-
-__host__ __device__ void sampleMaterials(const Material &m, const Vector3f& wo, const Vector3f& normal,
-										 Color3f& sampledColor, Vector3f& wi, float& pdf,
-										 thrust::default_random_engine &rng)
-{
-	//simple pick and choose, if you implement a more complex material which requires you to 
-	//sample multiple bxDFs then use the sample_f function
-	BxDFType sampledBxDF = chooseBxDF(m, rng, sampledColor, wi, pdf);
-
-	if (sampledBxDF == BSDF_LAMBERT)
-	{
-		//sample functions return a color, calculate pdf, and set a new wiW
-		wi = glm::normalize(calculateRandomDirectionInHemisphere(normal, rng));
-		pdf = pdf_Lambert(wo, wi, normal);
-		sampledColor = f_Lambert(m, wo, wi);
-	}
-	else if (sampledBxDF == BSDF_SPECULAR_BRDF)
-	{
-		sampledColor = f_Specular(m);
-		pdf = pdf_Specular();
-		wi = glm::reflect(wo, normal);
-	}
 }

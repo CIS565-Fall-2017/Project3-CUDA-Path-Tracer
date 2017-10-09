@@ -213,7 +213,7 @@ __host__ __device__ bool sample_f_Subsurface(const Vector3f& wo, Vector3f& sampl
 	ray.direction = wi;
 
 	ShadeableIntersection isx;
-	computeIntersectionsWithSelectedObject(ray, geom, isx);
+	computeIntersectionOfRayWithSelectedObject(ray, geom, isx);
 
 	if (sampledDistance < isx.t)
 	{

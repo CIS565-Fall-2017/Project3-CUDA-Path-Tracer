@@ -25,14 +25,14 @@
 //Toggle-able OPTIONS
 //--------------------
 #define FIRST_BOUNCE_INTERSECTION_CACHING 0
-#define MATERIAL_SORTING 1
+#define MATERIAL_SORTING 0
 #define INACTIVE_RAY_CULLING 0 //Stream Compaction of rays
 #define DEPTH_OF_FIELD 0
 #define ANTI_ALIASING 1 // if you use first bounce caching, antialiasing will not work --> can make it work with 
 						// a more deterministic Supersampling approach to AA but requires more memory for 
 						// caching more intersections
 //Naive Integration is the default if nothing else is toggled
-#define DIRECT_LIGHTING_INTEGRATOR 0
+#define DIRECT_LIGHTING_INTEGRATOR 1
 #define FULL_LIGHTING_INTEGRATOR 0
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
@@ -148,7 +148,7 @@ void pathtraceInit(Scene *scene)
 	cudaMalloc(&dev_accumulatedRayColor, pixelcount * sizeof(Color3f));
 	cudaMemset(dev_accumulatedRayColor, 0, pixelcount * sizeof(Color3f));
 	cudaMalloc(&dev_accumulatedThroughputColor, pixelcount * sizeof(Color3f));
-	cudaMemset(dev_accumulatedThroughputColor, 0, pixelcount * sizeof(Color3f));
+	cudaMemset(dev_accumulatedThroughputColor, 1, pixelcount * sizeof(Color3f));
 
 	// Caching the first Intersection for evey iteration
 	cudaMalloc(&dev_intersectionsCached, pixelcount * sizeof(ShadeableIntersection));
@@ -256,57 +256,7 @@ __global__ void computeIntersections(int numActiveRays, PathSegment * pathSegmen
 
 	if (path_index < numActiveRays)
 	{
-		PathSegment pathSegment = pathSegments[path_index];
-
-		float t;
-		glm::vec3 intersect_point;
-		glm::vec3 normal;
-		float t_min = FLT_MAX;
-		int hit_geom_index = -1;
-		bool outside = true;
-
-		glm::vec3 tmp_intersect;
-		glm::vec3 tmp_normal;
-
-		// Naive parse through global geoms
-		for (int i = 0; i < geoms_size; i++)
-		{
-			Geom & geom = geoms[i];
-
-			if (geom.type == CUBE)
-			{
-				t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
-			}
-			else if (geom.type == SPHERE)
-			{
-				t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
-			}
-			// TODO: add more intersection tests here... triangle? metaball? CSG?
-
-			// Compute the minimum t from the intersection tests to determine what
-			// scene geometry object was hit first.
-			if (t > 0.0f && t_min > t)
-			{
-				t_min = t;
-				hit_geom_index = i;
-				intersect_point = tmp_intersect;
-				normal = tmp_normal;
-			}
-		}
-
-		if (hit_geom_index == -1)
-		{
-			intersections[path_index].t = -1.0f;
-		}
-		else
-		{
-			//The ray hits something
-			intersections[path_index].t = t_min;
-			intersections[path_index].intersectPoint = intersect_point;
-			intersections[path_index].materialId = geoms[hit_geom_index].materialid;
-			intersections[path_index].surfaceNormal = glm::normalize(normal);
-			intersections[path_index].hitGeomIndex = hit_geom_index;
-		}
+		computeIntersectionsForASingleRay(pathSegments[path_index].ray, intersections[path_index], geoms, geoms_size);
 	}
 }
 
@@ -365,7 +315,7 @@ __global__ void shadeMaterialsNaive(int iter, int numActiveRays, ShadeableInters
 
 __global__ void shadeMaterialsDirect(int iter, int numActiveRays, ShadeableIntersection * shadeableIntersections,
 									PathSegment * pathSegments, Material * materials, Geom * geoms, int numGeoms,
-									Light * lights, int numLights)
+									Light * lights, int numLights, Color3f * accumulatedColor)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (idx < numActiveRays)
@@ -400,7 +350,8 @@ __global__ void shadeMaterialsDirect(int iter, int numActiveRays, ShadeableInter
 		// if the intersection exists and the itersection is not a light then
 		//deal with the material and end up changing the pathSegment color and its ray direction
 		directLightingIntegrator(pathSegments[idx], intersection, materials, material,
-								 geoms, numGeoms, lights, numLights, rng);
+								geoms[shadeableIntersections[idx].hitGeomIndex], geoms, numGeoms, 
+								lights, numLights, rng);
 	}
 }
 
@@ -468,16 +419,19 @@ __global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterati
 	}
 }
 
-__global__ void averagePixelColor(int nPaths, Color3f * image, int * pixelIndices, int iter,
+__global__ void averagePixelColor(int nPaths, Color3f * image, PathSegment * iterationPaths,
+									int * pixelIndices, int iter,
 									Color3f * accumulatedColor, Color3f * totalPixelColor)
 {
 	int index = (blockIdx.x * blockDim.x) + threadIdx.x;
 
 	if (index < nPaths)
 	{
-		int pixelIndex = pixelIndices[index];
-		totalPixelColor[pixelIndex] += accumulatedColor[pixelIndex];
-		image[pixelIndex] += totalPixelColor[pixelIndex]/float(iter);
+		PathSegment iterationPath = iterationPaths[index];
+		//int pixelIndex = pixelIndices[index];
+		int pixelIndex = iterationPaths[index].pixelIndex;
+		totalPixelColor[pixelIndex] += iterationPath.accumulatedColor;
+		image[pixelIndex] = totalPixelColor[pixelIndex];// float(iter);
 	}
 }
 
@@ -506,6 +460,10 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 								(cam.resolution.y + blockSize2d.y - 1) / blockSize2d.y );
 	// 1D block for path tracing
 	const int blockSize1d = 128;
+
+	//print lights details
+	//printf("light: %d \n", hst_scene->lights[0].lightGeomIndex);
+	//printf("number of lights: %d \n", hst_scene->lights.size());
 
 	//------------------------------------------------
 	//Timer Start
@@ -546,10 +504,11 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 	int activeRays = num_paths;
 
 #if FULL_LIGHTING_INTEGRATOR
-	// reset accumulatedThroughputColor, accumulatedRayColor, and totalPixelColor for fullLighting
-	cudaMemset(dev_totalPixelColor, 0.0f, pixelcount * sizeof(Color3f));
+	// reset accumulatedThroughputColor and accumulatedRayColor for fullLighting
 	cudaMemset(dev_accumulatedRayColor, 0.0f, pixelcount * sizeof(Color3f));
 	cudaMemset(dev_accumulatedThroughputColor, 1.0f, pixelcount * sizeof(Color3f));
+#elif DIRECT_LIGHTING_INTEGRATOR
+	//cudaMemset(dev_accumulatedRayColor, 0.0f, pixelcount * sizeof(Color3f));
 #endif
 
 	while (!iterationComplete) 
@@ -617,7 +576,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 		shadeMaterialsDirect <<<numblocksPathSegmentTracing, blockSize1d>>> (iter, activeRays, dev_intersections,
 																			 dev_paths, dev_materials, 
 																			 dev_geoms, hst_scene->geoms.size(), 
-																			 dev_lights, hst_scene->lights.size());
+																			 dev_lights, hst_scene->lights.size(),
+																			 dev_accumulatedRayColor);
 #elif FULL_LIGHTING_INTEGRATOR
 		shadeMaterialsFullLighting <<<numblocksPathSegmentTracing, blockSize1d>>> (iter, traceDepth, activeRays, 
 																				dev_intersections, dev_paths, dev_materials,
@@ -651,10 +611,11 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 
 	// Assemble this iteration and apply it to the image
 	dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
-#if FULL_LIGHTING_INTEGRATOR
-	averagePixelColor <<<numBlocksPixels, blockSize1d>>> (num_paths, dev_image, 
+#if FULL_LIGHTING_INTEGRATOR //|| DIRECT_LIGHTING_INTEGRATOR
+	averagePixelColor <<<numBlocksPixels, blockSize1d>>> (num_paths, dev_image, dev_paths,
 														dev_rayPixelIndex, iter,
 														dev_accumulatedRayColor, dev_totalPixelColor);
+	checkCUDAError("error averaging colors");
 #else
 	finalGather <<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
 #endif

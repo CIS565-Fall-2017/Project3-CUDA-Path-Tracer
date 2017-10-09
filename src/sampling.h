@@ -55,20 +55,6 @@ __host__ __device__ Point3f sampling_SquareToSphereUniform(const Point2f &sample
 	return Point3f(r*std::cos(phi), r* std::sin(phi), z);
 }
 
-// http://corysimon.github.io/articles/uniformdistn-on-sphere/
-__host__ __device__ glm::vec3 SphereSample(thrust::default_random_engine &rng)
-{
-	thrust::uniform_real_distribution<float> u01(0, 1);
-
-	float theta = 2.f * PI * u01(rng);
-	float phi = acos(1.f - 2.f * u01(rng));
-	float x = sin(phi) * cos(theta);
-	float y = sin(phi) * sin(theta);
-	float z = cos(phi);
-
-	return glm::vec3(x, y, z);
-}
-
 __host__ __device__ Color3f squareToSphereCapUniform(const Point2f &sample, float& thetaMin)
 {
 	//theta min determines the spherecap thats generated

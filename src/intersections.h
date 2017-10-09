@@ -125,10 +125,10 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
     if (t1 < 0 && t2 < 0) {
         return -1;
     } else if (t1 > 0 && t2 > 0) {
-        t = min(t1, t2);
+        t = glm::min(t1, t2);
         outside = true;
     } else {
-        t = max(t1, t2);
+        t = glm::max(t1, t2);
         outside = false;
     }
 
@@ -143,7 +143,39 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
     return glm::length(r.origin - intersectionPoint);
 }
 
-__host__ __device__ void computeIntersectionsWithSelectedObject(Ray& ray, Geom& geom,
+// CHECKITOUT
+/**
+* Test intersection between a ray and a transformed square. Untransformed,
+* a SquarePlane is assumed to have a side length of 1 and a center of <0,0,0>.
+*
+* @param intersectionPoint  Output parameter for point of intersection.
+* @param normal             Output parameter for surface normal.
+* @param outside            Output param for whether the ray came from outside.
+* @return                   Ray parameter `t` value. -1 if no intersection.
+*/
+__host__ __device__ float squareIntersectionTest(Geom square, Ray r,
+	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) 
+{
+	Ray rt;
+	rt.origin = multiplyMV(square.inverseTransform, glm::vec4(r.origin, 1.0f));
+	rt.direction = glm::normalize(multiplyMV(square.inverseTransform, glm::vec4(r.direction, 0.0f)));
+	
+	float t = glm::dot(glm::vec3(0, 0, 1), (glm::vec3(0.5f, 0.5f, 0) - rt.origin)) / glm::dot(glm::vec3(0, 0, 1), rt.direction);
+
+	glm::vec3 objspaceIntersection = getPointOnRay(rt, t);
+	if (t > 0 && objspaceIntersection.x >= -0.5f && objspaceIntersection.x <= 0.5f && 
+				 objspaceIntersection.y >= -0.5f && objspaceIntersection.y <= 0.5f)
+	{
+		intersectionPoint = multiplyMV(square.transform, glm::vec4(objspaceIntersection, 1.f));
+		normal = glm::normalize(multiplyMV(square.invTranspose, glm::vec4(objspaceIntersection, 0.f)));
+		return glm::length(r.origin - intersectionPoint);
+	}
+
+	// Didn't hit
+	return -1;
+}
+
+__host__ __device__ void computeIntersectionOfRayWithSelectedObject(Ray& ray, Geom& geom,
 																ShadeableIntersection& intersection)
 {
 	float t;
@@ -165,7 +197,10 @@ __host__ __device__ void computeIntersectionsWithSelectedObject(Ray& ray, Geom& 
 	{
 		t = sphereIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside);
 	}
-	// TODO: add more intersection tests here... triangle? metaball? CSG?
+	else if (geom.type == SQUAREPLANE)
+	{
+		t = squareIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside);
+	}
 
 	// Compute the minimum t from the intersection tests to determine what
 	// scene geometry object was hit first.
@@ -191,9 +226,8 @@ __host__ __device__ void computeIntersectionsWithSelectedObject(Ray& ray, Geom& 
 	}
 }
 
-__host__ __device__ void computeIntersectionsForASingleRay(PathSegment& pathSegment, 
-														   Geom * geoms, int& geoms_size, 
-														   ShadeableIntersection& intersection)
+__host__ __device__ void computeIntersectionsForASingleRay(Ray& ray, ShadeableIntersection& intersection,
+														   Geom * geoms, int& geoms_size)
 {
 	float t;
 	glm::vec3 intersect_point;
@@ -212,13 +246,16 @@ __host__ __device__ void computeIntersectionsForASingleRay(PathSegment& pathSegm
 
 		if (geom.type == CUBE)
 		{
-			t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+			t = boxIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside);
 		}
 		else if (geom.type == SPHERE)
 		{
-			t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+			t = sphereIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside);
 		}
-		// TODO: add more intersection tests here... triangle? metaball? CSG?
+		else if (geom.type == SQUAREPLANE)
+		{
+			t = squareIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside);
+		}
 
 		// Compute the minimum t from the intersection tests to determine what
 		// scene geometry object was hit first.

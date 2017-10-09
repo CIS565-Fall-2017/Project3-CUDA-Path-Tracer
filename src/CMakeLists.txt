@@ -2,6 +2,7 @@ set(SOURCE_FILES
     "stb.cpp"
     "image.cpp"
     "image.h"
+    "common.h"
     "interactions.h"
     "sampling.h"
     "lambert.h"

@@ -7,28 +7,7 @@
 #include "sampling.h"
 #include "materialInteractions.h"
 #include "lightInteractions.h"
-#define COMPEPSILON 0.000000001f
-
-__host__ __device__ bool fequals(float f1, float f2)
-{
-	if ((glm::abs(f1 - f2) < COMPEPSILON))
-	{
-		return true;
-	}
-	return false;
-}
-
-__host__ __device__ Ray spawnNewRay(ShadeableIntersection& intersection, Vector3f& wiW)
-{
-	Vector3f originOffset = intersection.surfaceNormal * EPSILON;
-	// Make sure to flip the direction of the offset so it's in the same general direction as the ray direction
-	originOffset = (glm::dot(wiW, intersection.surfaceNormal) > 0) ? originOffset : -originOffset;
-	Point3f o(intersection.intersectPoint + originOffset);
-	Ray r = Ray();
-	r.direction = wiW;
-	r.origin = o;
-	return r;
-}
+#include "common.h"
 
 __host__ __device__ void russianRoulette(Color3f& energy, float probability, int& currentdepth, int& recursionLimit)
 {
@@ -64,10 +43,10 @@ __host__ __device__ void naiveIntegrator(PathSegment & pathSegment,
 	Vector3f wi = glm::vec3(0.0f);
 	Vector3f sampledColor = pathSegment.color;
 	Vector3f normal = intersection.surfaceNormal;
+	BxDFType chosenBxDF;
 	float pdf = 0.0f;
 
-	//sampleMaterials(m, wo, normal, sampledColor, wi, pdf, rng);
-	sample_material_f(m, rng, wo, normal, geom, intersection, pathSegment, geoms, numGeoms, sampledColor, wi, pdf);
+	material_sample_f(m, rng, wo, normal, geom, intersection, pathSegment, geoms, numGeoms, sampledColor, wi, pdf, chosenBxDF);
 
 	if (pdf != 0.0f)
 	{
@@ -82,58 +61,56 @@ __host__ __device__ void naiveIntegrator(PathSegment & pathSegment,
 __host__ __device__ void directLightingIntegrator(PathSegment & pathSegment,
 												  ShadeableIntersection& intersection,
 												  Material* materials, Material &m,
-												  Geom* geoms, int numGeoms,
+												  Geom& geom, Geom* geoms, int numGeoms,
 												  Light * lights, int &numLights,
 												  thrust::default_random_engine &rng)
 {
 	// Update the ray and color associated with the pathSegment
+	thrust::uniform_real_distribution<float> u01(0, 1);
 	Vector3f intersectionPoint = intersection.intersectPoint;
 	Vector3f normal = intersection.surfaceNormal;
 
-	Vector3f wo = pathSegment.ray.direction;
-	Vector3f wi = glm::vec3(0.0f);
-	float pdf = 0.0f;
-	Vector2f xi;
+	Color3f finalcolor = Color3f(0.0f);
 
-	Vector3f sampledLightColor;
-	Vector3f f = Color3f(0.0f);
+	Vector3f wo = pathSegment.ray.direction;
+	Vector3f wi;
+	float pdf;
+	Vector2f xi = Vector2f(u01(rng), u01(rng));
 
 	//Assuming the scene has atleast one light
-	thrust::uniform_real_distribution<float> u01(0, 1);
-
 	int randomLightIndex = std::min((int)std::floor(u01(rng)*numLights), numLights - 1);
 	Light selectedLight = lights[randomLightIndex];
 	Geom lightGeom = geoms[selectedLight.lightGeomIndex];
 	Material lightMat = materials[lightGeom.materialid];
 
-	//sample material of object you hit in the scene
-	sampleMaterials(m, wo, normal, f, wi, pdf, rng);
-
-	//Sample Light
-	xi = Vector2f(u01(rng), u01(rng));
-	Vector3f wi_towardsLight;
-	sampledLightColor = sampleLights(lightMat, normal, wi_towardsLight, xi, pdf, intersectionPoint, lightGeom);
-
+	//Sample Light	
+	Vector3f wi_towardsLight = glm::vec3(0.0f);
+	Color3f sampledLightColor = sampleLights(lightMat, normal, wi_towardsLight, xi, pdf, intersectionPoint, lightGeom);
 	pdf /= numLights;
-	if (pdf == 0.0f)
+
+	//sample material of object you hit in the scene
+	BxDFType chosenBxDF = chooseBxDF(m, rng);
+	Vector3f f = material_f(m, chosenBxDF, wo, wi_towardsLight, rng);
+
+	if (pdf != 0.0f)
 	{
-		pathSegment.color = Color3f(0.f);
-	}
-	else
-	{
-		float absdot = glm::abs(glm::dot(wi, intersection.surfaceNormal));
-		pathSegment.color *= f * sampledLightColor * absdot / pdf;
+		float absdot = glm::abs(glm::dot(wi_towardsLight, intersection.surfaceNormal));
+		pathSegment.color = f * sampledLightColor * absdot / pdf;
 	}
 
 	//visibility test
 	ShadeableIntersection isx;
-	computeIntersectionsForASingleRay(pathSegment, geoms, numGeoms, isx);
-
+	Ray shadowFeeler = spawnNewRay(intersection, wi_towardsLight);
+	computeIntersectionsForASingleRay(shadowFeeler, isx, geoms, numGeoms);
+	
 	// if the shadow feeler ray doesnt hit the sample light then color the pathSegment black
-	if (isx.t < 0.0f && isx.hitGeomIndex != selectedLight.lightGeomIndex)
+	// printf("hitIndex and lightIndex: %d    %d \n", isx.hitGeomIndex, selectedLight.lightGeomIndex);
+	if (isx.t > 0.0f && isx.hitGeomIndex != selectedLight.lightGeomIndex)
 	{
 		pathSegment.color = Color3f(0.f);
 	}
+
+	pathSegment.color = m.emittance*m.color + pathSegment.color;
 
 	pathSegment.remainingBounces = 0;
 }
@@ -160,6 +137,7 @@ __host__ __device__ void fullLightingIntegrator(int maxTraceDepth,
 	Geom lightGeom = geoms[selectedLight.lightGeomIndex];
 	Material lightMat = materials[lightGeom.materialid];
 	Vector3f wi_towardsLight;
+
 	//----------------------- Actual Direct Lighting ----------------------
 	Vector3f wi_Direct_Light;
 	float pdf_Direct_Light;
@@ -182,7 +160,7 @@ __host__ __device__ void fullLightingIntegrator(int maxTraceDepth,
 	if (randomLightIndex != -1)
 	{
 		weight_BSDF_Light = PowerHeuristic(1, pdf_BSDF_Light, 1, (sampleLightPDF(lightMat, normal, wi_towardsLight, intersectionPoint, lightGeom)));
-		weight_Direct_Light = PowerHeuristic(1, pdf_Direct_Light, 1, sample_material_Pdf(m, sampledType, wo, wi_Direct_Light, normal));
+		weight_Direct_Light = PowerHeuristic(1, pdf_Direct_Light, 1, material_Pdf(m, sampledType, wo, wi_Direct_Light, normal));
 	}
 
 	Color3f weighted_BSDF_Light_color = LTE_BSDF_Light * weight_BSDF_Light;
