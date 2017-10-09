@@ -130,17 +130,42 @@ __host__ __device__ void fullLightingIntegrator(int maxTraceDepth,
 	Vector3f intersectionPoint = intersection.intersectPoint;
 	thrust::uniform_real_distribution<float> u01(0, 1);
 
-	int randomLightIndex = std::min((int)std::floor(u01(rng)*numLights), numLights - 1);
-	Light selectedLight = lights[randomLightIndex];
-	Geom lightGeom = geoms[selectedLight.lightGeomIndex];
-	Material lightMat = materials[lightGeom.materialid];
-	Vector3f wi_towardsLight;
-
+	//---------------------------------------------------------------------
 	//----------------------- Actual Direct Lighting ----------------------
+	//---------------------------------------------------------------------
 	Vector3f wi_Direct_Light;
 	float pdf_Direct_Light;
 	Point2f xi_Direct_Light = Point2f(u01(rng), u01(rng));
 	Color3f LTE_Direct_Light = Color3f(0.0f);
+
+	//Li term - not recursive, cause direct lighting
+	int randomLightIndex = std::min((int)std::floor(u01(rng)*numLights), numLights - 1);
+	Light selectedLight = lights[randomLightIndex];
+	Geom lightGeom = geoms[selectedLight.lightGeomIndex];
+	Material lightMat = materials[lightGeom.materialid];
+	Color3f li_Direct_Light = sampleLights(lightMat, normal, wi_Direct_Light, xi_Direct_Light,
+											pdf_Direct_Light, intersectionPoint, lightGeom);
+
+	//f term term
+	BxDFType chosenBxDF = chooseBxDF(m, rng);
+	Vector3f f_Direct_Light = material_f(m, chosenBxDF, wo, wi_Direct_Light, rng);
+
+	if (pdf_Direct_Light != 0.0f)
+	{
+		//absDot term		
+		float absDot_Direct_Light = glm::abs(glm::dot(wi_Direct_Light, intersection.surfaceNormal));			
+
+		//visibility test for direct lighting
+		ShadeableIntersection isx;
+		Ray n_ray_Direct_Light = spawnNewRay(intersection, wi_Direct_Light);
+		computeIntersectionsForASingleRay(n_ray_Direct_Light, isx, geoms, numGeoms);
+
+		// LTE calculation for Direct Lighting
+		if (isx.t > 0.0f && isx.hitGeomIndex != selectedLight.lightGeomIndex)
+		{
+			LTE_Direct_Light = f_Direct_Light * li_Direct_Light * absDot_Direct_Light / pdf_Direct_Light;
+		}
+	}
 
 	//----------------------- BSDF based Direct Lighting ------------------
 	Vector3f wiW_BSDF_Light;
@@ -157,7 +182,7 @@ __host__ __device__ void fullLightingIntegrator(int maxTraceDepth,
 
 	if (randomLightIndex != -1)
 	{
-		weight_BSDF_Light = PowerHeuristic(1, pdf_BSDF_Light, 1, (sampleLightPDF(lightMat, normal, wi_towardsLight, intersectionPoint, lightGeom)));
+		weight_BSDF_Light = PowerHeuristic(1, pdf_BSDF_Light, 1, (sampleLightPDF(lightMat, wi_towardsLight, intersection, lightGeom)));
 		weight_Direct_Light = PowerHeuristic(1, pdf_Direct_Light, 1, material_Pdf(m, sampledType, wo, wi_Direct_Light, normal));
 	}
 

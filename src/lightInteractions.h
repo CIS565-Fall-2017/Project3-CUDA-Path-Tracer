@@ -18,26 +18,27 @@ __host__ __device__ Color3f L(const Material &m, const Vector3f& intersectionNor
 	//}
 }
 
-__host__ __device__ float sampleLightPDF(Material &m, Vector3f& normal, Vector3f& wi,
-										Vector3f& refPoint, Geom& geom)
+__host__ __device__ float sampleLightPDF(Material &m, Vector3f& wi,
+										ShadeableIntersection& ref, 
+										Geom& geom)
 {
 	float light_pdf = 0.0f;
+	GeomType lightShape = geom.type;
+	//we are calculating the solid angle subtended by the light source
+	// 1/((cosTheta/r*r)*area) of the solid angle subtended by this is the pdf of the light source
+	ShadeableIntersection isect;
+	Ray ray = spawnNewRay(ref, wi);
+	computeIntersectionOfRayWithSelectedObject(ray, geom, isect);
 
-	////we are calculating the solid angle subtended by the light source
-	//// 1/((cosTheta/r*r)*area) of the solid angle subtended by this is the pdf of the light source
-	//ShadeableIntersection isect;
-	//Ray ray = ref.SpawnRay(wi);
-	//bool objectHit = shape->Intersect(ray, &isect);
+	if (isect.t < 0.0f)
+	{
+		return 0.0f;
+	}
 
-	//if (!objectHit)
-	//{
-	//	return 0.0f;
-	//}
+	float dist = glm::distance(ref.intersectPoint, isect.intersectPoint);
 
-	//float dist_sq = glm::length2(ref.point - isect.point);
-
-	//float _cosTheta = AbsDot(isect.normalGeometric, -wi);
-	//return dist_sq / (_cosTheta*shape->Area());
+	float _cosTheta = glm::abs(glm::dot(isect.surfaceNormal, -wi));
+	return dist*dist / (_cosTheta*sampleShapeArea(geom, lightShape));
 
 	return light_pdf;
 }

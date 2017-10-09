@@ -611,15 +611,16 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 
 	// Assemble this iteration and apply it to the image
 	dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
-#if FULL_LIGHTING_INTEGRATOR //|| DIRECT_LIGHTING_INTEGRATOR
-	averagePixelColor <<<numBlocksPixels, blockSize1d>>> (num_paths, dev_image, dev_paths,
-														dev_rayPixelIndex, iter,
-														dev_accumulatedRayColor, dev_totalPixelColor);
-	checkCUDAError("error averaging colors");
-#else
-	finalGather <<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
-#endif
+//#if FULL_LIGHTING_INTEGRATOR //|| DIRECT_LIGHTING_INTEGRATOR
+//	averagePixelColor <<<numBlocksPixels, blockSize1d>>> (num_paths, dev_image, dev_paths,
+//														dev_rayPixelIndex, iter,
+//														dev_accumulatedRayColor, dev_totalPixelColor);
+//	checkCUDAError("error averaging colors");
+//#else
+//	finalGather <<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
+//#endif
 
+	finalGather << <numBlocksPixels, blockSize1d >> >(num_paths, dev_image, dev_paths);
 	//------------------------------------------------
 	//Timer End
 	//timeEndCpu = std::chrono::high_resolution_clock::now();

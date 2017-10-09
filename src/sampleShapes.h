@@ -3,6 +3,16 @@
 #include "sampling.h"
 #include "common.h"
 
+__host__ __device__ float area_sphere(Geom& geom)
+{
+	return 4.f * PI * geom.scale.x * geom.scale.x; // We're assuming uniform scale
+}
+
+__host__ __device__ float area_square(Geom& geom)
+{
+	return geom.scale.x*geom.scale.y;
+}
+
 __host__ __device__ ShadeableIntersection sampleSphere(Vector2f &xi, float& pdf, 
 												Vector3f& refPoint, Geom& geom)
 {
@@ -36,6 +46,20 @@ __host__ __device__ ShadeableIntersection sampleSquare(Vector2f &xi, float& pdf,
 	pdf = dist*dist / (absDot*area);
 
 	return it;
+}
+
+__host__ __device__ float sampleShapeArea(Geom& geom, GeomType& lightShape)
+{
+	float area = 0.0f;
+	if (lightShape == SPHERE)
+	{
+		area = area_sphere(geom);
+	}
+	else if (lightShape == SQUAREPLANE)
+	{
+		area = area_square(geom);
+	}
+	return area;
 }
 
 __host__ __device__ ShadeableIntersection sampleShapes(Vector2f &xi, float& pdf, 
