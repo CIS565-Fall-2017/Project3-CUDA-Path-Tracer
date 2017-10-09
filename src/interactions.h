@@ -46,7 +46,8 @@ __host__ __device__ void naiveIntegrator(PathSegment & pathSegment,
 	BxDFType chosenBxDF;
 	float pdf = 0.0f;
 
-	material_sample_f(m, rng, wo, normal, geom, intersection, pathSegment, geoms, numGeoms, sampledColor, wi, pdf, chosenBxDF);
+	sampledColor = material_sample_f(m, rng, wo, normal, geom, intersection, pathSegment, 
+									geoms, numGeoms, sampledColor, wi, pdf, chosenBxDF);
 
 	if (pdf != 0.0f)
 	{
@@ -124,7 +125,6 @@ __host__ __device__ void fullLightingIntegrator(int maxTraceDepth,
 {
 	// Update the ray and color associated with the pathSegment
 	Vector3f wo = pathSegment.ray.direction;
-	Vector3f wi = glm::vec3(0.0f);
 	Color3f directLightingColor = Color3f(0.0);
 	Vector3f normal = intersection.surfaceNormal;
 	Vector3f intersectionPoint = intersection.intersectPoint;
@@ -138,34 +138,43 @@ __host__ __device__ void fullLightingIntegrator(int maxTraceDepth,
 	Point2f xi_Direct_Light = Point2f(u01(rng), u01(rng));
 	Color3f LTE_Direct_Light = Color3f(0.0f);
 
-	//Li term - not recursive, cause direct lighting
-	int randomLightIndex = std::min((int)std::floor(u01(rng)*numLights), numLights - 1);
-	Light selectedLight = lights[randomLightIndex];
-	Geom lightGeom = geoms[selectedLight.lightGeomIndex];
-	Material lightMat = materials[lightGeom.materialid];
-	Color3f li_Direct_Light = sampleLights(lightMat, normal, wi_Direct_Light, xi_Direct_Light,
-											pdf_Direct_Light, intersectionPoint, lightGeom);
+	int randomLightIndex = -1;
+	Material lightMat;
+	Geom lightGeom;
+	Light selectedLight;
+	BxDFType chosenBxDF;
 
-	//f term term
-	BxDFType chosenBxDF = chooseBxDF(m, rng);
-	Vector3f f_Direct_Light = material_f(m, chosenBxDF, wo, wi_Direct_Light, rng);
-
-	if (pdf_Direct_Light != 0.0f)
+	if (true) //just for now so i can collapse things
 	{
-		//absDot term		
-		float absDot_Direct_Light = glm::abs(glm::dot(wi_Direct_Light, intersection.surfaceNormal));			
+		//Li term - not recursive, cause direct lighting
+		randomLightIndex = std::min((int)std::floor(u01(rng)*numLights), numLights - 1);
+		selectedLight = lights[randomLightIndex];
+		lightGeom = geoms[selectedLight.lightGeomIndex];
+		lightMat = materials[lightGeom.materialid];
+		Color3f li_Direct_Light = sampleLights(lightMat, normal, wi_Direct_Light, xi_Direct_Light,
+												pdf_Direct_Light, intersectionPoint, lightGeom);
 
-		//visibility test for direct lighting
-		ShadeableIntersection isx;
-		Ray n_ray_Direct_Light = spawnNewRay(intersection, wi_Direct_Light);
-		computeIntersectionsForASingleRay(n_ray_Direct_Light, isx, geoms, numGeoms);
+		//f term term
+		chosenBxDF = chooseBxDF(m, rng);
+		Vector3f f_Direct_Light = material_f(m, chosenBxDF, wo, wi_Direct_Light, rng);
 
-		// LTE calculation for Direct Lighting
-		if (isx.t > 0.0f && isx.hitGeomIndex != selectedLight.lightGeomIndex)
+		if (pdf_Direct_Light != 0.0f)
 		{
-			LTE_Direct_Light = f_Direct_Light * li_Direct_Light * absDot_Direct_Light / pdf_Direct_Light;
+			//absDot term		
+			float absDot_Direct_Light = glm::abs(glm::dot(wi_Direct_Light, intersection.surfaceNormal));
+
+			//visibility test for direct lighting
+			ShadeableIntersection isx;
+			Ray n_ray_Direct_Light = spawnNewRay(intersection, wi_Direct_Light);
+			computeIntersectionsForASingleRay(n_ray_Direct_Light, isx, geoms, numGeoms);
+
+			// LTE calculation for Direct Lighting
+			if (isx.t > 0.0f && isx.hitGeomIndex != selectedLight.lightGeomIndex)
+			{
+				LTE_Direct_Light = f_Direct_Light * li_Direct_Light * absDot_Direct_Light / pdf_Direct_Light;
+			}
 		}
-	}
+	}	
 
 	//----------------------- BSDF based Direct Lighting ------------------
 	Vector3f wiW_BSDF_Light;
@@ -175,20 +184,60 @@ __host__ __device__ void fullLightingIntegrator(int maxTraceDepth,
 	BxDFType sampledType;
 	int randomLightIndex_bsdf = -1;
 
+	if (true)
+	{
+		//if the object is not pure specular
+		if (chosenBxDF != BSDF_SPECULAR_BRDF)
+		{
+			//f term
+			Color3f f_BSDF_Light = material_sample_f(m, rng, wo, normal, geom, intersection, pathSegment,
+													geoms, numGeoms, f_BSDF_Light, wiW_BSDF_Light, 
+													pdf_BSDF_Light, chosenBxDF);
+
+			if (pdf_BSDF_Light != 0.0f)
+			{
+				//absDot Term
+				float absDot_BSDF_Light = glm::abs(glm::dot(wiW_BSDF_Light, intersection.surfaceNormal));
+				
+				//visibility test for bsdf based direct lighting; this also tests if the bsdf
+				//direct lighting ray actually hit the selected light used for actual direct
+				//lighting (Light important sampling based direct lighting)
+				ShadeableIntersection isx_bsdf;
+				Ray n_ray_BSDF_Light = spawnNewRay(intersection, wiW_BSDF_Light);
+				
+				computeIntersectionsForASingleRay(n_ray_BSDF_Light, isx_bsdf, geoms, numGeoms);
+
+				// LTE calculation for Direct Lighting
+				if (isx_bsdf.t > 0.0f && isx_bsdf.hitGeomIndex != selectedLight.lightGeomIndex)
+				{
+					//Li term - not recursive, cause direct lighting; emitted Light
+					Material m_bsdf_lighthit = materials[isx_bsdf.materialId];
+					Color3f li_BSDF_Light = L(m_bsdf_lighthit, isx_bsdf.surfaceNormal, -wiW_BSDF_Light);
+
+					//LTE term
+					LTE_BSDF_Light = f_BSDF_Light * li_BSDF_Light * absDot_BSDF_Light / pdf_BSDF_Light;
+				}
+			}
+		}
+	}
+
 	//----------------------- MIS -----------------------------------------
 	//MIS can only work on one type of light  energy, and so we use MIS for direct lighting only
 	float weight_BSDF_Light = 0.0;
 	float weight_Direct_Light = 0.0;
 
-	if (randomLightIndex != -1)
+	if (true)
 	{
-		weight_BSDF_Light = PowerHeuristic(1, pdf_BSDF_Light, 1, (sampleLightPDF(lightMat, wi_towardsLight, intersection, lightGeom)));
-		weight_Direct_Light = PowerHeuristic(1, pdf_Direct_Light, 1, material_Pdf(m, sampledType, wo, wi_Direct_Light, normal));
-	}
+		if (randomLightIndex != -1)
+		{
+			weight_BSDF_Light = PowerHeuristic(1, pdf_BSDF_Light, 1, (sampleLightPDF(lightMat, wiW_BSDF_Light, intersection, lightGeom)));
+			weight_Direct_Light = PowerHeuristic(1, pdf_Direct_Light, 1, material_Pdf(m, sampledType, wo, wi_Direct_Light, normal));
+		}
 
-	Color3f weighted_BSDF_Light_color = LTE_BSDF_Light * weight_BSDF_Light;
-	Color3f weighted_Direct_Light_color = LTE_Direct_Light * weight_Direct_Light;
-	directLightingColor = (weighted_BSDF_Light_color + weighted_Direct_Light_color) * (float)numLights;
+		Color3f weighted_BSDF_Light_color = LTE_BSDF_Light * weight_BSDF_Light;
+		Color3f weighted_Direct_Light_color = LTE_Direct_Light * weight_Direct_Light;
+		directLightingColor = (weighted_BSDF_Light_color + weighted_Direct_Light_color) * (float)numLights;
+	}
 
 	//----------------------- Update Overall DirectLightingColor ----------
 	directLightingColor *= accumulatedThroughput;
