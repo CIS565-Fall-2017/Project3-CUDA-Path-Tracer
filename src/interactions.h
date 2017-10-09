@@ -143,6 +143,7 @@ __host__ __device__ void fullLightingIntegrator(int maxTraceDepth,
 	Geom lightGeom;
 	Light selectedLight;
 	BxDFType chosenBxDF;
+	Color3f li_Direct_Light;
 
 	if (true) //just for now so i can collapse things
 	{
@@ -151,8 +152,8 @@ __host__ __device__ void fullLightingIntegrator(int maxTraceDepth,
 		selectedLight = lights[randomLightIndex];
 		lightGeom = geoms[selectedLight.lightGeomIndex];
 		lightMat = materials[lightGeom.materialid];
-		Color3f li_Direct_Light = sampleLights(lightMat, normal, wi_Direct_Light, xi_Direct_Light,
-												pdf_Direct_Light, intersectionPoint, lightGeom);
+		li_Direct_Light = sampleLights(lightMat, normal, wi_Direct_Light, xi_Direct_Light,
+										pdf_Direct_Light, intersectionPoint, lightGeom);
 
 		//f term term
 		chosenBxDF = chooseBxDF(m, rng);
@@ -282,6 +283,7 @@ __host__ __device__ void fullLightingIntegrator(int maxTraceDepth,
 	russianRoulette(pathSegment.accumulatedThroughput, u01(rng), pathSegment.remainingBounces, maxTraceDepth);
 	//----------------------- Update AccumulatedColor ---------------------
 	pathSegment.accumulatedColor += directLightingColor;
+	//pathSegment.accumulatedColor = li_Direct_Light;
 	//----------------------- new Ray Generation --------------------------
 	pathSegment.ray = spawnNewRay(intersection, wiW_BSDF_Indirect);
 	pathSegment.remainingBounces--;
