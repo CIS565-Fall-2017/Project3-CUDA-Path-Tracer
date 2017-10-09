@@ -110,8 +110,6 @@ __host__ __device__ void directLightingIntegrator(PathSegment & pathSegment,
 		pathSegment.color = Color3f(0.f);
 	}
 
-	pathSegment.color = m.emittance*m.color + pathSegment.color;
-
 	pathSegment.remainingBounces = 0;
 }
 
