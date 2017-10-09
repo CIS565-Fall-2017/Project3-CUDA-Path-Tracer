@@ -242,6 +242,7 @@ void ColorEmissive(
         pathSegment.remainingBounces = 0; // terminate the ray
 }
 // used for sorting matl is the single material that this intersection will use.
+// Not used now ... This compiles but I wasn't able to get sort to compile with this.
 __host__ __device__ bool thrust::less<ShadeableIntersection>::operator()
     (const ShadeableIntersection &v1, const ShadeableIntersection& v2) const
 {

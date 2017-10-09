@@ -4,6 +4,8 @@
 #include <thrust/execution_policy.h>
 #include <thrust/random.h>
 #include <thrust/remove.h>
+#include <thrust/sort.h>
+#include <thrust/device_ptr.h>
 
 #include "sceneStructs.h"
 #include "scene.h"
@@ -106,6 +108,8 @@ void pathtraceFree() {
   	cudaFree(dev_materials);
   	cudaFree(dev_intersections);
 	cudaFree(dev_intersections2);
+	cudaFree(dev_indices);
+	cudaFree(dev_matlTypes);
 	StreamCompaction::Efficient::freeCompaction(aux);
     // TODO: clean up any extra device memory you created
 
@@ -343,8 +347,66 @@ __global__ void shadeFakeMaterial (
     }
   }
 }
+dim3 gridSize(int num_paths) 
+{
+	return (num_paths + StreamCompaction::Efficient::blockSize - 1) / 
+		StreamCompaction::Efficient::blockSize;
+}
+// copy elements from unsorted intersections and pathSegments to sorted space using the pointer array.
+__global__ void updateShadeableIntersections(int nPaths, const int * dev_indices, 
+	         ShadeableIntersection * sortedIntersections, 
+		                  const ShadeableIntersection * intersections, 
+				  PathSegment * pathSegmentsSorted, const PathSegment * pathSegments)
+{
+	int index = (blockIdx.x * blockDim.x) + threadIdx.x;
 
+	if (index < nPaths)
+	{
+		pathSegmentsSorted[index] = pathSegments[dev_indices[index]];
+		sortedIntersections[index] = intersections[dev_indices[index]];
+	}
+}
+// Update Material Type and indices or the pointers to the elements in the unsorted array.  Material is
+// already a unique number. The pointers are initilsized to the element index (0, 1, 2, 3 ...)
+__global__ void updateMaterialType(int nPaths, int * dev_matl, int * dev_indices, 
+		                  const ShadeableIntersection * intersections)
+{
+	int index = (blockIdx.x * blockDim.x) + threadIdx.x;
 
+	if (index < nPaths)
+	{
+		const ShadeableIntersection& si { intersections[index]};
+		dev_matl[index] = si.matl << 1 + si.outside;
+		dev_indices[index] = index;
+	}
+}
+//sortByMaterial will sort the pathSegments and the ShadeableIntersections by Materialtype.
+//The Shadeable Intersection has an integer MaterialType and whether it is out or in and this
+//is turned into one integer and stored in dev_matl and pointers to the original locations 
+//(indices 0, 1, 2 ...) in dev_indices also are stored. These are then sorted with thrust::sort_by_key
+// on integer values-- and this should be very fast since radix sort can be used. I tried
+// passing my own comparison function and sorting the ShadeableIntersections directly but that
+// would not compile and later I understood that it would not be as fast even if it did
+// since thrust would have no way to optimize the sort like it can with integers. Once that sort is done,
+//I go back and move the Shadeable  intersections and pathSegments.
+void sortByMaterial(int nPaths,  dim3 blocks, int * dev_matl,
+		int * dev_indices, 
+		ShadeableIntersection * sortedIntersections, 
+		 const ShadeableIntersection * intersections, 
+	         PathSegment * pathSegmentsSorted, 
+		 const PathSegment * pathSegments)
+{
+	dim3 grid { gridSize(nPaths)};
+	updateMaterialType<<<grid, blocks>>>(nPaths, dev_matl,
+			 dev_indices, intersections);
+	thrust::device_ptr<int> matl(dev_matl);
+	thrust::device_ptr<int> loc(dev_indices);
+	thrust::sort_by_key(matl, matl + nPaths, loc);
+//	thrust::device_ptr<ShadeableIntersection> intTest(intersections);
+//	thrust::sort_by_key(intTest, intTest + 5, intTest, thrust::less<ShadeableIntersection>() );
+    updateShadeableIntersections<<<grid, blocks>>>(nPaths, 
+		           dev_indices,  sortedIntersections, intersections, pathSegmentsSorted, pathSegments);
+}
 // addTerminated rays
 // all rays with remainingBounces == 0 will get added to the image with no sorting.
 __global__ void addTerminatedRays(int nPaths, glm::vec3 * image, PathSegment * iterationPaths)
@@ -371,11 +433,6 @@ __global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterati
 		PathSegment iterationPath = iterationPaths[index];
 		image[iterationPath.pixelIndex] += iterationPath.color;
 	}
-}
-dim3 gridSize(int num_paths) 
-{
-	return (num_paths + StreamCompaction::Efficient::blockSize - 1) / 
-		StreamCompaction::Efficient::blockSize;
 }
 /**
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
@@ -426,11 +483,20 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	// compact the threads to remove paths that are zero.  This call puts all the 
 	// active threads in the beginning; 
 	if (hst_scene->state.method != pathTraceMethod::NoCompaction){
+		// adds terminated rays to the image
 	    addTerminatedRays<<<numblocksPathSegmentTracing, blockSize1d>>>(num_paths, 
 			    dev_image, dev_paths);
-	    ptrdiff_t newpaths { compactScene(num_paths, &aux, dev_paths2, dev_paths, dev_intersections2,
+	    int newpaths { compactScene(num_paths, &aux, dev_paths2, dev_paths, dev_intersections2,
 		         dev_intersections)};
-	    std::swap(dev_intersections2, dev_intersections); 
+	    num_paths = (newpaths);
+		if (hst_scene->state.method == pathTraceMethod::CompactionWithSorting) {
+			sortByMaterial(num_paths, blockSize1d, dev_matlTypes, dev_indices,
+				dev_intersections, dev_intersections2, dev_paths, dev_paths2);
+		}
+		else {
+	           std::swap(dev_intersections2, dev_intersections); 
+	           std::swap(dev_paths, dev_paths2);  
+		}
 	
             // all the new terminated rays (some may be light colored and some are black) 
             // need to be placed in the back of dev_paths2
@@ -442,10 +508,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
             // send those data to the image
             //dim3 finishedblocks = gridSize(newZeros);
             //finalGather<<<finishedblocks, blockSize1d>>>(newZeros, dev_image, dev_paths2 + newpaths);
-            num_paths = static_cast<int>(newpaths);
 	    // dev_paths2 is the one organized with pixels that need to be shaded--
 	    // Use swap to set the organized buffer to dev_paths
-	    std::swap(dev_paths, dev_paths2);  
 	}
 	// dev_paths2 is the one organized with pixels that need to be shaded--
 	// Use swap to set the organized buffer to dev_paths
