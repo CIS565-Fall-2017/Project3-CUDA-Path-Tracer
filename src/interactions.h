@@ -657,7 +657,7 @@ glm::vec3 getL_Sd(const Ray& pathray, const ShadeableIntersection& isect,
 
 			//if (t > max_t || t < 0) { continue; } 
 			if (t <= max_t && t >= 0) { foundSample = true; } 
-			if (20 <= count++) { break; }//dim/inaccurate better than inf loop
+			if (100 <= count++) { break; }//dim/inaccurate better than inf loop
 		}
 		if (!foundSample) { continue; }
 
@@ -756,9 +756,8 @@ void chooseSubSurface(PathSegment& path, ShadeableIntersection& isect, const Mat
 		if (thisgeom.type == GeomType::CUBE && !outside) { nPHit *= -1.f; } //cube's flipping the normal, other shapes aren't
 		pPHit += nPHit*0.005f;
 
-		//NOTE: FIRST ONE IS CORRECT
 		if (t <= max_t && t >= 0) { foundSample = true; } 
-		if (20 <= count++) {
+		if (100 <= count++) {
 			bxdfColor = glm::vec3(0); bxdfPDF = 0;
 			return;
 		}
@@ -788,6 +787,8 @@ void chooseSubSurface(PathSegment& path, ShadeableIntersection& isect, const Mat
 	path.ray.origin = pPHit;
 	path.ray.direction = wiBxdfSample;
 }
+
+
 /**
  * Scatter a ray with some probabilities according to the material properties.
  * For example, a diffuse surface scatters in a cosine-weighted hemisphere.

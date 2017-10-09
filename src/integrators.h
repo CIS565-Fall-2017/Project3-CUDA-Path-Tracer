@@ -451,11 +451,11 @@ __global__ void shadeMaterialMIS(const int iter, const int depth,
 	//if (idx == 0) { 
 		//printf("\nhello %i", idx); //you can printf from the gpu!
 	//}
-	int pixelx = path.MSPaintPixel.x;
-	int pixely = path.MSPaintPixel.y;
-	if (270 == pixelx && 220 == pixely) {
-		printf("\npixelx: %i, pixely: %i, depth: %i, iter: %i", pixelx, pixely, depth, iter);
-	}
+	//int pixelx = path.MSPaintPixel.x;
+	//int pixely = path.MSPaintPixel.y;
+	//if (270 == pixelx && 220 == pixely) {
+	//	printf("\npixelx: %i, pixely: %i, depth: %i, iter: %i", pixelx, pixely, depth, iter);
+	//}
 
 //#if 0 == COMPACT
 	if (terminatenumber >= path.remainingBounces) { return; }

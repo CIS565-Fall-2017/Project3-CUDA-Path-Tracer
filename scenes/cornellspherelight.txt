@@ -2,7 +2,7 @@
 CAMERA
 RES         800 800
 FOVY        19.5
-ITERATIONS  10000
+ITERATIONS  20000
 DEPTH       10
 FILE        cornell
 EYE         0.0 5 19
@@ -92,7 +92,7 @@ MATERIAL 6
 RGB         1 1 1
 SPECEX      0
 SPECRGB     0 0 0
-REFL        0
+REFL        1
 REFR        0
 REFRIOR     1.5
 EMITTANCE   0
