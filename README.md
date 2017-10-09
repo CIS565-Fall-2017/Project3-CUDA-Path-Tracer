@@ -86,9 +86,9 @@ Sum of two materials:
 Here is a series of images that show that the sum of two materials is working.  These were done using a file "TransmissionReflective.txt".  I turned down the 
 light intensity alot so that the pixels would not saturate.
 
-![](img/cornell.2017-10-09_13_08-10z.587samp.png).  This image is reflective only. One can see how the cube is reflecting the light on the far wall and on the sphere.
+![](img/cornell.2017-10-09_13-08-10z.587samp.png).  This image is reflective only. One can see how the cube is reflecting the light on the far wall and on the sphere.
 
-![](img/cornell.2017-10-09_13_09-07z.2050samp.png).  This image is transmitted only.  One can see how the cube is light because there are angles that pass from the light to the camera.  one can see the transmitted light on the walls.
+![](img/cornell.2017-10-09_13-09-07z.2050samp.png).  This image is transmitted only.  One can see how the cube is light because there are angles that pass from the light to the camera.  one can see the transmitted light on the walls.
 
 ![](img/cornell.2017-10-09_13-07-03z.729samp.png) This is both transmitted and reflected. The image is very bright.  THis is because the light is simply adding.  Physically speaking the transmitted and reflected contributions shoud be attenuated by the fresnel coefficient, and this has not been implemented yet. To do that I would add another field to the image so that one could have mirror reflection (always reflecting) and Fresnel reflection (dividing up the light intoreflected and transmitted amplitudes).
 
