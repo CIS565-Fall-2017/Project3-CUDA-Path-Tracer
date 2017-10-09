@@ -475,8 +475,12 @@ int Scene::loadEnvironment() {
 		newLight.geomIdx = -1;
 
 		lights.push_back(newLight);
+
+		return 1;
 	}
 	else {
 		cout << "ERROR : Loading Environment Map failed" << endl;
+
+		return -1;
 	}
 }

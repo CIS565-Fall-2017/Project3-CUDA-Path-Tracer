@@ -38,9 +38,9 @@
 //#define RADIXSORT
 
 // Uncommment to enable len persoective camera
-//#define LENPERSPECTIVECAMERA
-//#define LEN_RADIUS 2.0f
-//#define FOCAL_LENGTH 5.0f
+#define LENPERSPECTIVECAMERA
+#define LEN_RADIUS 0.2f
+#define FOCAL_LENGTH 10.5f
 // ----------------------------------------------------------------
 // ----------------------------------------------------------------
 

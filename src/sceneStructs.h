@@ -271,6 +271,7 @@ struct Triangle {
 								   normals[1] * baryPosition.x +
 								   normals[2] * baryPosition.y;
 
+			isect->surfaceNormal = glm::normalize(isect->surfaceNormal);
 
 			glm::vec3 objspaceIntersection = r.origin + (baryPosition.z - .0001f) * glm::normalize(r.direction);
 

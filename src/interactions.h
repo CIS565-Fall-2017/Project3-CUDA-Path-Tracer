@@ -127,6 +127,42 @@ __host__ __device__ int intersectScene(
 	return hit_geom_index;
 }
 
+// For glass material
+__host__ __device__
+inline float FrDielectric(float cosThetaI, float etaI, float etaT) {
+
+	cosThetaI = glm::clamp(cosThetaI, -1.0f, 1.0f);
+
+	// Potentially swap indices of refraction
+	bool entering = cosThetaI > 0.f;
+	if (!entering) {
+		float tmp = etaI;
+		etaI = etaT;
+		etaT = tmp;
+		cosThetaI = glm::abs(cosThetaI);
+	}
+
+	// Compute cosThetaT using Snell's law
+	float sinThetaI = glm::sqrt(glm::max(0.f, 1.0f - cosThetaI * cosThetaI));
+
+	float sinThetaT = etaI / etaT * sinThetaI;
+
+	// Handle total internal reflection
+	if (sinThetaT >= 1.0f) {
+		return 1.0f;
+	}
+
+	float cosThetaT = glm::sqrt(glm::max(0.f, 1.0f - sinThetaT * sinThetaT));
+
+
+	float Rparl = ((etaT * cosThetaI) - (etaI * cosThetaT)) /
+		((etaT * cosThetaI) + (etaI * cosThetaT));
+	float Rprep = ((etaI * cosThetaI) - (etaT * cosThetaT)) /
+		((etaI * cosThetaI) + (etaT * cosThetaT));
+
+	return (Rparl * Rparl + Rprep * Rprep) / 2.0f;
+}
+
 
 /**
  * Scatter a ray with some probabilities according to the material properties.
@@ -195,16 +231,21 @@ void scatterRay(
 		float refractProb = 1.0f - reflecProb;
 
 		// Use Schlick's Approximation. No specific Frensel model
-		float temp = (1.0f - m.indexOfRefraction) / (1.0f + m.indexOfRefraction);
-		float R0 = temp * temp;
-		float cosineTheta = AbsDot(incidentDirection, normal_bsdf);
-		float frenselCoefficient = R0 + (1.0f - R0) * (1.0f - cosineTheta) * (1.0f - cosineTheta);
+	//	float temp = (1.0f - m.indexOfRefraction) / (1.0f + m.indexOfRefraction);
+	//	float R0 = temp * temp;
+	//	float OneMinusCosineTheta = 1.0f - AbsDot(incidentDirection, normal_bsdf);
+	//	float frenselCoefficient = R0 + (1.0f - R0) * OneMinusCosineTheta * OneMinusCosineTheta * OneMinusCosineTheta * OneMinusCosineTheta * OneMinusCosineTheta;
+
+		float frenselCoefficient;
 
 		if (probability < reflecProb) {
 			newDirection = Reflect(-incidentDirection, normal_bsdf);
 			newDirection = glm::normalize(newDirection);
 			pathSegment.ray.direction = newDirection;
-			pathSegment.ray.origin = intersect;
+			pathSegment.ray.origin = intersect + 0.0001f * normal_bsdf;
+
+			frenselCoefficient = FrDielectric( glm::dot(normal_bsdf,newDirection), 1.0f, m.indexOfRefraction);
+
 #ifndef ENABLE_DIR_LIGHTING
 			pathSegment.color *= (frenselCoefficient * m.specular.color / reflecProb); // divide the probability to counter the chance
 #else
@@ -226,11 +267,18 @@ void scatterRay(
 			if (!Refract(-incidentDirection, Faceforward(normal_bsdf, -incidentDirection), eta, &wt)) {
 				newDirection = Reflect(-incidentDirection, Faceforward(normal_bsdf, -incidentDirection));
 				newDirection = glm::normalize(newDirection);
+
+				frenselCoefficient = FrDielectric(glm::dot(normal_bsdf, newDirection), 1.0f, m.indexOfRefraction);
+
 				pathSegment.ray.direction = newDirection;
-				pathSegment.ray.origin = intersect;
+				pathSegment.ray.origin = intersect + 0.0001f * normal_bsdf;
 			}
 			else {
-				pathSegment.ray.direction = glm::normalize(wt);
+				newDirection = glm::normalize(wt);
+
+				frenselCoefficient = FrDielectric(glm::dot(normal_bsdf, newDirection), 1.0f, m.indexOfRefraction);
+				
+				pathSegment.ray.direction = newDirection;
 				pathSegment.ray.origin = intersect + 0.0002f * incidentDirection + 0.0002f * Faceforward(normal_bsdf, incidentDirection);
 			}
 #ifndef ENABLE_DIR_LIGHTING
@@ -249,7 +297,7 @@ void scatterRay(
 		newDirection = Reflect(-incidentDirection, normal_bsdf);
 		newDirection = glm::normalize(newDirection);
 		pathSegment.ray.direction = newDirection;
-		pathSegment.ray.origin = intersect;
+		pathSegment.ray.origin = intersect + 0.0001f * normal_bsdf;
 
 #ifndef ENABLE_DIR_LIGHTING
 		pathSegment.color *= m.specular.color; 
@@ -278,7 +326,7 @@ void scatterRay(
 			newDirection = Reflect(-incidentDirection, Faceforward(normal_bsdf, -incidentDirection));
 			newDirection = glm::normalize(newDirection);
 			pathSegment.ray.direction = newDirection;
-			pathSegment.ray.origin = intersect;
+			pathSegment.ray.origin = intersect + 0.0001f * normal_bsdf;
 		}
 		else {
 			pathSegment.ray.direction = glm::normalize(wt);
@@ -348,7 +396,7 @@ void scatterRay(
 		}
 		else if (selectedLight.type == InfiniteAreaLight) {
 			// if it's an environment light map, use a cosine-weight distribution
-			shadowFeelRay.direction = calculateRandomDirectionInHemisphere(normal_bsdf, rng);
+			shadowFeelRay.direction = glm::normalize(calculateRandomDirectionInHemisphere(normal_bsdf, rng));
 			pdf_direct = AbsDot(shadowFeelRay.direction, normal_bsdf) * InvPi; // Trick.. For simplicity, just use Lambert bxdf pdf here
 		}
 

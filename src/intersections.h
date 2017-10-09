@@ -326,6 +326,7 @@ __host__ __device__ float meshIntersectionTest(Geom mesh, Triangle* tris,
 			 nearestIntersectTri.normals[1] * minBaryPosition.x +
 			 nearestIntersectTri.normals[2] * minBaryPosition.y;
 
+	normal = glm::normalize(normal);
 
 	glm::vec3 objspaceIntersection = getPointOnRay(r, tMin);
 

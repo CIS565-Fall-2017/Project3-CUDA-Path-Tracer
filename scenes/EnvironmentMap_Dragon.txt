@@ -22,10 +22,10 @@ EMITTANCE   0
 MATERIAL 2
 RGB         .98 .98 .98
 SPECEX      0
-SPECRGB     .2 .98 .98
+SPECRGB     .98 .2 .2
 REFL        0.5
 REFR        0.5
-REFRIOR     2.5
+REFRIOR     1.5
 EMITTANCE   0
 
 // Camera
