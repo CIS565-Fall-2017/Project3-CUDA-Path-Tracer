@@ -255,7 +255,8 @@ __host__ __device__ Color3f material_sample_f(const Material &m, thrust::default
 				}
 			}
 		}
+		sampledColor = Color;
 	}
 
-	return Color;
+	return sampledColor;
 }

@@ -46,8 +46,8 @@ __host__ __device__ void naiveIntegrator(PathSegment & pathSegment,
 	BxDFType chosenBxDF;
 	float pdf = 0.0f;
 
-	sampledColor = material_sample_f(m, rng, wo, normal, geom, intersection, pathSegment, 
-									geoms, numGeoms, sampledColor, wi, pdf, chosenBxDF);
+	sampledColor = material_sample_f(m, rng, wo, normal, geom, intersection, pathSegment,
+									 geoms, numGeoms, sampledColor, wi, pdf, chosenBxDF);
 
 	if (pdf != 0.0f)
 	{
@@ -247,11 +247,13 @@ __host__ __device__ void fullLightingIntegrator(int maxTraceDepth,
 	float pdf_BSDF_Indirect;
 	Point2f xi_BSDF_Indirect = Point2f(u01(rng), u01(rng));
 
+
+
 	//----------------------- Russian Roulette ----------------------------
 	russianRoulette(accumulatedThroughput, u01(rng), pathSegment.remainingBounces, maxTraceDepth);
 	//----------------------- Update AccumulatedColor ---------------------
 	accumulatedColor += directLightingColor;
 	//----------------------- new Ray Generation --------------------------
-	pathSegment.ray = spawnNewRay(intersection, wi);
+	pathSegment.ray = spawnNewRay(intersection, wiW_BSDF_Indirect);
 	pathSegment.remainingBounces--;
 }
