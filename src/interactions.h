@@ -779,8 +779,9 @@ void chooseSubSurface(PathSegment& path, ShadeableIntersection& isect, const Mat
 	//colordirect contains the DL sampling pdf
 	//jensen01 pg3 fig5
 	//record the pdf and color
+	const float CosSampledDirBxdfPDF = sameHemisphere(wo, wiBxdfSample, nPHit) ? cosTheta(nPHit, wiBxdfSample)*InvPI : 0.f;
 	bxdfColor = (misweight * InvPI * Ft_wi * RdJensen * Ft_wo);
-	bxdfPDF = discSamplePdf;
+	bxdfPDF = discSamplePdf * CosSampledDirBxdfPDF;
 
 	//update path with the new xi and wi
 	isect.surfaceNormal = nPHit;

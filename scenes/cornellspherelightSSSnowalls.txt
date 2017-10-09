@@ -113,7 +113,7 @@ SCALE       1 1 1
 // Sphere lambert
 OBJECT 1
 sphere
-material 1
+material 6
 TRANS       -2.5 6 1
 ROTAT       45 45 0
 SCALE       2 2 2
