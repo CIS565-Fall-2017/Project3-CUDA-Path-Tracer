@@ -18,6 +18,7 @@ set(SOURCE_FILES
     "utilkern.h"
     "warpfunctions.h"
     "shapefunctions.h"
+    "integrators.h"
     )
 
 cuda_add_library(src

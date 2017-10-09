@@ -161,10 +161,22 @@ int Scene::loadMaterial(string materialid) {
         return -1;
     } else {
         cout << "Loading Material " << id << "..." << endl;
-        Material newMaterial;
+		Material newMaterial;
+		//newMaterial.color = glm::vec3(0);
+		//newMaterial.emittance = 0;
+		//newMaterial.hasReflective = 0;
+		//newMaterial.hasRefractive = 0;
+		//newMaterial.hasSubSurface = 0;
+		//newMaterial.indexOfRefraction = 1;
+		//newMaterial.sigA = glm::vec3(0);
+		//newMaterial.sigSPrime = glm::vec3(0);
+		//newMaterial.specular.color = glm::vec3(0);
+		//newMaterial.specular.exponent = 0;
 
         //load static properties
-        for (int i = 0; i < 7; i++) {
+		//this should just stop when it hits a blank line
+		const int totalfields = 10;
+        for (int i = 0; i < totalfields; i++) {
             string line;
             utilityCore::safeGetline(fp_in, line);
             vector<string> tokens = utilityCore::tokenizeString(line);
@@ -184,7 +196,16 @@ int Scene::loadMaterial(string materialid) {
                 newMaterial.indexOfRefraction = atof(tokens[1].c_str());
             } else if (strcmp(tokens[0].c_str(), "EMITTANCE") == 0) {
                 newMaterial.emittance = atof(tokens[1].c_str());
-            }
+			//NEW FIELDS HERE
+            } else if (strcmp(tokens[0].c_str(), "SSS") == 0) {
+                newMaterial.hasSubSurface = atof(tokens[1].c_str());
+            } else if (strcmp(tokens[0].c_str(), "SIGA") == 0) {
+                glm::vec3 sigA(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+				newMaterial.sigA = sigA;
+			} else if (strcmp(tokens[0].c_str(), "SIGSPRIME") == 0) {
+				glm::vec3 sigSPrime(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+				newMaterial.sigSPrime = sigSPrime;
+			}
         }
         materials.push_back(newMaterial);
         return 1;

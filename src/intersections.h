@@ -2,22 +2,9 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtx/intersect.hpp>
-
 #include "sceneStructs.h"
 #include "utilities.h"
-
-/**
- * Handy-dandy hash function that provides seeds for random number generation.
- */
-__host__ __device__ inline unsigned int utilhash(unsigned int a) {
-    a = (a + 0x7ed55d16) + (a << 12);
-    a = (a ^ 0xc761c23c) ^ (a >> 19);
-    a = (a + 0x165667b1) + (a << 5);
-    a = (a + 0xd3a2646c) ^ (a << 9);
-    a = (a + 0xfd7046c5) + (a << 3);
-    a = (a ^ 0xb55a4f09) ^ (a >> 16);
-    return a;
-}
+#include "utilkern.h"
 
 // CHECKITOUT
 /**
@@ -136,11 +123,10 @@ __host__ __device__ float sphereIntersectionTest(const Geom& sphere, const Ray& 
 
     const glm::vec3 objspaceIntersection = getPointOnRay(rt, t);
 
+
     intersectionPoint = multiplyMV(sphere.transform, glm::vec4(objspaceIntersection, 1.f));
     normal = glm::normalize(multiplyMV(glm::mat4(sphere.invTranspose), glm::vec4(objspaceIntersection, 0.f)));
-    //if (!outside) {
-    //    normal = -normal;
-    //}
+
 
     return glm::length(r.origin - intersectionPoint);
 }
@@ -185,7 +171,7 @@ __host__ __device__ float shapeIntersectionTest(const Geom& geom, const Ray& ray
 		return boxIntersectionTest(geom, ray, intersectionPoint, normal, outside);
 
 	} else if (geom.type == GeomType::SPHERE) {
-		return sphereIntersectionTest(geom, ray, intersectionPoint, normal, outside);
+		return sphereIntersectionTest(geom, ray, intersectionPoint, normal,  outside);
 
 	} else if (geom.type == GeomType::PLANE) {
 		return planeIntersectionTest(geom, ray, intersectionPoint, normal, outside);
@@ -193,13 +179,11 @@ __host__ __device__ float shapeIntersectionTest(const Geom& geom, const Ray& ray
 }
 
 
-
-///////////////////////////////////////////
-//////// FIND CLOSEST INTERSECTION/////////
-///////////////////////////////////////////
+////////////////////////////////////////////
+//////// FIND CLOSEST INTERSECTION /////////
+////////////////////////////////////////////
 __host__ __device__ glm::vec3 findClosestIntersection(const Ray& ray,
-	const Geom* const geoms, int geoms_size, int& hit_geom_index
-	)
+	const Geom* const geoms, int geoms_size, int& hit_geom_index)
 {
 	float t;
 	float t_min = FLT_MAX;
@@ -215,7 +199,7 @@ __host__ __device__ glm::vec3 findClosestIntersection(const Ray& ray,
 		const Geom& geom = geoms[i];
 
 		if (geom.type == GeomType::CUBE) {
-			t = boxIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside);
+			t = boxIntersectionTest(geom, ray, tmp_intersect, tmp_normal,outside);
 
 		} else if (geom.type == GeomType::SPHERE) {
 			t = sphereIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside);
@@ -234,3 +218,60 @@ __host__ __device__ glm::vec3 findClosestIntersection(const Ray& ray,
 	}
 	return nisect;
 }
+
+////TBN computations
+//
+//__host__ __device__ glm::vec3 computeTanToObjFromWorldNormalSphere(
+//	const Geom& g, const glm::vec3& worldNorm, glm::mat3& tanToObj) {
+//
+//	const glm::vec3 objNorm = glm::normalize(glm::transpose(g.invTranspose) * worldNorm);
+//
+//	//N (z)
+//	tanToObj[2] = glm::normalize(objNorm);
+//	//T (x)
+//	tanToObj[0] = glm::normalize(glm::cross(glm::vec3(0, 1, 0), tanToObj[2]));
+//	//B (y)
+//	tanToObj[1] = glm::normalize(glm::cross(tanToObj[2], tanToObj[0]));
+//}
+//
+//__host__ __device__ glm::vec3 computeTanToObjFromWorldNormalCube(
+//	const Geom& g, const glm::vec3& worldNorm, glm::mat3& tanToObj) 
+//{
+//	const glm::vec3 objNorm = glm::normalize(glm::transpose(g.invTranspose) * worldNorm);
+//
+//    glm::vec3 objB(1.f,0.f,0.f);
+//    if(objNorm.y <= 0.1f) {
+//        objB.x = 0.f;
+//        objB.y = 1.f;
+//    }
+//
+//	//N (z)
+//	tanToObj[2] = objNorm;
+//	//B (y)
+//	tanToObj[1] = objB;
+//	//T (x)
+//	tanToObj[0] = glm::normalize(glm::cross(tanToObj[1], tanToObj[2]));
+//}
+//
+//__host__ __device__ glm::vec3 computeTanToObjFromWorldNormalPlane(
+//	const Geom& g, const glm::vec3& worldNorm, glm::mat3& tanToObj) 
+//{
+//	//N (z)
+//	tanToObj[2] = glm::vec3(0, 0, 1);
+//	//T (x)
+//	tanToObj[0] = glm::vec3(1, 0, 0);
+//	//B (y)
+//	tanToObj[1] = glm::vec3(0, 1, 0);
+//}
+//
+//__host__ __device__ glm::vec3 computeTanToObjFromWorldNormalShape(
+//	const Geom& g, const glm::vec3& worldNorm, glm::mat3& tanToObj) {
+//
+//	if (g.type == GeomType::SPHERE) {
+//		computeTanToObjFromWorldNormalSphere(g, worldNorm, tanToObj);
+//	} else if( g.type == GeomType::CUBE) {
+//		computeTanToObjFromWorldNormalCube(g, worldNorm, tanToObj);
+//	} else if( g.type == GeomType::PLANE) {
+//		computeTanToObjFromWorldNormalPlane(g, worldNorm, tanToObj);
+//	}
+//}

@@ -14,7 +14,7 @@ For a detailed overiew of the path tracing techniques see the book Physcially-Ba
 http://www.pbrt.org/
 
 **Highlights**<br />
-    Below are some are some renders using multiple importance sampling and and naive path tracing. Notice the noise rection due to direct light multiple importance sampling in the 100 samples per pixel image. 
+    Below are some are some renders using multiple importance sampling and and naive path tracing. Notice the noise rection due to direct light multiple importance sampling in the 100 samples per pixel image. You may see ringing artifacts when viewing on the web. Originals do not have this.
 <br />
 <br />
     The compaction optimization was not much of an optimization given that it did not reduce the render time per pixel sample. Reasons for this could be the sorting overhead. I tried to increase the pixel count to 1000x1000 image and did not see the compaction fuctions catching up to no compaction version. The warp retiring benefits we get from removing the dead paths does not outway the overhead from removing them in the first place.
@@ -31,6 +31,7 @@ http://www.pbrt.org/
 <br />
 
 
+**Renders, may see ringing artifacts when viewing on the web**<br />
 **MIS with Fresnel Reflection and Transmission**<br />
 **MIS 1080x1080 5000spp**<br />
 ![](img/cornellGlassCubeMIS5000.png)

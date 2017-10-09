@@ -39,8 +39,18 @@ struct Material {
     } specular;
     float hasReflective;
     float hasRefractive;
+    float hasSubSurface;
     float indexOfRefraction;
     float emittance;
+    glm::vec3 sigA;
+    glm::vec3 sigSPrime;
+
+//jensen page 5 top right
+//marble: sigA(units are per mm) = 0.0021, 0.0041, 0.0071 
+//marble: sigSPrime = 2.19, 2.62, 3
+//marble: eta = 1.5
+//marble: diffuse reflectance should be = 0.83, 0.79, 0.75 
+
 };
 
 struct Camera {
@@ -67,7 +77,7 @@ struct PathSegment {
 	Ray ray;
 	glm::vec3 color;
 	int pixelIndex;
-	glm::ivec2 MSPaintPixel;
+	glm::ivec2 MSPaintPixel;//debugging
 	glm::vec3 throughput;
 	bool specularbounce;
 };
@@ -79,4 +89,6 @@ struct ShadeableIntersection {
   float t;
   glm::vec3 surfaceNormal;
   int materialId;
+  int geomId;
 };
+

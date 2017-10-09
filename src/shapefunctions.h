@@ -62,12 +62,13 @@ __host__ __device__ glm::vec3 surfaceSampleSphere(glm::vec3& nlightsamp, const G
 
 	CoordinateSystem(centerToRef, tan, bit);
 
-	glm::vec3 pOrigin;
-	if (glm::dot(center - pisect, nisect) > 0) {
-		pOrigin = pisect + nisect * EPSILON;//i belived pisect is already offset along the normal before it gets here
-	} else {
-		pOrigin = pisect - nisect * EPSILON;
-	}
+	//glm::vec3 pOrigin;
+	glm::vec3 pOrigin = pisect;
+	//if (glm::dot(centerToRef, nisect) > 0) {
+	//	pOrigin = pisect + nisect * EPSILON;//i belived pisect is already offset along the normal before it gets here
+	//} else {
+	//	pOrigin = pisect - nisect * EPSILON;
+	//}
 
 	//r=1 in obj space, inside sphere test
 	if (glm::distance2(pOrigin, center) <= 1.f) {// r^2 also 1
