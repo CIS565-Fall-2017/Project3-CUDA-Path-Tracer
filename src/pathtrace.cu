@@ -778,39 +778,6 @@ __global__ void NaiveIntegrator(
     }
 }
 
-#include <chrono>
-using time_point_t = std::chrono::high_resolution_clock::time_point;
-bool cpuTimerStarted = false;
-time_point_t timeStartCpu;
-time_point_t timeEndCpu;
-float prevElapsedTime = 0.0f;
-
-void startCpuTimer() {
-    if (cpuTimerStarted) {
-        throw std::runtime_error("CPU timer already started");
-    }
-
-    cpuTimerStarted = true;
-    timeStartCpu = std::chrono::high_resolution_clock::now();
-}
-
-void endCpuTimer() {
-    timeEndCpu = std::chrono::high_resolution_clock::now();
-
-    if (!cpuTimerStarted) {
-        throw std::runtime_error("CPU timer not started");
-    }
-
-    std::chrono::duration<double, std::milli> duration = timeEndCpu - timeStartCpu;
-    prevElapsedTime = static_cast<decltype(prevElapsedTime)>(duration.count());
-
-    cpuTimerStarted = false;
-}
-
-void printTimer(int depth) {
-    printf("Depth %d: %f milliseconds\n", depth, prevElapsedTime);
-}
-
 // Needed for Thrust stream compaction
 struct is_active
 {
@@ -877,8 +844,6 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
     // * Finally, add this iteration's results to the image. This has been done
     //   for you.
 
-    // Timing for measuring performance
-
 
     int depth = 0;
     PathSegment* dev_path_end = dev_paths + pixelcount;
@@ -894,7 +859,6 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
     // Shoot ray into scene, bounce between objects, push shading chunks
 
     bool iterationComplete = false;
-    startCpuTimer();
     while (!iterationComplete) {
 
         numblocksPathSegmentTracing = (num_active_paths + blockSize1d - 1) / blockSize1d;
@@ -992,8 +956,6 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
         // Update iteration condition
         iterationComplete = num_active_paths == 0 || depth > traceDepth;
     }
-    endCpuTimer();
-    printTimer(iter);
     // Assemble this iteration and apply it to the image
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
     finalGather << <numBlocksPixels, blockSize1d >> > (num_paths, dev_image, dev_paths);
