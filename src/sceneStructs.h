@@ -35,6 +35,7 @@ struct Material {
         glm::vec3 color;
     } specular;
     float hasReflective;
+    //float imperfectSpecular;
     float hasRefractive;
     float indexOfRefraction;
     float emittance;
@@ -49,6 +50,9 @@ struct Camera {
     glm::vec3 right;
     glm::vec2 fov;
     glm::vec2 pixelLength;
+    // DOF related info
+    float focalLength;
+    float lensRadius;
 };
 
 struct RenderState {
@@ -64,6 +68,9 @@ struct PathSegment {
 	glm::vec3 color;
 	int pixelIndex;
 	int remainingBounces;
+  bool refractEnter;
+  glm::vec3 throughput;
+  bool specular;
 };
 
 // Use with a corresponding PathSegment to do:
@@ -73,4 +80,5 @@ struct ShadeableIntersection {
   float t;
   glm::vec3 surfaceNormal;
   int materialId;
+  bool outside;
 };

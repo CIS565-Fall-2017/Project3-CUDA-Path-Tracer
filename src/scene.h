@@ -18,9 +18,11 @@ private:
     int loadCamera();
 public:
     Scene(string filename);
-    ~Scene();
+    ~Scene() {};
 
     std::vector<Geom> geoms;
     std::vector<Material> materials;
     RenderState state;
+
+    std::vector<Geom> lights; // for light sampling
 };

@@ -85,6 +85,12 @@ int Scene::loadGeom(string objectid) {
         newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
 
         geoms.push_back(newGeom);
+
+        // LOAD LIGHTS
+        if (materials[newGeom.materialid].emittance > 0.f) {
+          lights.push_back(newGeom);
+        }
+
         return 1;
     }
 }
@@ -104,7 +110,7 @@ int Scene::loadCamera() {
             camera.resolution.x = atoi(tokens[1].c_str());
             camera.resolution.y = atoi(tokens[2].c_str());
         } else if (strcmp(tokens[0].c_str(), "FOVY") == 0) {
-            fovy = atof(tokens[1].c_str());
+          fovy = atof(tokens[1].c_str());
         } else if (strcmp(tokens[0].c_str(), "ITERATIONS") == 0) {
             state.iterations = atoi(tokens[1].c_str());
         } else if (strcmp(tokens[0].c_str(), "DEPTH") == 0) {
@@ -124,6 +130,10 @@ int Scene::loadCamera() {
             camera.lookAt = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
         } else if (strcmp(tokens[0].c_str(), "UP") == 0) {
             camera.up = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+        } else if (strcmp(tokens[0].c_str(), "FOCALLENGTH") == 0) {
+            camera.focalLength = atof(tokens[1].c_str());
+        } else if (strcmp(tokens[0].c_str(), "LENSRAD") == 0) {
+            camera.lensRadius = atof(tokens[1].c_str());
         }
 
         utilityCore::safeGetline(fp_in, line);

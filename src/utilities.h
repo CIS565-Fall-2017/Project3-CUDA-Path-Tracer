@@ -14,6 +14,10 @@
 #define SQRT_OF_ONE_THIRD 0.5773502691896257645091487805019574556476f
 #define EPSILON           0.00001f
 
+#define InvPi 0.31830988618379067154f
+#define PiOver4 0.78539816339744830961f
+#define Inv4Pi 0.07957747154594766788f
+
 namespace utilityCore {
     extern float clamp(float f, float min, float max);
     extern bool replaceString(std::string& str, const std::string& from, const std::string& to);
