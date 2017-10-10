@@ -23,12 +23,12 @@
 #define DOF 0
 #define COMPACT 0
 #define SORTBYMATERIAL 0
-#define RUSSIANROULETTE 1
+#define RUSSIANROULETTE 0
 
 // TURN ONLY ONE ON. ALL OFF MEANS NAIVE
 #define DIRECTLIGHTING 0
 #define DIRECTLIGHTING_LASTBOUNCE 0
-#define FULLLIGHTING 1
+#define FULLLIGHTING 0
 
 //#define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 //#define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)

@@ -110,7 +110,7 @@ As this uses both direct and indirect lighting computations with weights, it giv
 
 *Still Buggy*
 
-![](img/renders/cornell.2017-10-01_18-50-55z.2003samp.png)
+![](img/renders/cornell.2017-10-06_22-51-41z.5000samp.png)
 
 #### Bonus
 
