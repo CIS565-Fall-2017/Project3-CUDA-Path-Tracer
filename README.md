@@ -32,6 +32,26 @@ http://www.pbrt.org/
 
 
 **Renders, may see ringing artifacts when viewing on the web**<br />
+**MIS Diffuse vs Jensen01 BSSRDF with King13 importance sampling**<br />
+**Jensen01 paper: **<br />
+**http://www.graphics.stanford.edu/papers/bssrdf/bssrdf.pdf**<br />
+**King13 paper: **<br />
+**http://library.imageworks.com/pdfs/imageworks-library-BSSRDF-sampling.pdf**<br />
+**800x800 5000spp**<br />
+![](img/FL10_DiffuseVsMarbleMIS5k.png)
+
+**Just a Light and the Material, Diffuse vs Jensen01 BSSRDF, Marble**<br />
+**800x800 5000spp**<br />
+![](img/JustLight_DiffuseVsMarble.png)
+
+**Just a Light and the Material, Jensen01 BSSRDF, Marble Cube**<br />
+**800x800 5000spp**<br />
+![](img/JustLight_MarbleCube.png)
+
+**Just a Light and the Material, Jensen01 BSSRDF, Marble**<br />
+**800x800 5000spp**<br />
+![](img/JustSi_wrefl3.png)
+
 **MIS with Fresnel Reflection and Transmission**<br />
 **MIS 1080x1080 5000spp**<br />
 ![](img/cornellGlassCubeMIS5000.png)

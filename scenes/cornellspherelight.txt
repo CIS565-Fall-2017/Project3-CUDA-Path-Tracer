@@ -89,7 +89,7 @@ SIGSPRIME   0 0 0
 
 // SSS white
 MATERIAL 6
-RGB         1 1 1
+RGB         .9 .9 .9
 SPECEX      0
 SPECRGB     0 0 0
 REFL        1

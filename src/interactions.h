@@ -601,8 +601,8 @@ glm::vec3 getL_S1(const Ray& pathray,
 		//NOTE: siPrime will be NAN if light source is close by. Sad. Jensen says this equation assumes light is far away.
 		//try clamping denom to near 0 for the calc of siprime if light is close and you hit that NAN case, looks ok, not sure if it looks 'correct'
 		const float siPrime_denom = 1.f - inveta*inveta*(1.f - absdotdirect*absdotdirect);
-		const float siPrime = siPrime_denom > 0 ? si * absdotdirect / glm::sqrt(siPrime_denom) : si*absdotdirect / 0.01; 
-		//const float siPrime = si;
+		//const float siPrime = siPrime_denom > 0 ? si * absdotdirect / glm::sqrt(siPrime_denom) : si*absdotdirect / 0.01; 
+		const float siPrime = si;
 		const glm::vec3 F = Ft_wo*Ft_wi;
 		//all sigmas are position dependent (if you do textures these can be set by them)
 		const glm::vec3 L_S1sample = (sigS * F * hgphase_p)*(1.f / sigTc)*
