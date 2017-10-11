@@ -50,7 +50,7 @@ http://www.pbrt.org/
 
 **Just a Light and the Material, Jensen01 BSSRDF, Marble**<br />
 **800x800 100spp**<br />
-![](img/JustSi_wrefl3.png)
+![](img/JustSi_wrefl2.png)
 
 **MIS with Fresnel Reflection and Transmission**<br />
 **MIS 1080x1080 5000spp**<br />
