@@ -15,6 +15,12 @@ set(SOURCE_FILES
     "preview.cpp"
     "utilities.cpp"
     "utilities.h"
+    "tiny_obj_loader.h"
+    "tiny_obj_loader.cc"
+    "bounds.h"
+    "bounds.cpp"
+    "bvh.h"
+    "bvh.cpp"
     )
 
 cuda_add_library(src
