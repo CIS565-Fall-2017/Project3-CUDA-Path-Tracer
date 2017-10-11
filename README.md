@@ -12,8 +12,10 @@ Project Features
 ![](img/104_EnvironmentMap_Dragon_MIS_pure_refractive5000samp.png) |  ![](img/105_EnvironmentMap_Dragon_MIS_pure_reflective_1506samp.png)
 ------------ | -------------
 EnvironmentMap_Dragon(pure refractive).txt | EnvironmentMap_Dragon(pure reflective + depth of view).txt
+![](img/120_EnvironmentMap_Bssdf_2000samp_emissive.png) |  ![](img/120_EnvironmentMap_Bssdf_2000samp.png)
+EnvironmentMap_Dragon(bssdf 2000samp emissive) | EnvironmentMap_Dragon(bssdf 2000 sample)
 ![](img/106_EnvironmentMap_Dragon_MIS_Glass_2002samp.png) |  ![](img/110_BayonettaTable_NormalMap_MIS_2000samp.png)
-EnvironmentMap_Dragon(glass(Frensel) + depth of view).txt | Bayonetta_Table.txt(texture + normal, 2000 sample)
+ EnvironmentMap_Dragon(glass(Frensel) + depth of view).txt | Bayonetta_Table.txt(texture + normal, 2000 sample)
 ![](img/5000samp_cornell2.png) |  ![](img/5000samp_cornell_mesh.png)
 cornell2.txt | cornell_mesh.txt
 ![](img/5000samp_cornell_thin_lens.png) |  ![](img/5000samp_cornell_wahoo.png)
@@ -163,3 +165,16 @@ len radius = 3.0, focal length = 10.0 | len radius = 3.0, focal length = 13.0 | 
 ![](img/110_BayonettaTable_NoNormalMap_MIS_2000samp.png) |![](img/110_BayonettaTable_NormalMap_MIS_2000samp.png)
 ------------ | -------------
 Bayonetta_Table without Normal map | Bayonetta_Table with Normal map
+
+  ###### Analysis:
+  Normal/bump map works well on the face of wooden figures.
+
+
+- #### BSSDF
+
+![](img/120_cornell_BSSDF_5000samp_absorb_0.1.png) |![](img/120_cornell_BSSDF_1236samp_absorb_0.5.png) |![](img/120_cornell_BSSDF_1686samp_absorb_1.5.png)
+------------ | ------------- | -------------
+0.1 absorb distance | 0.5 absorb distance | 1.5 absorb distance
+
+  ###### Analysis:
+  as absorb distance increases, more lights come in to the volume (geometry)

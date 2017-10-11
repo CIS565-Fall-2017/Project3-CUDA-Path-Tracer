@@ -323,7 +323,9 @@ int Scene::loadMaterial(string materialid) {
 		newMaterial.textureID = -1;
 		newMaterial.normalID = -1;
 
-		// load extra map information
+		newMaterial.isBssdf = false;
+
+		// load extra information
 		utilityCore::safeGetline(fp_in, line);
 		while (!line.empty() && fp_in.good()) {
 			vector<string> tokens = utilityCore::tokenizeString(line);
@@ -348,7 +350,12 @@ int Scene::loadMaterial(string materialid) {
 				newMaterial.normalID = normalMap.size();
 				normalMap.push_back(newTexture);
 			}
-			// Handle other maps here!
+			else if (strcmp(tokens[0].c_str(), "BSSDF") == 0) {
+				if (strcmp(tokens[1].c_str(), "TRUE") == 0) {
+					newMaterial.isBssdf = true;
+				}
+			}
+			// Handle other here!
 			//else if ()
 			//{
 

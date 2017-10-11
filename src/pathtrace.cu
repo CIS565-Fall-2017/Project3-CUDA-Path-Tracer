@@ -560,6 +560,8 @@ __global__ void computeIntersections(
 			intersections[path_index].surfaceNormal = normal;
 
 			intersections[path_index].tangentToWorld = tangentToWorld;
+
+			intersections[path_index].hitGeomId = hit_geom_index;
 		}
 	}
 }
@@ -630,18 +632,18 @@ __global__ void shadeMaterialNaive(
 	, Texture * textures
 	, Texture * normalMaps
 	, Texture * environmentMap
-#ifdef ENABLE_DIR_LIGHTING
-	, Light * lights
-	, int lightSize
 	, Geom * geoms
-	, Triangle * tris
-	, int geomSize
 #ifdef ENABLE_MESHWORLDBOUND
 	, Bounds3f * worldBounds
 #endif
 #ifdef ENABLE_BVH
 	, LinearBVHNode * nodes
+	, Triangle * tris
 #endif
+#ifdef ENABLE_DIR_LIGHTING
+	, Light * lights
+	, int lightSize
+	, int geomSize
 #endif 
 )
 {
@@ -699,20 +701,21 @@ __global__ void shadeMaterialNaive(
 					       material,
 						   rng,
 						   textures,
-						   environmentMap
-#ifdef	ENABLE_DIR_LIGHTING
-						  , lights
-						  , lightSize
-						  , geoms
-						  , tris
-						  , geomSize
+						   environmentMap,
+						   geoms
 #ifdef ENABLE_MESHWORLDBOUND
 						  , worldBounds
 #endif
 #ifdef ENABLE_BVH
-						  , nodes
+					      , nodes
+						  , tris
 #endif
-#endif				
+#ifdef	ENABLE_DIR_LIGHTING
+						  , lights
+						  , lightSize
+						  , geomSize
+#endif					
+						  , intersection.hitGeomId
 						);
 
 				pathSegment.remainingBounces--;
@@ -1087,19 +1090,19 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 			dev_materials,
 			dev_textureMap,
 			dev_normalMap,
-			dev_environmentMap
-#ifdef ENABLE_DIR_LIGHTING
-			, dev_lights
-			, lightSize
-			, dev_geoms
-			, dev_tris
-			, hst_scene->geoms.size()
+			dev_environmentMap,
+			dev_geoms
 #ifdef ENABLE_MESHWORLDBOUND
 			, dev_worldBounds
 #endif
 #ifdef ENABLE_BVH
 			, dev_bvh_nodes
+			, dev_tris
 #endif
+#ifdef ENABLE_DIR_LIGHTING
+			, dev_lights
+			, lightSize
+			, hst_scene->geoms.size()
 #endif 
 		);
 		checkCUDAError("shadeMaterial error");

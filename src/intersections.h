@@ -80,6 +80,7 @@ __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
         if (tmin <= 0) {
             tmin = tmax;
             tmin_n = tmax_n;
+			//tmin_n = -tmax_n;
             outside = false;
         }
 
@@ -146,6 +147,7 @@ __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
 		tangent = glm::normalize(multiplyMV(box.transform, glm::vec4(tangent, 0.0f)));
 
 		glm::vec3 intersectionPoint = multiplyMV(box.transform, glm::vec4(objspaceIntersection, 1.0f));
+
         normal = glm::normalize(multiplyMV(box.transform, glm::vec4(tmin_n, 0.0f)));
 
 		glm::vec3 bitangent = glm::cross(normal, tangent);

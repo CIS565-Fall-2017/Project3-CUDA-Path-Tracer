@@ -141,6 +141,8 @@ struct Material {
     float emittance;
 	int textureID;
 	int normalID;
+
+	bool isBssdf;
 };
 
 struct Camera {
@@ -180,6 +182,8 @@ struct ShadeableIntersection {
   glm::vec3 surfaceNormal;
   glm::vec2 uv;
   int materialId;
+
+  int hitGeomId;
 
   glm::mat3 tangentToWorld;
 
