@@ -41,15 +41,15 @@ http://www.pbrt.org/
 ![](img/FL10_DiffuseVsMarbleMIS5k.png)
 
 **Just a Light and the Material, Diffuse vs Jensen01 BSSRDF, Marble**<br />
-**800x800 5000spp**<br />
+**800x800 500spp**<br />
 ![](img/JustLight_DiffuseVsMarble.png)
 
 **Just a Light and the Material, Jensen01 BSSRDF, Marble Cube**<br />
-**800x800 5000spp**<br />
+**800x800 500spp**<br />
 ![](img/JustLight_MarbleCube.png)
 
 **Just a Light and the Material, Jensen01 BSSRDF, Marble**<br />
-**800x800 5000spp**<br />
+**800x800 100spp**<br />
 ![](img/JustSi_wrefl3.png)
 
 **MIS with Fresnel Reflection and Transmission**<br />
