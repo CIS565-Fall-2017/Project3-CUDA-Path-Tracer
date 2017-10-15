@@ -135,7 +135,7 @@ A Naive brute force approach to path tracing. This integrator takes a long time 
 
 ### Direct Lighting Integration Scheme
 
-![](img/FancyRenders/IntegrationSchemes/cornell.DirectLighting.5000samp.png)
+![](img/FancyRenders/IntegrationSchemes/cornell.DirectLighting.5000samples.png)
 
 _cornell box with a sphere light using the direct light integration scheme_
 
