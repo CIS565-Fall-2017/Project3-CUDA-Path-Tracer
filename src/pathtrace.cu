@@ -32,7 +32,7 @@
 						// a more deterministic Supersampling approach to AA but requires more memory for 
 						// caching more intersections
 //Naive Integration is the default if nothing else is toggled
-#define DIRECT_LIGHTING_INTEGRATOR 0
+#define DIRECT_LIGHTING_INTEGRATOR 1
 #define FULL_LIGHTING_INTEGRATOR 0
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
