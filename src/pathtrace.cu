@@ -33,7 +33,7 @@
 						// caching more intersections
 //Naive Integration is the default if nothing else is toggled
 #define DIRECT_LIGHTING_INTEGRATOR 0
-#define FULL_LIGHTING_INTEGRATOR 1
+#define FULL_LIGHTING_INTEGRATOR 0
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -206,9 +206,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		PathSegment & segment = pathSegments[index];
 
 		segment.ray.origin = cam.position;
-		segment.color = Color3f(1.0f, 1.0f, 1.0f);
-		segment.accumulatedThroughput = Color3f(1.0f, 1.0f, 1.0f);
-		segment.accumulatedColor = Color3f(0.0f, 0.0f, 0.0f);
+		segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
 		thrust::default_random_engine rng = makeSeededRandomEngine(iter, x, y);
 #if ANTI_ALIASING
@@ -417,11 +415,7 @@ __global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterati
 	if (index < nPaths)
 	{
 		PathSegment iterationPath = iterationPaths[index];
-#if FULL_LIGHTING_INTEGRATOR
-		image[iterationPath.pixelIndex] += iterationPath.accumulatedColor;
-#else
 		image[iterationPath.pixelIndex] += iterationPath.color;
-#endif
 	}
 }
 

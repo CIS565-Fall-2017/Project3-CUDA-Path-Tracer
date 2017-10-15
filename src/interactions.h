@@ -176,9 +176,7 @@ __host__ __device__ void fullLightingIntegrator(int maxTraceDepth,
 		}
 	}	
 
-	//---------------------------------------------------------------------
 	//----------------------- BSDF based Direct Lighting ------------------
-	//---------------------------------------------------------------------
 	Vector3f wiW_BSDF_Light;
 	float pdf_BSDF_Light;
 	Point2f xi_BSDF_Light = Point2f(u01(rng), u01(rng));
@@ -223,9 +221,7 @@ __host__ __device__ void fullLightingIntegrator(int maxTraceDepth,
 		}
 	}
 
-	//---------------------------------------------------------------------
 	//----------------------- MIS -----------------------------------------
-	//---------------------------------------------------------------------
 	//MIS can only work on one type of light  energy, and so we use MIS for direct lighting only
 	float weight_BSDF_Light = 0.0;
 	float weight_Direct_Light = 0.0;
@@ -243,45 +239,20 @@ __host__ __device__ void fullLightingIntegrator(int maxTraceDepth,
 		directLightingColor = (weighted_BSDF_Light_color + weighted_Direct_Light_color) * (float)numLights;
 	}
 
-	//---------------------------------------------------------------------
 	//----------------------- Update Overall DirectLightingColor ----------
-	//---------------------------------------------------------------------
-	//do the check for specular here
-	if (pathSegment.remainingBounces == maxTraceDepth)
-	{
-		directLightingColor += m.emittance * m.color;
-	}
+	directLightingColor *= accumulatedThroughput;
 
-	directLightingColor *= pathSegment.accumulatedThroughput;
-
-	//---------------------------------------------------------------------
 	//----------------------- Indirect Lighting (Global Illumination) -----
-	//---------------------------------------------------------------------
 	Vector3f wiW_BSDF_Indirect;
 	float pdf_BSDF_Indirect;
 	Point2f xi_BSDF_Indirect = Point2f(u01(rng), u01(rng));
 
-	if (true)
-	{
-		//f term
-		Color3f f_BSDF_Indirect = material_sample_f(m, rng, wo, normal, geom, intersection, pathSegment,
-			geoms, numGeoms, f_BSDF_Indirect, wiW_BSDF_Indirect,
-			pdf_BSDF_Indirect, chosenBxDF);
 
-		if (pdf_BSDF_Indirect != 0.0f)
-		{
-			//No Li term per se, this is accounted for via accumulatedThroughputColor
-			//absDot Term
-			float absDot_BSDF_Indirect = glm::abs(glm::dot(wiW_BSDF_Indirect, intersection.surfaceNormal));
-			//LTE term
-			pathSegment.accumulatedThroughput *= f_BSDF_Indirect * absDot_BSDF_Indirect / pdf_BSDF_Indirect;
-		}
-	}
 
 	//----------------------- Russian Roulette ----------------------------
-	russianRoulette(pathSegment.accumulatedThroughput, u01(rng), pathSegment.remainingBounces, maxTraceDepth);
+	russianRoulette(accumulatedThroughput, u01(rng), pathSegment.remainingBounces, maxTraceDepth);
 	//----------------------- Update AccumulatedColor ---------------------
-	pathSegment.accumulatedColor += directLightingColor;
+	accumulatedColor += directLightingColor;
 	//----------------------- new Ray Generation --------------------------
 	pathSegment.ray = spawnNewRay(intersection, wiW_BSDF_Indirect);
 	pathSegment.remainingBounces--;
