@@ -32,7 +32,7 @@
 						// a more deterministic Supersampling approach to AA but requires more memory for 
 						// caching more intersections
 //Naive Integration is the default if nothing else is toggled
-#define DIRECT_LIGHTING_INTEGRATOR 1
+#define DIRECT_LIGHTING_INTEGRATOR 0
 #define FULL_LIGHTING_INTEGRATOR 0
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
@@ -117,6 +117,17 @@ static int *dev_sortingPixelIndices = NULL;
 static int *dev_pathMaterialIndices = NULL;
 static int *dev_intersectionMaterialIndices = NULL;
 
+__global__ void scaleDownLightIntensity(int nLights, Light * lights, Geom * geoms, Material * materials)
+{
+	int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+
+	if (index < nLights)
+	{
+		int mat_id = geoms[lights[index].lightGeomIndex].materialid;
+		materials[mat_id].emittance /= 40.0f;
+	}
+}
+
 void pathtraceInit(Scene *scene) 
 {
     hst_scene = scene;
@@ -160,6 +171,13 @@ void pathtraceInit(Scene *scene)
 	cudaMalloc(&dev_intersectionMaterialIndices, pixelcount * sizeof(int));
 	// sorting pixelIndices array in accordance to how pathsegments were sorted
 	cudaMalloc(&dev_sortingPixelIndices, pixelcount * sizeof(int));
+
+#if FULL_LIGHTING_INTEGRATOR
+	int numLights = hst_scene->lights.size();
+	const int blockSize1d = 128;
+	dim3 numblocksPathSegmentTracing = (numLights + blockSize1d - 1) / blockSize1d;
+	scaleDownLightIntensity <<<numLights, blockSize1d>>> (numLights, dev_lights, dev_geoms, dev_materials);
+#endif
 
     checkCUDAError("pathtraceInit");
 }
@@ -206,7 +224,9 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		PathSegment & segment = pathSegments[index];
 
 		segment.ray.origin = cam.position;
-		segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
+		segment.color = Color3f(1.0f, 1.0f, 1.0f);
+		segment.accumulatedThroughput = Color3f(1.0f, 1.0f, 1.0f);
+		segment.accumulatedColor = Color3f(0.0f, 0.0f, 0.0f);
 
 		thrust::default_random_engine rng = makeSeededRandomEngine(iter, x, y);
 #if ANTI_ALIASING
@@ -387,7 +407,7 @@ __global__ void shadeMaterialsFullLighting(int iter, int maxtraceDepth, int numA
 		//If the ray hit a light in the scene
 		if (material.emittance > 0.0f)
 		{
-			rayAccumulatedColor *= material.color*material.emittance;
+			pathSegments[idx].accumulatedColor += material.color*material.emittance;
 			pathSegments[idx].remainingBounces = 0; //equivalent of breaking out of the thread
 			return;
 		}
@@ -415,7 +435,11 @@ __global__ void finalGather(int nPaths, glm::vec3 * image, PathSegment * iterati
 	if (index < nPaths)
 	{
 		PathSegment iterationPath = iterationPaths[index];
+#if FULL_LIGHTING_INTEGRATOR
+		image[iterationPath.pixelIndex] += iterationPath.accumulatedColor;
+#else
 		image[iterationPath.pixelIndex] += iterationPath.color;
+#endif
 	}
 }
 
@@ -502,7 +526,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 	// Shoot ray into scene, bounce between objects, push shading chunks
 	bool iterationComplete = false;
 	int activeRays = num_paths;
-
+	
 #if FULL_LIGHTING_INTEGRATOR
 	// reset accumulatedThroughputColor and accumulatedRayColor for fullLighting
 	cudaMemset(dev_accumulatedRayColor, 0.0f, pixelcount * sizeof(Color3f));
@@ -611,16 +635,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
 
 	// Assemble this iteration and apply it to the image
 	dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
-//#if FULL_LIGHTING_INTEGRATOR //|| DIRECT_LIGHTING_INTEGRATOR
-//	averagePixelColor <<<numBlocksPixels, blockSize1d>>> (num_paths, dev_image, dev_paths,
-//														dev_rayPixelIndex, iter,
-//														dev_accumulatedRayColor, dev_totalPixelColor);
-//	checkCUDAError("error averaging colors");
-//#else
-//	finalGather <<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
-//#endif
-
-	finalGather << <numBlocksPixels, blockSize1d >> >(num_paths, dev_image, dev_paths);
+	finalGather <<<numBlocksPixels, blockSize1d>>> (num_paths, dev_image, dev_paths);
 	//------------------------------------------------
 	//Timer End
 	//timeEndCpu = std::chrono::high_resolution_clock::now();
