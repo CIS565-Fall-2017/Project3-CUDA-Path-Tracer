@@ -135,13 +135,9 @@ A Naive brute force approach to path tracing. This integrator takes a long time 
 
 ### Direct Lighting Integration Scheme
 
-![](img/FancyRenders/IntegrationSchemes/cornell.DirectLighting.SpereLight.5000samples.png)
+![](img/FancyRenders/IntegrationSchemes/cornell.DirectLighting.5000samples.png)
 
 _cornell box with a sphere light using the direct light integration scheme_
-
-![](img/FancyRenders/IntegrationSchemes/cornell.SpereLight.5000samples.png)
-
-_cornell box with a sphere light using the naive integration scheme for reference_
 
 The Direct Lighting Integration scheme has no Global Illumination because it simply ignores secondary bounces of the ray once it hits something in the scene. It is essentially Light Important Sampling. It is an interesting feature because it lays the ground work for a full lighting integration scheme, which uses a variety of importance sampling techniques (through Multiple Importance Sampling) to produce beautiful renders after a small number of samples per pixel. 
 
