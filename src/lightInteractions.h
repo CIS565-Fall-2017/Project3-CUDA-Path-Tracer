@@ -38,7 +38,7 @@ __host__ __device__ float sampleLightPDF(Material &m, Vector3f& wi,
 	float dist = glm::distance(ref.intersectPoint, isect.intersectPoint);
 
 	float _cosTheta = glm::abs(glm::dot(isect.surfaceNormal, -wi));
-	light_pdf = dist*dist / (_cosTheta*sampleShapeArea(geom, lightShape));
+	return dist*dist / (_cosTheta*sampleShapeArea(geom, lightShape));
 
 	return light_pdf;
 }

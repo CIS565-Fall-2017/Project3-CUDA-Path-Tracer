@@ -382,7 +382,6 @@ __global__ void shadeMaterialsFullLighting(int iter, int maxtraceDepth, int numA
 		if (intersection.t < 0.0f)
 		{
 			rayAccumulatedColor = Color3f(0.0f);
-			pathSegments[idx].accumulatedColor;//doesn't change
 			pathSegments[idx].remainingBounces = 0; //to make thread stop executing things
 			return;
 		}
@@ -391,7 +390,6 @@ __global__ void shadeMaterialsFullLighting(int iter, int maxtraceDepth, int numA
 		if (material.emittance > 0.0f)
 		{
 			rayAccumulatedColor *= material.color*material.emittance;
-			pathSegments[idx].accumulatedColor += material.color*material.emittance;
 			pathSegments[idx].remainingBounces = 0; //equivalent of breaking out of the thread
 			return;
 		}
@@ -439,7 +437,7 @@ __global__ void averagePixelColor(int nPaths, Color3f * image, PathSegment * ite
 		//int pixelIndex = pixelIndices[index];
 		int pixelIndex = iterationPaths[index].pixelIndex;
 		totalPixelColor[pixelIndex] += iterationPath.accumulatedColor;
-		image[pixelIndex] = totalPixelColor[pixelIndex]/float(iter);
+		image[pixelIndex] = totalPixelColor[pixelIndex];// float(iter);
 	}
 }
 

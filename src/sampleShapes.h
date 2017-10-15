@@ -24,8 +24,8 @@ __host__ __device__ ShadeableIntersection sampleSphere(Vector2f &xi, float& pdf,
 	it.surfaceNormal = glm::normalize(it.intersectPoint - lightCenter);
 
 	float dist = glm::distance(refPoint, lightCenter);
-	float sinThetaMax2 = 1.0f / dist*dist;
-	float cosThetaMax = std::sqrt(glm::max(0.0f, 1.0f - sinThetaMax2));
+	float sinThetaMax2 = 1 / dist*dist;
+	float cosThetaMax = std::sqrt(glm::max((float)0.0f, 1.0f - sinThetaMax2));
 	pdf = 1.0f / (2.0f * PI * (1.0f - cosThetaMax));
 
 	return it;
