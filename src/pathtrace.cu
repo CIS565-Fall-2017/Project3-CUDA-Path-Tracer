@@ -26,7 +26,7 @@
 //--------------------
 #define FIRST_BOUNCE_INTERSECTION_CACHING 0
 #define MATERIAL_SORTING 0
-#define INACTIVE_RAY_CULLING 0 //Stream Compaction of rays
+#define INACTIVE_RAY_CULLING 1 //Stream Compaction of rays
 #define DEPTH_OF_FIELD 0
 #define ANTI_ALIASING 1 // if you use first bounce caching, antialiasing will not work --> can make it work with 
 						// a more deterministic Supersampling approach to AA but requires more memory for 
