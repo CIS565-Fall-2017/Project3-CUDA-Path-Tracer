@@ -14,7 +14,7 @@ In this project, I implemented a simple CUDA Monte Carlo path tracer. Although p
 
 #### _More Feature filled Path Tracer I made but on the CPU can be found [here](https://github.com/Aman-Sachan-asach/Monte-Carlo-Path-Tracer)._
 
-[![](img/CUDAPathTracerVimeoLink.png)](https://vimeo.com/236271250)
+[![](img/FancyRenders/CUDAPathTracerVimeoLink.png)](https://vimeo.com/236271250)
 
 ### Introduction to Monte Carlo Path Tracing
 
