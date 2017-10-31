@@ -1,6 +1,6 @@
 // Emissive material (light)
 MATERIAL 0
-RGB         1 1 1
+RGB         1 0 0
 SPECEX      0
 SPECRGB     0 0 0
 REFL        0
