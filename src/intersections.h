@@ -125,10 +125,10 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
     if (t1 < 0 && t2 < 0) {
         return -1;
     } else if (t1 > 0 && t2 > 0) {
-        t = min(t1, t2);
+        t = glm::min(t1, t2);
         outside = true;
     } else {
-        t = max(t1, t2);
+        t = glm::max(t1, t2);
         outside = false;
     }
 
@@ -141,4 +141,144 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
     }
 
     return glm::length(r.origin - intersectionPoint);
+}
+
+// CHECKITOUT
+/**
+* Test intersection between a ray and a transformed square. Untransformed,
+* a SquarePlane is assumed to have a side length of 1 and a center of <0,0,0>.
+*
+* @param intersectionPoint  Output parameter for point of intersection.
+* @param normal             Output parameter for surface normal.
+* @param outside            Output param for whether the ray came from outside.
+* @return                   Ray parameter `t` value. -1 if no intersection.
+*/
+__host__ __device__ float squareIntersectionTest(Geom square, Ray r,
+	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) 
+{
+	Ray rt;
+	rt.origin = multiplyMV(square.inverseTransform, glm::vec4(r.origin, 1.0f));
+	rt.direction = glm::normalize(multiplyMV(square.inverseTransform, glm::vec4(r.direction, 0.0f)));
+	
+	float t = glm::dot(glm::vec3(0, 0, 1), (glm::vec3(0.5f, 0.5f, 0) - rt.origin)) / glm::dot(glm::vec3(0, 0, 1), rt.direction);
+
+	glm::vec3 objspaceIntersection = getPointOnRay(rt, t);
+	if (t > 0 && objspaceIntersection.x >= -0.5f && objspaceIntersection.x <= 0.5f && 
+				 objspaceIntersection.y >= -0.5f && objspaceIntersection.y <= 0.5f)
+	{
+		intersectionPoint = multiplyMV(square.transform, glm::vec4(objspaceIntersection, 1.f));
+		normal = glm::normalize(multiplyMV(square.invTranspose, glm::vec4(objspaceIntersection, 0.f)));
+		return glm::length(r.origin - intersectionPoint);
+	}
+
+	// Didn't hit
+	return -1;
+}
+
+__host__ __device__ void computeIntersectionOfRayWithSelectedObject(Ray& ray, Geom& geom,
+																ShadeableIntersection& intersection)
+{
+	float t;
+	glm::vec3 intersect_point;
+	glm::vec3 normal;
+	float t_min = FLT_MAX;
+	bool hit_geom = false;
+	bool outside = true;
+
+	glm::vec3 tmp_intersect;
+	glm::vec3 tmp_normal;
+
+	// Naive parse through global geoms
+	if (geom.type == CUBE)
+	{
+		t = boxIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside);
+	}
+	else if (geom.type == SPHERE)
+	{
+		t = sphereIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside);
+	}
+	else if (geom.type == SQUAREPLANE)
+	{
+		t = squareIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside);
+	}
+
+	// Compute the minimum t from the intersection tests to determine what
+	// scene geometry object was hit first.
+	if (t > 0.0f && t_min > t)
+	{
+		t_min = t;
+		hit_geom = true;
+		intersect_point = tmp_intersect;
+		normal = tmp_normal;
+	}
+
+	if (!hit_geom)
+	{
+		intersection.t = -1.0f;
+	}
+	else
+	{
+		//The ray hits something
+		intersection.t = t_min;
+		intersection.intersectPoint = intersect_point;
+		intersection.materialId = geom.materialid;
+		intersection.surfaceNormal = glm::normalize(normal);
+	}
+}
+
+__host__ __device__ void computeIntersectionsForASingleRay(Ray& ray, ShadeableIntersection& intersection,
+														   Geom * geoms, int& geoms_size)
+{
+	float t;
+	glm::vec3 intersect_point;
+	glm::vec3 normal;
+	float t_min = FLT_MAX;
+	int hit_geom_index = -1;
+	bool outside = true;
+
+	glm::vec3 tmp_intersect;
+	glm::vec3 tmp_normal;
+
+	// Naive parse through global geoms
+	for (int i = 0; i < geoms_size; i++)
+	{
+		Geom & geom = geoms[i];
+
+		if (geom.type == CUBE)
+		{
+			t = boxIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside);
+		}
+		else if (geom.type == SPHERE)
+		{
+			t = sphereIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside);
+		}
+		else if (geom.type == SQUAREPLANE)
+		{
+			t = squareIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside);
+		}
+
+		// Compute the minimum t from the intersection tests to determine what
+		// scene geometry object was hit first.
+		if (t > 0.0f && t_min > t)
+		{
+			t_min = t;
+			hit_geom_index = i;
+			intersect_point = tmp_intersect;
+			normal = tmp_normal;
+		}
+	}
+
+	if (hit_geom_index == -1)
+	{
+		intersection.t = -1.0f;
+	}
+	else
+	{
+		//The ray hits something
+		intersection.t = t_min;
+		intersection.intersectPoint = intersect_point;
+		intersection.materialId = geoms[hit_geom_index].materialid;
+		intersection.surfaceNormal = glm::normalize(normal);
+		intersection.hitGeomIndex = hit_geom_index;
+	}
 }

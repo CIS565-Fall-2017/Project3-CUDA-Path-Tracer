@@ -18,6 +18,8 @@ static glm::vec3 cammove;
 float zoom, theta, phi;
 glm::vec3 cameraPosition;
 glm::vec3 ogLookAt; // for recentering the camera
+static float cam_lensRadius;
+static float cam_focalDistance;
 
 Scene *scene;
 RenderState *renderState;
@@ -30,10 +32,12 @@ int height;
 //-------------MAIN--------------
 //-------------------------------
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv) 
+{
     startTimeString = currentTimeString();
 
-    if (argc < 2) {
+    if (argc < 2) 
+	{
         printf("Usage: %s SCENEFILE.txt\n", argv[0]);
         return 1;
     }
@@ -49,6 +53,9 @@ int main(int argc, char** argv) {
     Camera &cam = renderState->camera;
     width = cam.resolution.x;
     height = cam.resolution.y;
+
+	cam_lensRadius = 0.1f;
+	cam_focalDistance = 15.0f;
 
     glm::vec3 view = cam.view;
     glm::vec3 up = cam.up;
@@ -75,13 +82,16 @@ int main(int argc, char** argv) {
     return 0;
 }
 
-void saveImage() {
+void saveImage() 
+{
     float samples = iteration;
     // output image file
     image img(width, height);
 
-    for (int x = 0; x < width; x++) {
-        for (int y = 0; y < height; y++) {
+    for (int x = 0; x < width; x++) 
+	{
+        for (int y = 0; y < height; y++) 
+		{
             int index = x + (y * width);
             glm::vec3 pix = renderState->image[index];
             img.setPixel(width - 1 - x, y, glm::vec3(pix) / samples);
@@ -90,7 +100,7 @@ void saveImage() {
 
     std::string filename = renderState->imageName;
     std::ostringstream ss;
-    ss << filename << "." << startTimeString << "." << samples << "samp";
+    ss << "..\\RenderedImages\\" << filename << "." << startTimeString << "." << samples << "samp";
     filename = ss.str();
 
     // CHECKITOUT
@@ -98,8 +108,10 @@ void saveImage() {
     //img.saveHDR(filename);  // Save a Radiance HDR file
 }
 
-void runCuda() {
-    if (camchanged) {
+void runCuda() 
+{
+    if (camchanged) 
+	{
         iteration = 0;
         Camera &cam = renderState->camera;
         cameraPosition.x = zoom * sin(phi) * sin(theta);
@@ -116,18 +128,24 @@ void runCuda() {
         cam.position = cameraPosition;
         cameraPosition += cam.lookAt;
         cam.position = cameraPosition;
+
+		cam.lensRadius = cam_lensRadius;
+		cam.focalDistance = cam_focalDistance;
+
         camchanged = false;
-      }
+	}
 
     // Map OpenGL buffer object for writing from CUDA on a single GPU
     // No data is moved (Win & Linux). When mapped to CUDA, OpenGL should not use this buffer
 
-    if (iteration == 0) {
+    if (iteration == 0) 
+	{
         pathtraceFree();
         pathtraceInit(scene);
     }
 
-    if (iteration < renderState->iterations) {
+    if (iteration < renderState->iterations) 
+	{
         uchar4 *pbo_dptr = NULL;
         iteration++;
         cudaGLMapBufferObject((void**)&pbo_dptr, pbo);
@@ -138,7 +156,9 @@ void runCuda() {
 
         // unmap buffer object
         cudaGLUnmapBufferObject(pbo);
-    } else {
+    } 
+	else 
+	{
         saveImage();
         pathtraceFree();
         cudaDeviceReset();
@@ -146,60 +166,88 @@ void runCuda() {
     }
 }
 
-void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-    if (action == GLFW_PRESS) {
-      switch (key) {
-      case GLFW_KEY_ESCAPE:
-        saveImage();
-        glfwSetWindowShouldClose(window, GL_TRUE);
-        break;
-      case GLFW_KEY_S:
-        saveImage();
-        break;
-      case GLFW_KEY_SPACE:
-        camchanged = true;
-        renderState = &scene->state;
-        Camera &cam = renderState->camera;
-        cam.lookAt = ogLookAt;
-        break;
-      }
+void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) 
+{
+    if (action == GLFW_PRESS) 
+	{
+		renderState = &scene->state;
+		Camera cam = renderState->camera;
+		switch (key) 
+		{
+			case GLFW_KEY_ESCAPE:
+				saveImage();
+				glfwSetWindowShouldClose(window, GL_TRUE);
+				break;
+			case GLFW_KEY_S:
+				saveImage();
+				break;
+			case GLFW_KEY_SPACE:
+				camchanged = true;
+				cam.lookAt = ogLookAt;
+				break;
+			case GLFW_KEY_W:
+				camchanged = true;
+				cam_lensRadius += 0.1f;
+				printf("lens Radius: %f\n", cam.lensRadius);
+				break;
+			case GLFW_KEY_Q:
+				camchanged = true;
+				cam_lensRadius = cam_lensRadius > 0.1f ? cam_lensRadius - 0.1f : 0.0f;
+				printf("lens Radius: %f\n", cam.lensRadius);
+				break;
+			case GLFW_KEY_R:
+				camchanged = true;
+				cam_focalDistance += 0.5f;
+				printf("focal Distance: %f\n", cam.focalDistance);
+				break;
+			case GLFW_KEY_E:
+				camchanged = true;
+				cam_focalDistance = cam_focalDistance > 0.5f ? cam_focalDistance - 0.5f : 0.0f;
+				printf("focal Distance: %f\n", cam.focalDistance);
+				break;
+		}
     }
 }
 
-void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
-  leftMousePressed = (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS);
-  rightMousePressed = (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS);
-  middleMousePressed = (button == GLFW_MOUSE_BUTTON_MIDDLE && action == GLFW_PRESS);
+void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) 
+{
+	leftMousePressed = (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS);
+	rightMousePressed = (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS);
+	middleMousePressed = (button == GLFW_MOUSE_BUTTON_MIDDLE && action == GLFW_PRESS);
 }
 
-void mousePositionCallback(GLFWwindow* window, double xpos, double ypos) {
-  if (xpos == lastX || ypos == lastY) return; // otherwise, clicking back into window causes re-start
-  if (leftMousePressed) {
-    // compute new camera parameters
-    phi -= (xpos - lastX) / width;
-    theta -= (ypos - lastY) / height;
-    theta = std::fmax(0.001f, std::fmin(theta, PI));
-    camchanged = true;
-  }
-  else if (rightMousePressed) {
-    zoom += (ypos - lastY) / height;
-    zoom = std::fmax(0.1f, zoom);
-    camchanged = true;
-  }
-  else if (middleMousePressed) {
-    renderState = &scene->state;
-    Camera &cam = renderState->camera;
-    glm::vec3 forward = cam.view;
-    forward.y = 0.0f;
-    forward = glm::normalize(forward);
-    glm::vec3 right = cam.right;
-    right.y = 0.0f;
-    right = glm::normalize(right);
+void mousePositionCallback(GLFWwindow* window, double xpos, double ypos) 
+{
+	if (xpos == lastX || ypos == lastY) return; // otherwise, clicking back into window causes re-start
+	if (leftMousePressed) 
+	{
+		// compute new camera parameters
+		phi -= (xpos - lastX) / width;
+		theta -= (ypos - lastY) / height;
+		theta = std::fmax(0.001f, std::fmin(theta, PI));
+		camchanged = true;
+	}
+	else if (rightMousePressed) 
+	{
+		zoom += (ypos - lastY) / height;
+		zoom = std::fmax(0.1f, zoom);
+		camchanged = true;
+	}
+	else if (middleMousePressed) 
+	{
+		renderState = &scene->state;
+		Camera &cam = renderState->camera;
+		glm::vec3 forward = cam.view;
+		forward.y = 0.0f;
+		forward = glm::normalize(forward);
+		glm::vec3 right = cam.right;
+		right.y = 0.0f;
+		right = glm::normalize(right);
 
-    cam.lookAt -= (float) (xpos - lastX) * right * 0.01f;
-    cam.lookAt += (float) (ypos - lastY) * forward * 0.01f;
-    camchanged = true;
-  }
-  lastX = xpos;
-  lastY = ypos;
+		cam.lookAt -= (float) (xpos - lastX) * right * 0.01f;
+		cam.lookAt += (float) (ypos - lastY) * forward * 0.01f;
+		camchanged = true;
+	}
+	lastX = xpos;
+	lastY = ypos;
 }
