@@ -12,7 +12,7 @@ EMITTANCE   5
 // Diffuse white
 MATERIAL 1
 RGB         .98 .98 .98
-TEXTUREMAP 
+TEXTUREMAP
 SPECEX      0
 SPECRGB     0 0 0
 REFL        0
@@ -23,7 +23,7 @@ EMITTANCE   0
 // Diffuse red
 MATERIAL 2
 RGB         .85 .35 .35
-TEXTUREMAP 
+TEXTUREMAP
 SPECEX      0
 SPECRGB     0 0 0
 REFL        0
@@ -34,7 +34,7 @@ EMITTANCE   0
 // Diffuse green
 MATERIAL 3
 RGB         .35 .85 .35
-TEXTUREMAP 
+TEXTUREMAP
 SPECEX      0
 SPECRGB     0 0 0
 REFL        0
@@ -42,10 +42,10 @@ REFR        0
 REFRIOR     0
 EMITTANCE   0
 
-// Specular white
+// texture
 MATERIAL 4
-RGB         .6 .6 .7
-TEXTUREMAP 
+RGB         .98 .98 .98
+TEXTUREMAP ..\scenes\uv_mapper.jpg
 SPECEX      0
 SPECRGB     .98 .98 .98
 REFL        0
@@ -55,15 +55,14 @@ EMITTANCE   0
 
 // Camera
 CAMERA
-RES        600 600
-FOVY        45	
+RES         1024 1024
+FOVY        45
 ITERATIONS  5000
-DEPTH       64
+DEPTH      16
 FILE        cornell
-EYE         0.0 5 4.5
+EYE         0.0 5 10.5
 LOOKAT      0 5 0
 UP          0 1 0
-
 
 // Ceiling light
 OBJECT 0
@@ -113,18 +112,10 @@ TRANS       5 5 0
 ROTAT       0 0 0
 SCALE       .01 10 10
 
-// Sphere
+// Mesh
 OBJECT 6
-sphere
+mesh ..\scenes\torus.obj
 material 4
 TRANS       -1 4 -1
 ROTAT       0 0 0
-SCALE       3 3 3
-
-// Back wall
-OBJECT 7
-cube
-material 1
-TRANS       0 5 5
-ROTAT       0 90 0
-SCALE       .01 5 10
+SCALE      1.5 1.5 1.5

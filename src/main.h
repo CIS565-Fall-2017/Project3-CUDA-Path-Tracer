@@ -28,6 +28,7 @@ using namespace std;
 
 extern Scene* scene;
 extern int iteration;
+extern float iterTime;
 
 extern int width;
 extern int height;

@@ -35,6 +35,22 @@ __host__ __device__ glm::vec3 multiplyMV(glm::mat4 m, glm::vec4 v) {
     return glm::vec3(m * v);
 }
 
+__host__ __device__ float TriArea(const glm::vec3 &p1, const glm::vec3 &p2, const glm::vec3 &p3) {
+	return glm::length(glm::cross(p1 - p2, p3 - p2)) * 0.5f;
+}
+
+/**
+* Returns interpolation of the triangle's three normals based on the point 
+* inside the triangle that is given
+*/
+__host__ __device__ glm::vec3 getNormal(glm::vec3 points[3], glm::vec3 norms[3], glm::vec3 p) {
+	float A = TriArea(points[0], points[1], points[2]);
+	float A0 = TriArea(points[1], points[2], p);
+	float A1 = TriArea(points[0], points[2], p);
+	float A2 = TriArea(points[0], points[1], p);
+	return glm::normalize(norms[0] * A0 / A + norms[1] * A1 / A + norms[2] * A2 / A);
+}
+
 // CHECKITOUT
 /**
  * Test intersection between a ray and a transformed cube. Untransformed,
@@ -136,9 +152,102 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r,
 
     intersectionPoint = multiplyMV(sphere.transform, glm::vec4(objspaceIntersection, 1.f));
     normal = glm::normalize(multiplyMV(sphere.invTranspose, glm::vec4(objspaceIntersection, 0.f)));
-    if (!outside) {
-        normal = -normal;
-    }
+    //if (!outside) {
+    //    normal = -normal;
+    //}
 
     return glm::length(r.origin - intersectionPoint);
 }
+
+// TODO
+/**
+* Test intersection between a ray and a bounding box.
+*/
+__host__ __device__ bool bbIntersectionTest(Geom bb, Ray r) 
+{
+	glm::vec3 invDir = glm::vec3(1.f / r.direction.x, 1.f / r.direction.y, 1.f / r.direction.z);
+	int dirIsNeg[3] = { invDir.x < 0, invDir.y < 0, invDir.z < 0 };
+
+	// apply transform
+	float minX, maxX, minY, maxY, minZ, maxZ;
+	glm::vec3 min = bb.bound[0];
+	glm::vec3 max = bb.bound[1];
+	glm::vec4 p000 = bb.transform * glm::vec4(min, 1.f);
+	glm::vec4 p001 = bb.transform * glm::vec4(max.x, min.y, min.z, 1.f);
+	glm::vec4 p010 = bb.transform * glm::vec4(min.x, max.y, min.z, 1.f);
+	glm::vec4 p011 = bb.transform * glm::vec4(max.x, max.y, min.z, 1.f);
+	glm::vec4 p100 = bb.transform * glm::vec4(min.x, min.y, max.z, 1.f);
+	glm::vec4 p101 = bb.transform * glm::vec4(max.x, min.y, max.z, 1.f);
+	glm::vec4 p110 = bb.transform * glm::vec4(max.x, max.y, min.z, 1.f);
+	glm::vec4 p111 = bb.transform * glm::vec4(max, 1.f);
+	minX = glm::min(p000.x, glm::min(p001.x, glm::min(p010.x, glm::min(p011.x,
+		glm::min(p100.x, glm::min(p101.x, glm::min(p110.x, p111.x)))))));
+	maxX = glm::max(p000.x, glm::max(p001.x, glm::max(p010.x, glm::max(p011.x,
+		glm::max(p100.x, glm::max(p101.x, glm::max(p110.x, p111.x)))))));
+	minY = glm::min(p000.y, glm::min(p001.y, glm::min(p010.y, glm::min(p011.y,
+		glm::min(p100.y, glm::min(p101.y, glm::min(p110.y, p111.y)))))));
+	maxY = glm::max(p000.y, glm::max(p001.y, glm::max(p010.y, glm::max(p011.y,
+		glm::max(p100.y, glm::max(p101.y, glm::max(p110.y, p111.y)))))));
+	minZ = glm::min(p000.z, glm::min(p001.z, glm::min(p010.z, glm::min(p011.z,
+		glm::min(p100.z, glm::min(p101.z, glm::min(p110.z, p111.z)))))));
+	maxZ = glm::max(p000.z, glm::max(p001.z, glm::max(p010.z, glm::max(p011.z,
+		glm::max(p100.z, glm::max(p101.z, glm::max(p110.z, p111.z)))))));
+	glm::vec3 box[2] = { glm::vec3(minX, minY, minZ), glm::vec3(maxX, maxY, maxZ) };
+
+	// Check for ray intersection against $x$ and $y$ slabs
+	float tMin = (box[dirIsNeg[0]].x - r.origin.x) * invDir.x;
+	float tMax = (box[1 - dirIsNeg[0]].x - r.origin.x) * invDir.x;
+	float tyMin = (box[dirIsNeg[1]].y - r.origin.y) * invDir.y;
+	float tyMax = (box[1 - dirIsNeg[1]].y - r.origin.y) * invDir.y;
+
+	// Update _tMax_ and _tyMax_ to ensure robust bounds intersection
+	float gamma3 = (3 * EPSILON * 0.5) / (1 - 3 * EPSILON * 0.5);
+	tMax *= 1 + 2 * gamma3;
+	tyMax *= 1 + 2 * gamma3;
+	if (tMin > tyMax || tyMin > tMax) return false;
+	if (tyMin > tMin) tMin = tyMin;
+	if (tyMax < tMax) tMax = tyMax;
+
+	// Check for ray intersection against $z$ slab
+	float tzMin = (box[dirIsNeg[2]].z - r.origin.z) * invDir.z;
+	float tzMax = (box[1 - dirIsNeg[2]].z - r.origin.z) * invDir.z;
+
+	// Update _tzMax_ to ensure robust bounds intersection
+	tzMax *= 1 + 2 * gamma3;
+	if (tMin > tzMax || tzMin > tMax) return false;
+	if (tzMin > tMin) tMin = tzMin;
+	if (tzMax < tMax) tMax = tzMax;
+	return (tMax > 0);
+
+}
+
+/**
+* Test intersection between a ray and a transformed triangle.
+*
+* @param intersectionPoint  Output parameter for point of intersection.
+* @param normal             Output parameter for surface normal.
+* @param outside            Output param for whether the ray came from outside.
+* @return                   Ray parameter `t` value. -1 if no intersection.
+*/
+__host__ __device__ float triangleIntersectionTest(Geom tri, Ray r,
+	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside)
+{
+	// transform ray
+	Ray rt;
+	rt.origin = multiplyMV(tri.inverseTransform, glm::vec4(r.origin, 1.0f));
+	rt.direction = glm::normalize(multiplyMV(tri.inverseTransform, glm::vec4(r.direction, 0.0f)));
+
+	// ray triangle intersection
+	glm::vec3 baryPosition;
+	glm::intersectRayTriangle(rt.origin, rt.direction, tri.pos[0], tri.pos[1], tri.pos[2], baryPosition);
+	float t = baryPosition.z;
+
+	glm::vec3 objspaceIntersection = getPointOnRay(rt, t);
+
+	intersectionPoint = multiplyMV(tri.transform, glm::vec4(objspaceIntersection, 1.f));
+	normal = glm::normalize(multiplyMV(tri.invTranspose, glm::vec4(getNormal(tri.pos, tri.norm, objspaceIntersection), 0.f)));
+	outside = glm::dot(normal, r.direction) < 0;
+
+	return t; // negative if outside triangle
+}
+

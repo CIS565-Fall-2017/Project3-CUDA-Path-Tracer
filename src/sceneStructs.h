@@ -10,6 +10,8 @@
 enum GeomType {
     SPHERE,
     CUBE,
+	TRIANGLE,
+	MESH
 };
 
 struct Ray {
@@ -20,12 +22,18 @@ struct Ray {
 struct Geom {
     enum GeomType type;
     int materialid;
+	int nextIdxOff; // if Geom is not intersected
     glm::vec3 translation;
     glm::vec3 rotation;
     glm::vec3 scale;
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+	// triangles
+	glm::vec3 pos[3];
+	glm::vec3 norm[3];
+	glm::vec2 text[3];
+	glm::vec3 bound[2];
 };
 
 struct Material {
@@ -38,6 +46,7 @@ struct Material {
     float hasRefractive;
     float indexOfRefraction;
     float emittance;
+	const char* texture;
 };
 
 struct Camera {
@@ -48,6 +57,8 @@ struct Camera {
     glm::vec3 up;
     glm::vec3 right;
     glm::vec2 fov;
+	float lensR;
+	float focalD;
     glm::vec2 pixelLength;
 };
 
@@ -72,5 +83,6 @@ struct PathSegment {
 struct ShadeableIntersection {
   float t;
   glm::vec3 surfaceNormal;
+  glm::vec3 surfacePoint;
   int materialId;
 };

@@ -72,8 +72,37 @@ void scatterRay(
         glm::vec3 intersect,
         glm::vec3 normal,
         const Material &m,
-        thrust::default_random_engine &rng) {
+        thrust::default_random_engine &rng) 
+{
     // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
+	glm::vec3 newdirection;
+	thrust::uniform_real_distribution<float> u01(0, 1);
+	float prob = u01(rng);
+
+	if (prob < m.hasReflective) {
+		newdirection = glm::reflect(pathSegment.ray.direction, normal);
+		pathSegment.color *= m.specular.color * m.hasReflective;
+	}
+	else if (prob < m.hasRefractive) {
+		float ei = 1.0f;
+		float eo = m.indexOfRefraction;
+
+		bool isOutside = glm::dot(pathSegment.ray.direction, normal) < 0;
+		float et = isOutside ? eo / ei : ei / eo;
+		float n = isOutside ? 1 : -1;
+
+		newdirection = glm::refract(pathSegment.ray.direction, n * normal, et);
+		pathSegment.color *= m.specular.color * m.hasRefractive;
+	} 
+	else {
+		newdirection = glm::normalize(calculateRandomDirectionInHemisphere(normal, rng));
+		float diffuse_prob = 1 - m.hasReflective - m.hasRefractive;
+		pathSegment.color *= m.color * diffuse_prob;
+	}
+
+	pathSegment.ray.origin = intersect + newdirection * EPSILON;
+	pathSegment.ray.direction = newdirection;
+	pathSegment.remainingBounces--;
 }

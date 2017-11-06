@@ -4,6 +4,8 @@
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtx/string_cast.hpp>
 
+#include "tinyobj\tiny_obj_loader.h"
+
 Scene::Scene(string filename) {
     cout << "Reading scene from " << filename << " ..." << endl;
     cout << " " << endl;
@@ -34,32 +36,167 @@ Scene::Scene(string filename) {
 
 int Scene::loadGeom(string objectid) {
     int id = atoi(objectid.c_str());
-    if (id != geoms.size()) {
+ /*   if (id != geoms.size()) {
         cout << "ERROR: OBJECT ID does not match expected number of geoms" << endl;
         return -1;
-    } else {
+    } else {*/
         cout << "Loading Geom " << id << "..." << endl;
-        Geom newGeom;
+		std::vector<Geom> newGeoms;
         string line;
 
         //load object type
         utilityCore::safeGetline(fp_in, line);
         if (!line.empty() && fp_in.good()) {
-            if (strcmp(line.c_str(), "sphere") == 0) {
+			vector<string> tokens = utilityCore::tokenizeString(line);
+            if (strcmp(tokens[0].c_str(), "sphere") == 0) {
                 cout << "Creating new sphere..." << endl;
-                newGeom.type = SPHERE;
-            } else if (strcmp(line.c_str(), "cube") == 0) {
+				Geom geo;
+                geo.type = SPHERE;
+				geo.nextIdxOff = 0;
+				newGeoms.push_back(geo);
+            } else if (strcmp(tokens[0].c_str(), "cube") == 0) {
                 cout << "Creating new cube..." << endl;
-                newGeom.type = CUBE;
+				Geom geo;
+                geo.type = CUBE;
+				geo.nextIdxOff = 0;
+				newGeoms.push_back(geo);
             }
+			else if (strcmp(tokens[0].c_str(), "mesh") == 0) {
+				cout << "Creating new mesh..." << endl;
+				Geom geo;
+				geo.type = MESH;
+				newGeoms.push_back(geo);
+
+				tinyobj::attrib_t attrib;
+				std::vector<tinyobj::shape_t> shapes; 
+				std::vector<tinyobj::material_t> materials;
+				std::string err;
+				bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, tokens[1].c_str());
+				if (!err.empty()) {
+					cout << err << endl;
+				}
+				if (!ret) {
+					cout << "Failed to load " << tokens[1].c_str() << endl;
+				}
+
+				printf("# of vertices  = %d\n", (int)(attrib.vertices.size()) / 3);
+				printf("# of normals   = %d\n", (int)(attrib.normals.size()) / 3);
+				printf("# of texcoords = %d\n", (int)(attrib.texcoords.size()) / 2);
+				printf("# of materials = %d\n", (int)materials.size());
+				printf("# of shapes    = %d\n", (int)shapes.size());
+
+				float bmin[3];
+				float bmax[3];
+				bmin[0] = bmin[1] = bmin[2] = std::numeric_limits<float>::max();
+				bmax[0] = bmax[1] = bmax[2] = -std::numeric_limits<float>::max();
+
+				for (unsigned int s = 0; s < shapes.size(); ++s) {
+					for (size_t f = 0; f < shapes[s].mesh.indices.size() / 3; f++) {
+						Geom geo;
+						geo.type = TRIANGLE;
+						geo.nextIdxOff = 0;
+
+						tinyobj::index_t idx0 = shapes[s].mesh.indices[3 * f + 0];
+						tinyobj::index_t idx1 = shapes[s].mesh.indices[3 * f + 1];
+						tinyobj::index_t idx2 = shapes[s].mesh.indices[3 * f + 2];
+
+						// positions
+						float v[3][3];
+						for (int k = 0; k < 3; k++) {
+							int f0 = idx0.vertex_index;
+							int f1 = idx1.vertex_index;
+							int f2 = idx2.vertex_index;
+							assert(f0 >= 0);
+							assert(f1 >= 0);
+							assert(f2 >= 0);
+
+							v[0][k] = attrib.vertices[3 * f0 + k];
+							v[1][k] = attrib.vertices[3 * f1 + k];
+							v[2][k] = attrib.vertices[3 * f2 + k];
+							bmin[k] = std::min(v[0][k], bmin[k]);
+							bmin[k] = std::min(v[1][k], bmin[k]);
+							bmin[k] = std::min(v[2][k], bmin[k]);
+							bmax[k] = std::max(v[0][k], bmax[k]);
+							bmax[k] = std::max(v[1][k], bmax[k]);
+							bmax[k] = std::max(v[2][k], bmax[k]);
+						}
+						geo.pos[0] = glm::vec3(v[0][0], v[0][1], v[0][2]);
+						geo.pos[1] = glm::vec3(v[1][0], v[1][1], v[1][2]);
+						geo.pos[2] = glm::vec3(v[2][0], v[2][1], v[2][2]);
+
+						// normals
+						float n[3][3];
+						if (attrib.normals.size() > 0) {
+							int f0 = idx0.normal_index;
+							int f1 = idx1.normal_index;
+							int f2 = idx2.normal_index;
+							assert(f0 >= 0);
+							assert(f1 >= 0);
+							assert(f2 >= 0);
+							for (int k = 0; k < 3; k++) {
+								n[0][k] = attrib.normals[3 * f0 + k];
+								n[1][k] = attrib.normals[3 * f1 + k];
+								n[2][k] = attrib.normals[3 * f2 + k];
+							}
+						} else {
+							// compute geometric normal
+							CalcNormal(n[0], v[0], v[1], v[2]);
+							n[1][0] = n[0][0];
+							n[1][1] = n[0][1];
+							n[1][2] = n[0][2];
+							n[2][0] = n[0][0];
+							n[2][1] = n[0][1];
+							n[2][2] = n[0][2];
+						}
+						geo.norm[0] = glm::vec3(n[0][0], n[0][1], n[0][2]);
+						geo.norm[1] = glm::vec3(n[1][0], n[1][1], n[1][2]);
+						geo.norm[2] = glm::vec3(n[2][0], n[2][1], n[2][2]);
+
+						// texture coordinates
+						if (attrib.texcoords.size() > 0) {
+							assert(attrib.texcoords.size() > 2 * idx0.texcoord_index + 1);
+							assert(attrib.texcoords.size() > 2 * idx1.texcoord_index + 1);
+							assert(attrib.texcoords.size() > 2 * idx2.texcoord_index + 1);
+
+							// Flip Y coord.
+							geo.text[0].x = attrib.texcoords[2 * idx0.texcoord_index];
+							geo.text[0].y = 1.0f - attrib.texcoords[2 * idx0.texcoord_index + 1];
+							geo.text[1].x = attrib.texcoords[2 * idx1.texcoord_index];
+							geo.text[1].y = 1.0f - attrib.texcoords[2 * idx1.texcoord_index + 1];
+							geo.text[2].x = attrib.texcoords[2 * idx2.texcoord_index];
+							geo.text[2].y = 1.0f - attrib.texcoords[2 * idx2.texcoord_index + 1];
+						}
+						else {
+							geo.text[0].x = 0.f;
+							geo.text[0].y = 0.f;
+							geo.text[1].x = 0.f;
+							geo.text[1].y = 0.f;
+							geo.text[2].x = 0.f;
+							geo.text[2].y = 0.f;
+						}
+
+						newGeoms.push_back(geo);
+					}
+				}
+				Geom &mesh = newGeoms[0];
+				mesh.nextIdxOff = newGeoms.size() - 1;
+				mesh.bound[0] = glm::vec3(bmin[0], bmin[1], bmin[2]);
+				mesh.bound[1] = glm::vec3(bmax[0], bmax[1], bmax[2]);
+				
+			}
         }
+
+		int num_geo = newGeoms.size();
 
         //link material
         utilityCore::safeGetline(fp_in, line);
         if (!line.empty() && fp_in.good()) {
             vector<string> tokens = utilityCore::tokenizeString(line);
-            newGeom.materialid = atoi(tokens[1].c_str());
-            cout << "Connecting Geom " << objectid << " to Material " << newGeom.materialid << "..." << endl;
+			for (int i = 0; i < num_geo; ++i) {
+				Geom &geo = newGeoms[i];
+				geo.materialid = atoi(tokens[1].c_str());
+			}
+            cout << "Connecting Geom " << objectid << " to Material " << tokens[1].c_str() << "..." << endl;
         }
 
         //load transformations
@@ -69,24 +206,36 @@ int Scene::loadGeom(string objectid) {
 
             //load tranformations
             if (strcmp(tokens[0].c_str(), "TRANS") == 0) {
-                newGeom.translation = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+				for (int i = 0; i < num_geo; ++i) {
+					Geom &geo = newGeoms[i];
+					geo.translation = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+				}
+                
             } else if (strcmp(tokens[0].c_str(), "ROTAT") == 0) {
-                newGeom.rotation = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+				for (int i = 0; i < num_geo; ++i) {
+					Geom &geo = newGeoms[i];
+					geo.rotation = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+				}
             } else if (strcmp(tokens[0].c_str(), "SCALE") == 0) {
-                newGeom.scale = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+				for (int i = 0; i < num_geo; ++i) {
+					Geom &geo = newGeoms[i];
+					geo.scale = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+				}
             }
 
             utilityCore::safeGetline(fp_in, line);
         }
 
-        newGeom.transform = utilityCore::buildTransformationMatrix(
-                newGeom.translation, newGeom.rotation, newGeom.scale);
-        newGeom.inverseTransform = glm::inverse(newGeom.transform);
-        newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
+		for (int i = 0; i < num_geo; ++i) {
+			Geom &geo = newGeoms[i];
+			geo.transform = utilityCore::buildTransformationMatrix(geo.translation, geo.rotation, geo.scale);
+			geo.inverseTransform = glm::inverse(geo.transform);
+			geo.invTranspose = glm::inverseTranspose(geo.transform);
 
-        geoms.push_back(newGeom);
+			geoms.push_back(geo);
+		}
         return 1;
-    }
+    //}
 }
 
 int Scene::loadCamera() {
@@ -105,6 +254,10 @@ int Scene::loadCamera() {
             camera.resolution.y = atoi(tokens[2].c_str());
         } else if (strcmp(tokens[0].c_str(), "FOVY") == 0) {
             fovy = atof(tokens[1].c_str());
+		//} else if (strcmp(tokens[0].c_str(), "LENSR") == 0) {
+		//	camera.lensR = atof(tokens[1].c_str());
+		//} else if (strcmp(tokens[0].c_str(), "FOCALD") == 0) {
+		//	camera.focalD = atof(tokens[1].c_str());
         } else if (strcmp(tokens[0].c_str(), "ITERATIONS") == 0) {
             state.iterations = atoi(tokens[1].c_str());
         } else if (strcmp(tokens[0].c_str(), "DEPTH") == 0) {
@@ -160,14 +313,18 @@ int Scene::loadMaterial(string materialid) {
         Material newMaterial;
 
         //load static properties
-        for (int i = 0; i < 7; i++) {
+        for (int i = 0; i < 8; i++) {
             string line;
             utilityCore::safeGetline(fp_in, line);
             vector<string> tokens = utilityCore::tokenizeString(line);
             if (strcmp(tokens[0].c_str(), "RGB") == 0) {
                 glm::vec3 color( atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()) );
                 newMaterial.color = color;
-            } else if (strcmp(tokens[0].c_str(), "SPECEX") == 0) {
+            } else if (strcmp(tokens[0].c_str(), "TEXTUREMAP") == 0) {
+				if (tokens.size() > 1) {
+					newMaterial.texture = tokens[1].c_str();
+				}
+			} else if (strcmp(tokens[0].c_str(), "SPECEX") == 0) {
                 newMaterial.specular.exponent = atof(tokens[1].c_str());
             } else if (strcmp(tokens[0].c_str(), "SPECRGB") == 0) {
                 glm::vec3 specColor(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
@@ -180,7 +337,7 @@ int Scene::loadMaterial(string materialid) {
                 newMaterial.indexOfRefraction = atof(tokens[1].c_str());
             } else if (strcmp(tokens[0].c_str(), "EMITTANCE") == 0) {
                 newMaterial.emittance = atof(tokens[1].c_str());
-            }
+            } 
         }
         materials.push_back(newMaterial);
         return 1;
