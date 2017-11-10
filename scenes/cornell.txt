@@ -63,7 +63,7 @@ CAMERA
 RES         600 600
 FOVY        45
 ITERATIONS  5000
-DEPTH       4
+DEPTH       6
 FILE        cornell
 EYE         0.0 5 4.8
 LOOKAT      0 5 0
@@ -97,7 +97,7 @@ SCALE       .01 10 10
 // Back wall
 OBJECT 3
 cube
-material 3
+material 1
 TRANS       0 5 -5
 ROTAT       0 90 0
 SCALE       .1 10 10
@@ -114,7 +114,7 @@ SCALE       .01 10 10
 // Right wall
 OBJECT 5
 cube
-material 1
+material 3
 TRANS       5 5 0
 ROTAT       0 0 0
 SCALE       .01 10 10
@@ -138,7 +138,7 @@ SCALE       .1 100 100
 // Sphere 2
 OBJECT 8
 C:\Users\Alex\Documents\565\Project3-CUDA-Path-Tracer\scenes\bunny.obj
-material 2
-TRANS       0 0 0
-ROTAT       0 0 0
-SCALE       25 25 25
+material 4
+TRANS       0.5 2 0
+ROTAT       0 0 -15
+SCALE       20 20 20

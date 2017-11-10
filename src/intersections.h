@@ -111,7 +111,7 @@ __device__ float triangleIntersectionTest(Geom triangle, Ray r, glm::vec3 &inter
 
 	float t = glm::dot(v0v2, qvec) * invDet;;
 	intersectionPoint = t * r.direction + r.origin;
-	normal = triangle.normals[0];
+	normal = triangle.normal;
 	return t;
 }
 

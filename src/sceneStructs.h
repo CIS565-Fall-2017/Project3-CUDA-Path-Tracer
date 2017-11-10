@@ -21,7 +21,7 @@ struct Ray {
 struct Geom {
     enum GeomType type;
 	glm::vec3 vertices[3];//if triangle
-	glm::vec3 normals[3];//if triangle
+	glm::vec3 normal;
     int materialid;
     glm::vec3 translation;
     glm::vec3 rotation;

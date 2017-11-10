@@ -120,7 +120,6 @@ int Scene::loadObj(string meshName, glm::mat4 transform, glm::mat4 inverseTransf
 		exit(1);
 	}
 
-	bool normals = attrib.vertices.size() == attrib.normals.size();
 	// Loop over shapes
 	for (size_t s = 0; s < shapes.size(); s++) {
 
@@ -141,24 +140,12 @@ int Scene::loadObj(string meshName, glm::mat4 transform, glm::mat4 inverseTransf
 				newGeom.vertices[v][0] = attrib.vertices[3 * idx.vertex_index + 0];
 				newGeom.vertices[v][1] = attrib.vertices[3 * idx.vertex_index + 1];
 				newGeom.vertices[v][2] = attrib.vertices[3 * idx.vertex_index + 2];
-				if (normals) {
-					newGeom.normals[v][0] = attrib.normals[3 * idx.normal_index + 0];
-					newGeom.normals[v][1] = attrib.normals[3 * idx.normal_index + 1];
-					newGeom.normals[v][2] = attrib.normals[3 * idx.normal_index + 2];
-				}
-			}
-
-			if (!normals) {
-				glm::vec3 faceNormal = glm::normalize(glm::cross(newGeom.vertices[1] - newGeom.vertices[0], newGeom.vertices[2] - newGeom.vertices[0]));
-				newGeom.normals[0] = faceNormal;
-				newGeom.normals[1] = faceNormal;
-				newGeom.normals[2] = faceNormal;
 			}
 
 			for (int i = 0; i < 3; i++) {
 				newGeom.vertices[i] = (glm::vec3) (transform * glm::vec4(newGeom.vertices[i],1));
-				newGeom.normals[i] = (glm::vec3) (transform * glm::vec4(newGeom.normals[i], 1));
 			}
+			newGeom.normal = glm::normalize(glm::cross(newGeom.vertices[1] - newGeom.vertices[0], newGeom.vertices[2] - newGeom.vertices[0]));
 
 			geoms.push_back(newGeom);
 			index_offset += 3;
