@@ -338,6 +338,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	//perform first bounce OR load cached first bounce
 #if CACHE_PATHS
 	//store the initial paths and intersections, which will remain constant until camera moves (at which point iter == 0)
+	//currently jitters rays every 25 passes for antialiasing
 	if (iter % 25 == 1) {
 		generateRayFromCamera << <blocksPerGrid2d, blockSize2d >> > (cam, iter, traceDepth, dev_cached_paths);
 		computeIntersections << <numBlocksPixels, blockSize1d >> > (0, pixelcount, dev_cached_paths, dev_geoms, 
@@ -400,7 +401,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	///////////////////////////////////////////////////////////////////////////
 
 	// Send results to OpenGL buffer for rendering
-	sendImageToPBO << <blocksPerGrid2d, blockSize2d >> >(pbo, cam.resolution, iter, dev_image);
+	sendImageToPBO << <blocksPerGrid2d, blockSize2d >> > (pbo, cam.resolution, iter, dev_image);
 
 	// Retrieve image from GPU
 	cudaMemcpy(hst_scene->state.image.data(), dev_image,
