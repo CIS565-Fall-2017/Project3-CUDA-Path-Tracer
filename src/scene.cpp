@@ -4,6 +4,9 @@
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtx/string_cast.hpp>
 
+#define TINYOBJLOADER_IMPLEMENTATION
+#include "tiny_obj_loader.h"
+
 Scene::Scene(string filename) {
     cout << "Reading scene from " << filename << " ..." << endl;
     cout << " " << endl;
@@ -41,6 +44,7 @@ int Scene::loadGeom(string objectid) {
         cout << "Loading Geom " << id << "..." << endl;
         Geom newGeom;
         string line;
+		string meshName;
 
         //load object type
         utilityCore::safeGetline(fp_in, line);
@@ -51,7 +55,11 @@ int Scene::loadGeom(string objectid) {
             } else if (strcmp(line.c_str(), "cube") == 0) {
                 cout << "Creating new cube..." << endl;
                 newGeom.type = CUBE;
-            }
+			}
+			else {
+				newGeom.type = TRIANGLE;
+				meshName = line.c_str();
+			}
         }
 
         //link material
@@ -79,14 +87,84 @@ int Scene::loadGeom(string objectid) {
             utilityCore::safeGetline(fp_in, line);
         }
 
-        newGeom.transform = utilityCore::buildTransformationMatrix(
-                newGeom.translation, newGeom.rotation, newGeom.scale);
-        newGeom.inverseTransform = glm::inverse(newGeom.transform);
-        newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
+		newGeom.transform = utilityCore::buildTransformationMatrix(
+			newGeom.translation, newGeom.rotation, newGeom.scale);
+		newGeom.inverseTransform = glm::inverse(newGeom.transform);
+		newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
 
-        geoms.push_back(newGeom);
+		if (newGeom.type == SPHERE || newGeom.type == CUBE) {
+			geoms.push_back(newGeom);
+		} else {
+			loadObj(meshName, newGeom.transform, newGeom.inverseTransform, newGeom.invTranspose, newGeom.materialid);
+		}
+
         return 1;
     }
+}
+
+//straight from the tinyOBJ readme
+int Scene::loadObj(string meshName, glm::mat4 transform, glm::mat4 inverseTransform, glm::mat4 inverseTranspose, int materialID) {
+	
+	tinyobj::attrib_t attrib;
+	std::vector<tinyobj::shape_t> shapes;
+	std::vector<tinyobj::material_t> materials;
+
+	std::string err;
+	bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, meshName.c_str(),NULL,true);
+
+	if (!err.empty()) { // `err` may contain warning message.
+		std::cerr << err << std::endl;
+	}
+
+	if (!ret) {
+		exit(1);
+	}
+
+	bool normals = attrib.vertices.size() == attrib.normals.size();
+	// Loop over shapes
+	for (size_t s = 0; s < shapes.size(); s++) {
+
+		// Loop over faces(polygon)
+		size_t index_offset = 0;
+		for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
+			Geom newGeom;
+			newGeom.type = TRIANGLE;
+			newGeom.materialid = materialID;
+			newGeom.transform = transform;
+			newGeom.inverseTransform = inverseTransform;
+			newGeom.invTranspose = inverseTranspose;
+
+			// Loop over vertices in the face.
+			for (size_t v = 0; v < 3; v++) {
+				// access to vertex
+				tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
+				newGeom.vertices[v][0] = attrib.vertices[3 * idx.vertex_index + 0];
+				newGeom.vertices[v][1] = attrib.vertices[3 * idx.vertex_index + 1];
+				newGeom.vertices[v][2] = attrib.vertices[3 * idx.vertex_index + 2];
+				if (normals) {
+					newGeom.normals[v][0] = attrib.normals[3 * idx.normal_index + 0];
+					newGeom.normals[v][1] = attrib.normals[3 * idx.normal_index + 1];
+					newGeom.normals[v][2] = attrib.normals[3 * idx.normal_index + 2];
+				}
+			}
+
+			if (!normals) {
+				glm::vec3 faceNormal = glm::normalize(glm::cross(newGeom.vertices[1] - newGeom.vertices[0], newGeom.vertices[2] - newGeom.vertices[0]));
+				newGeom.normals[0] = faceNormal;
+				newGeom.normals[1] = faceNormal;
+				newGeom.normals[2] = faceNormal;
+			}
+
+			for (int i = 0; i < 3; i++) {
+				newGeom.vertices[i] = (glm::vec3) (transform * glm::vec4(newGeom.vertices[i],1));
+				newGeom.normals[i] = (glm::vec3) (transform * glm::vec4(newGeom.normals[i], 1));
+			}
+
+			geoms.push_back(newGeom);
+			index_offset += 3;
+		}
+	}
+	return 1;
 }
 
 int Scene::loadCamera() {

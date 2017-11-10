@@ -89,6 +89,32 @@ __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
     return -1;
 }
 
+__device__ float triangleIntersectionTest(Geom triangle, Ray r, glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) {
+	glm::vec3 v0v1 = triangle.vertices[1] - triangle.vertices[0];
+	glm::vec3 v0v2 = triangle.vertices[2] - triangle.vertices[0];
+	glm::vec3 pvec = glm::cross(r.direction,v0v2);
+	float det = glm::dot(v0v1,pvec);
+
+	// if the determinant is negative the triangle is backfacing
+	// if the determinant is close to 0, the ray misses the triangle
+	outside = det > 0.0001f;
+
+	float invDet = 1 / det;
+
+	glm::vec3 tvec = r.origin - triangle.vertices[0];
+	float u = glm::dot(tvec,pvec) * invDet;
+	if (u < 0 || u > 1) return -1.0f;
+
+	glm::vec3 qvec = glm::cross(tvec, v0v1);
+	float v = glm::dot(r.direction,qvec) * invDet;
+	if (v < 0 || u + v > 1) return -1.0f;
+
+	float t = glm::dot(v0v2, qvec) * invDet;;
+	intersectionPoint = t * r.direction + r.origin;
+	normal = triangle.normals[0];
+	return t;
+}
+
 // CHECKITOUT
 /**
  * Test intersection between a ray and a transformed sphere. Untransformed,
