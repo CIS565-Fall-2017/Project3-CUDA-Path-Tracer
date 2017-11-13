@@ -30,7 +30,9 @@ Scene::Scene(string filename) {
             } else if (strcmp(tokens[0].c_str(), "CAMERA") == 0) {
                 loadCamera();
                 cout << " " << endl;
-            }
+            } else if (strcmp(tokens[0].c_str(), "END") == 0) {
+				break;
+			}
         }
     }
 }

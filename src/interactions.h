@@ -1,7 +1,7 @@
 #pragma once
 
 #include "intersections.h"
-
+#define DISPLAY_NORMALS 0
 // CHECKITOUT
 /**
  * Computes a cosine-weighted random direction in a hemisphere.
@@ -75,28 +75,55 @@ void scatterRay(
         thrust::default_random_engine &rng) {
 
 
+#if DISPLAY_NORMALS
+	pathSegment.remainingBounces = 0;
+	pathSegment.color = abs(normal);
+#else
+
 	pathSegment.ray.origin = intersect;
 	thrust::uniform_real_distribution<float> u01;
 	float rand = u01(rng);
+
 	//refraction
 	if (m.hasRefractive) {
-		float angle = glm::dot(-pathSegment.ray.direction, normal);
-		bool incoming = angle > 0;/*
-		float n1 = incoming ? 1 : m.indexOfRefraction;
-		float n2 = incoming ? m.indexOfRefraction : 1;
-		float R0 = ((n1 - n2) / (n1 + n2)) * ((n1 - n2) / (n1 + n2));
-		float coeff = R0 + (1 - R0)*pow((1-cosTheta), 5.0f);*/
 
-		if (rand < (abs(angle) * abs(angle) + 0.1f)) {
-			pathSegment.ray.origin += (incoming ? -0.001f : 0.001f) * normal;
-			pathSegment.ray.direction = pathSegment.ray.direction = glm::refract(pathSegment.ray.direction, normal, incoming ? 1 / m.indexOfRefraction : m.indexOfRefraction);
+		float coeff = 0;
+		float cosTheta = -glm::dot(glm::normalize(pathSegment.ray.direction), glm::normalize(normal));
+		bool incomingFromOutside = pathSegment.insideT == 0.0f;
+
+		//get indices of refraction and r0 for Schlick's
+		float n1 = incomingFromOutside ? 1 : m.indexOfRefraction;
+		float n2 = incomingFromOutside ? m.indexOfRefraction : 1;
+		float n = n1 / n2;
+		float R0 = (n1 - n2) / (n1 + n2);
+		R0 *= R0;
+
+		if (n1 > n2) {
+			float sinT2 = n*n*(1.0 - cosTheta*cosTheta);
+			cosTheta = sqrt(1.0 - sinT2);
+			// Total internal reflection
+			if (sinT2 > 1.0f)
+				coeff = 1.0f;
 		}
-		else {
-			pathSegment.ray.origin += (incoming ? 0.001f : -0.001f) * normal;
+
+		if (coeff == 0.0f) {
+			float x = 1.0 - cosTheta;
+			coeff = R0 + (1.0 - R0)*x*x*x*x*x;
+		}
+
+		if (rand > coeff) {
+			pathSegment.ray.origin += 0.01f * pathSegment.ray.direction;
+			pathSegment.ray.direction = glm::refract(pathSegment.ray.direction, normal, n);
+			if (true){//!incomingFromOutside) {
+				glm::vec3 c_absorb = (glm::vec3(2.0f) - 2.0f * m.color);
+				glm::vec3 absorb = glm::exp(-c_absorb * (pathSegment.insideT));
+				pathSegment.color *= m.color;
+			}
+		} else {
 			pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
+			pathSegment.color *= m.specular.color;
 		}
 
-		pathSegment.color *= m.specular.color;
 	} 
 	//diffuse
 	else if (rand > m.hasReflective) {
@@ -106,4 +133,5 @@ void scatterRay(
 		pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
 		pathSegment.color *= m.specular.color;
 	}
+#endif
 }

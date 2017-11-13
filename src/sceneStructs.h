@@ -67,6 +67,7 @@ struct PathSegment {
 	glm::vec3 color;
 	int pixelIndex;
 	int remainingBounces;
+	float insideT; //will be zero except if inside a refractive surface; there it will reflect distance traveled for beers law
 };
 
 // Use with a corresponding PathSegment to do:

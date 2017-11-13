@@ -97,7 +97,7 @@ __device__ float triangleIntersectionTest(Geom triangle, Ray r, glm::vec3 &inter
 
 	// if the determinant is negative the triangle is backfacing
 	// if the determinant is close to 0, the ray misses the triangle
-	outside = det > 0.0001f;
+	outside = det > 0.0f;
 
 	float invDet = 1 / det;
 
@@ -111,7 +111,7 @@ __device__ float triangleIntersectionTest(Geom triangle, Ray r, glm::vec3 &inter
 
 	float t = glm::dot(v0v2, qvec) * invDet;;
 	intersectionPoint = t * r.direction + r.origin;
-	normal = triangle.normal;
+	normal = outside ? triangle.normal : - triangle.normal;
 	return t;
 }
 

@@ -16,7 +16,7 @@
 #include "intersections.h"
 #include "interactions.h"
 
-#define ERRORCHECK 1
+#define ERRORCHECK 0
 #define SORT_MATERIALS 0
 #define CACHE_PATHS 1
 
@@ -232,6 +232,7 @@ __global__ void computeIntersections(
 			intersections[path_index].point = intersect_point;
 			intersections[path_index].materialId = geoms[hit_geom_index].materialid;
 			intersections[path_index].surfaceNormal = normal;
+			pathSegments[path_index].insideT = outside ? 0.0f : t_min;
 		}
 	}
 }
@@ -276,6 +277,9 @@ __global__ void shadeFakeMaterial(
 			// Otherwise, color and bounce
 			else {
 				scatterRay(pathSegments[idx], intersection.point, intersection.surfaceNormal, material, rng);
+#if DISPLAY_NORMALS
+				image[pathSegments[idx].pixelIndex] += pathSegments[idx].color;
+#endif
 				pathSegments[idx].remainingBounces--;
 			}
 			// If there was no intersection, color the ray black.
