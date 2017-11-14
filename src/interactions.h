@@ -88,8 +88,8 @@ void scatterRay(
 	if (m.hasRefractive) {
 
 		float coeff = 0;
-		float cosTheta = -glm::dot(glm::normalize(pathSegment.ray.direction), glm::normalize(normal));
-		bool incomingFromOutside = pathSegment.insideT == 0.0f;
+		float cosTheta = -glm::dot(pathSegment.ray.direction, normal);
+		bool incomingFromOutside = pathSegment.insideT == 0;
 
 		//get indices of refraction and r0 for Schlick's
 		float n1 = incomingFromOutside ? 1 : m.indexOfRefraction;
@@ -114,11 +114,11 @@ void scatterRay(
 		if (rand > coeff) {
 			pathSegment.ray.origin += 0.01f * pathSegment.ray.direction;
 			pathSegment.ray.direction = glm::refract(pathSegment.ray.direction, normal, n);
-			if (true){//!incomingFromOutside) {
-				glm::vec3 c_absorb = (glm::vec3(2.0f) - 2.0f * m.color);
-				glm::vec3 absorb = glm::exp(-c_absorb * (pathSegment.insideT));
+			//if (!incomingFromOutside) {
+				//glm::vec3 c_absorb = (glm::vec3(1.1f) - m.color);
+				//glm::vec3 absorb = glm::clamp(glm::exp(-c_absorb * 0.33f * pathSegment.insideT), glm::vec3(0.0f), glm::vec3(1.0f));
 				pathSegment.color *= m.color;
-			}
+			//}
 		} else {
 			pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
 			pathSegment.color *= m.specular.color;

@@ -97,7 +97,7 @@ __device__ float triangleIntersectionTest(Geom triangle, Ray r, glm::vec3 &inter
 
 	// if the determinant is negative the triangle is backfacing
 	// if the determinant is close to 0, the ray misses the triangle
-	outside = det > 0.0f;
+	outside = det < 0.0f;
 
 	float invDet = 1 / det;
 
