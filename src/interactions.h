@@ -60,7 +60,7 @@ __host__ __device__ glm::vec3 phongColor(const glm::vec3& wi, const glm::vec3& w
 // spawn a ray from the point this ray would hit at time t; new ray has newdir
 __host__ __device__ void spawn_ray(Ray&  ray, const glm::vec3& normal, const glm::vec3& newdir, float t)
 {
-	ray.origin += t * ray.direction + EPSILON * normal;
+	ray.origin += t * ray.direction + 0.02f * newdir;
 	ray.direction = newdir;
 }
 __host__ __device__ float numMaterials(const Material& m)
@@ -111,7 +111,20 @@ __host__ __device__ float evaluateCosTransmitted(float cosI, float eta)
 	return std::sqrt(oneMinusX(sinT2));
 
 }
-
+// calculate Index of refraction and cosThetaI. Supply normal, rayDir, and whether
+// the intersection is outside or inside and the stored index of refraction in the material
+// that has the convention that ior is the index on the far side (away from the normal),
+// over the index on the near side.  
+__host__ __device__ float getCosThetaI(const glm::vec3& normal, const glm::vec3& rayDir,
+	const bool outside, float* ior) 
+{
+	float cosTheta{ -glm::dot(normal, rayDir) };
+	if (cosTheta < 0) {
+		cosTheta = -cosTheta;
+		*ior = 1 / *ior;
+	}
+	return cosTheta;
+}
 // my prior implementation of the fresnel coefficient
 // eta is the ratio  of incident over transmitted as in glm::refract
 __host__ __device__ float evaluateGeneral(float cosThetaI, float eta) 
@@ -194,14 +207,41 @@ void scatterRay(
         {
          	spawn_ray(pathSegment.ray, intersect.surfaceNormal, glm::reflect(pathSegment.ray.direction,
          		intersect.surfaceNormal), intersect.t);
-         	pathSegment.color *= m.specular.color * numM;
+			// material is also refractive but we are on the reflective path
+			// calculate the index of refraction and get the Fresnel coefficient
+			// to divide the light into refractive and reflective components
+
+			if ((m.summaryState & MaterialType::Refractive) > 0) {
+				float ior = m.indexOfRefraction;
+				float cosThetaI{ getCosThetaI(intersect.surfaceNormal,
+					pathSegment.ray.direction,
+										   intersect.outside, &ior) };
+				float fresnelTerm = evaluateGeneral(cosThetaI, ior);
+				pathSegment.color *= fresnelTerm * numM * m.specular.color;
+			}
+			else {
+         	      pathSegment.color *= m.specular.color * numM;
+			}
          	--pathSegment.remainingBounces;
         }
         else if (intersect.matl == MaterialType::Refractive)
         {
-        	float ior{ (intersect.outside) ? m.indexOfRefraction : 1 / m.indexOfRefraction };
+        	// also reflective so attenuate the refracted light by the Fresnel
+			// coefficient
+			float ior;
+			if ((m.summaryState & MaterialType::Reflective) > 0) {
+				ior = m.indexOfRefraction;
+				float cosThetaI{ getCosThetaI(intersect.surfaceNormal,
+					pathSegment.ray.direction,
+										   intersect.outside, &ior) };
+				float fresnelTerm = evaluateGeneral(cosThetaI, ior);
+				pathSegment.color *= (1 - fresnelTerm) * numM * m.specular.color;
+			}
+			else { // case no reflection not as accurate
+				ior = (intersect.outside) ? m.indexOfRefraction : 1 / m.indexOfRefraction;
+				pathSegment.color *= m.specular.color * numM;
+			}
         	//float costhetaI{ abs(glm::dot(pathSegment.ray.direction, intersect.surfaceNormal)) };
-        	pathSegment.color *= m.specular.color * numM;
         	// ior  indexOf refraction is the index away from normal/ index on side of normal.
         	// if the ray came from outside (wo is on the same side of the normal) wi would be 
         	// in the material. glm::refract assumes ior is the incident/transmitted indices or 
@@ -210,7 +250,7 @@ void scatterRay(
         		intersect.surfaceNormal, ior), intersect.t);
         	--pathSegment.remainingBounces;
         }
-        else { // 
+        else { // should not get here 
         	pathSegment.remainingBounces = 0;
         	pathSegment.color = glm::vec3(0.0f);
         	
