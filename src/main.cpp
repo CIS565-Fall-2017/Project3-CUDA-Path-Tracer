@@ -1,6 +1,7 @@
 #include "main.h"
 #include "preview.h"
 #include <cstring>
+#include <ctime>
 
 static std::string startTimeString;
 
@@ -22,6 +23,7 @@ glm::vec3 ogLookAt; // for recentering the camera
 Scene *scene;
 RenderState *renderState;
 int iteration;
+double total;
 
 int width;
 int height;
@@ -134,7 +136,13 @@ void runCuda() {
 
         // execute the kernel
         int frame = 0;
-        pathtrace(pbo_dptr, frame, iteration);
+		clock_t begin = clock();
+		pathtrace(pbo_dptr, frame, iteration);
+		clock_t end = clock();
+
+		total += (end - begin) * 1000.0f / CLOCKS_PER_SEC;
+		std::cout << iteration << ": " << total / (CLOCKS_PER_SEC) << std::endl;
+		total = 0;
 
         // unmap buffer object
         cudaGLUnmapBufferObject(pbo);

@@ -59,7 +59,7 @@ int Scene::loadGeom(string objectid) {
                 newGeom.type = CUBE;
 			}
 			else {
-				newGeom.type = TRIANGLE;
+				newGeom.type = BB;
 				meshName = line.c_str();
 			}
         }
@@ -97,6 +97,7 @@ int Scene::loadGeom(string objectid) {
 		if (newGeom.type == SPHERE || newGeom.type == CUBE) {
 			geoms.push_back(newGeom);
 		} else {
+			geoms.push_back(newGeom);
 			loadObj(meshName, newGeom.transform, newGeom.inverseTransform, newGeom.invTranspose, newGeom.materialid);
 		}
 
@@ -107,6 +108,11 @@ int Scene::loadGeom(string objectid) {
 //straight from the tinyOBJ readme
 int Scene::loadObj(string meshName, glm::mat4 transform, glm::mat4 inverseTransform, glm::mat4 inverseTranspose, int materialID) {
 	
+	Geom bb = geoms[geoms.size() - 1];
+	int bbIdx = geoms.size() - 1;
+	glm::vec3 minPoint = glm::vec3(100, 100, 100);
+	glm::vec3 maxPoint = glm::vec3(-100, -100, -100);
+
 	tinyobj::attrib_t attrib;
 	std::vector<tinyobj::shape_t> shapes;
 	std::vector<tinyobj::material_t> materials;
@@ -146,6 +152,8 @@ int Scene::loadObj(string meshName, glm::mat4 transform, glm::mat4 inverseTransf
 
 			for (int i = 0; i < 3; i++) {
 				newGeom.vertices[i] = (glm::vec3) (transform * glm::vec4(newGeom.vertices[i],1));
+				minPoint = glm::min(newGeom.vertices[i], minPoint);
+				maxPoint = glm::max(newGeom.vertices[i], maxPoint);
 			}
 			newGeom.normal = glm::normalize(glm::cross(newGeom.vertices[1] - newGeom.vertices[0], newGeom.vertices[2] - newGeom.vertices[0]));
 
@@ -153,6 +161,18 @@ int Scene::loadObj(string meshName, glm::mat4 transform, glm::mat4 inverseTransf
 			index_offset += 3;
 		}
 	}
+
+	bb.translation = 0.5f * (minPoint + maxPoint);
+	bb.rotation = glm::vec3(0, 0, 0);
+	bb.scale = maxPoint - minPoint;
+	bb.materialid = materialID;
+	bb.transform = utilityCore::buildTransformationMatrix(
+		bb.translation, bb.rotation, bb.scale);
+	bb.inverseTransform = glm::inverse(bb.transform);
+	bb.invTranspose = glm::inverseTranspose(bb.transform);
+	bb.numTris = geoms.size() - bbIdx;
+	geoms[bbIdx] = bb;
+
 	return 1;
 }
 

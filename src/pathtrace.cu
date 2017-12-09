@@ -17,7 +17,7 @@
 #include "interactions.h"
 
 #define ERRORCHECK 0
-#define SORT_MATERIALS 0
+#define SORT_MATERIALS 1
 #define CACHE_PATHS 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
@@ -184,7 +184,7 @@ __global__ void computeIntersections(
 		glm::vec3 normal;
 		float t_min = FLT_MAX;
 		int hit_geom_index = -1;
-		bool outside = true;
+		bool isOutside = true;
 
 		glm::vec3 tmp_intersect;
 		glm::vec3 tmp_normal;
@@ -193,6 +193,7 @@ __global__ void computeIntersections(
 
 		for (int i = 0; i < geoms_size; i++)
 		{
+			bool outside;
 			Geom & geom = geoms[i];
 
 			if (geom.type == CUBE)
@@ -206,6 +207,16 @@ __global__ void computeIntersections(
 			else if (geom.type == TRIANGLE) {
 				t = triangleIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
 			}
+			else if (geom.type = BB) {
+				t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+				if (t <= 0.0 || t > t_min) {
+					i += geom.numTris;
+					//hit_geom_index = -1;
+					//break;
+				}
+				continue;
+			}
+
 			// TODO: add more intersection tests here... triangle? metaball? CSG?
 
 			// Compute the minimum t from the intersection tests to determine what
@@ -216,6 +227,7 @@ __global__ void computeIntersections(
 				hit_geom_index = i;
 				intersect_point = tmp_intersect;
 				normal = tmp_normal;
+				isOutside = outside;
 			}
 		}
 		
@@ -232,7 +244,7 @@ __global__ void computeIntersections(
 			intersections[path_index].point = intersect_point;
 			intersections[path_index].materialId = geoms[hit_geom_index].materialid;
 			intersections[path_index].surfaceNormal = normal;
-			pathSegments[path_index].insideT = outside ? 0.0f : t_min;
+			pathSegments[path_index].insideT = isOutside ? 0.0f : t_min;
 		}
 	}
 }
@@ -356,13 +368,13 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	cudaMemcpy(dev_intersections, dev_cached_intersections, pixelcount * sizeof(ShadeableIntersection), cudaMemcpyDefault);
 #else
 	generateRayFromCamera <<<blocksPerGrid2d, blockSize2d>>>(cam, iter, traceDepth, dev_paths);
-	computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
-		depth
-		, num_paths
+	computeIntersections << <numBlocksPixels, blockSize1d >> > (
+		0
+		, pixelcount
 		, dev_paths
 		, dev_geoms
 		, hst_scene->geoms.size()
-		, dev_cached_intersections
+		, dev_intersections
 		);
 #endif
 	checkCUDAError("First Bounce");
@@ -406,13 +418,13 @@ void pathtrace(uchar4 *pbo, int frame, int iter) {
 	finalGather << <numBlocksPixels, blockSize1d >> >(num_paths, dev_image, dev_paths); //----------------------------------------- add final contributions to the frame
 
 	///////////////////////////////////////////////////////////////////////////
+	if (true || iter % 1 == 0 && iter > 1) {
+		// Send results to OpenGL buffer for rendering
+		sendImageToPBO << <blocksPerGrid2d, blockSize2d >> > (pbo, cam.resolution, iter, dev_image);
 
-	// Send results to OpenGL buffer for rendering
-	sendImageToPBO << <blocksPerGrid2d, blockSize2d >> > (pbo, cam.resolution, iter, dev_image);
-
-	// Retrieve image from GPU
-	cudaMemcpy(hst_scene->state.image.data(), dev_image,
-		pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
-
+		// Retrieve image from GPU
+		cudaMemcpy(hst_scene->state.image.data(), dev_image,
+			pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
+	}
 	checkCUDAError("pathtrace");
 }

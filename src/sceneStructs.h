@@ -10,7 +10,8 @@
 enum GeomType {
     SPHERE,
     CUBE,
-	TRIANGLE
+	TRIANGLE,
+	BB
 };
 
 struct Ray {
@@ -22,6 +23,7 @@ struct Geom {
     enum GeomType type;
 	glm::vec3 vertices[3];//if triangle
 	glm::vec3 normal;
+	int numTris;
     int materialid;
     glm::vec3 translation;
     glm::vec3 rotation;
