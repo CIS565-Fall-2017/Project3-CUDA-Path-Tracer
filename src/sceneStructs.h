@@ -10,6 +10,8 @@
 enum GeomType {
     SPHERE,
     CUBE,
+	TRIANGLE,
+	BB
 };
 
 struct Ray {
@@ -19,6 +21,9 @@ struct Ray {
 
 struct Geom {
     enum GeomType type;
+	glm::vec3 vertices[3];//if triangle
+	glm::vec3 normal;
+	int numTris;
     int materialid;
     glm::vec3 translation;
     glm::vec3 rotation;
@@ -64,6 +69,7 @@ struct PathSegment {
 	glm::vec3 color;
 	int pixelIndex;
 	int remainingBounces;
+	float insideT; //will be zero except if inside a refractive surface; there it will reflect distance traveled for beers law
 };
 
 // Use with a corresponding PathSegment to do:
@@ -71,6 +77,7 @@ struct PathSegment {
 // 2) BSDF evaluation: generate a new ray
 struct ShadeableIntersection {
   float t;
+  glm::vec3 point;
   glm::vec3 surfaceNormal;
   int materialId;
 };

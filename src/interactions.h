@@ -1,7 +1,7 @@
 #pragma once
 
 #include "intersections.h"
-
+#define DISPLAY_NORMALS 0
 // CHECKITOUT
 /**
  * Computes a cosine-weighted random direction in a hemisphere.
@@ -73,7 +73,65 @@ void scatterRay(
         glm::vec3 normal,
         const Material &m,
         thrust::default_random_engine &rng) {
-    // TODO: implement this.
-    // A basic implementation of pure-diffuse shading will just call the
-    // calculateRandomDirectionInHemisphere defined above.
+
+
+#if DISPLAY_NORMALS
+	pathSegment.remainingBounces = 0;
+	pathSegment.color = abs(normal);
+#else
+
+	pathSegment.ray.origin = intersect;
+	thrust::uniform_real_distribution<float> u01;
+	float rand = u01(rng);
+
+	//refraction
+	if (m.hasRefractive) {
+
+		float coeff = 0;
+		float cosTheta = -glm::dot(pathSegment.ray.direction, normal);
+		bool incomingFromOutside = (pathSegment.insideT == 0);
+
+		//get indices of refraction and r0 for Schlick's
+		float n1 = incomingFromOutside ? 1 : m.indexOfRefraction;
+		float n2 = incomingFromOutside ? m.indexOfRefraction : 1;
+		float n = n1 / n2;
+		float R0 = (n1 - n2) / (n1 + n2);
+		R0 *= R0;
+
+		if (n1 > n2) {
+			float sinT2 = n*n*(1.0 - cosTheta*cosTheta);
+			cosTheta = sqrt(1.0 - sinT2);
+			// Total internal reflection
+			if (sinT2 > 1.0f)
+				coeff = 1.0f;
+		}
+
+		if (coeff == 0.0f) {
+			float x = 1.0 - cosTheta;
+			coeff = R0 + (1.0 - R0)*x*x*x*x*x;
+		}
+
+		if (rand > coeff) {
+			pathSegment.ray.origin += 0.01f * pathSegment.ray.direction;
+			pathSegment.ray.direction = glm::refract(pathSegment.ray.direction, normal, n);
+			if (!incomingFromOutside) {
+				glm::vec3 c_absorb = (glm::vec3(1.1f) - m.color);
+				glm::vec3 absorb = glm::clamp(glm::exp(-c_absorb * 0.33f * pathSegment.insideT), glm::vec3(0.0f), glm::vec3(1.0f));
+				pathSegment.color *= m.color;
+			}
+		} else {
+			pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
+			pathSegment.color *= m.specular.color;
+		}
+
+	} 
+	//diffuse
+	else if (rand > m.hasReflective) {
+		pathSegment.color *= m.color;
+		pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
+	} else {
+		pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
+		pathSegment.color *= m.specular.color;
+	}
+#endif
 }

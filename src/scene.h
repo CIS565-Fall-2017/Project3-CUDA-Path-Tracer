@@ -15,6 +15,7 @@ private:
     ifstream fp_in;
     int loadMaterial(string materialid);
     int loadGeom(string objectid);
+	int loadObj(string meshName, glm::mat4 transform, glm::mat4 inverseTransform, glm::mat4 inverseTranspose, int materialID);
     int loadCamera();
 public:
     Scene(string filename);

@@ -89,6 +89,17 @@ __host__ __device__ float boxIntersectionTest(Geom box, Ray r,
     return -1;
 }
 
+__device__ float triangleIntersectionTest(Geom triangle, Ray r, glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) {
+
+	glm::vec3 result;
+	glm::intersectRayTriangle(r.origin, r.direction, triangle.vertices[0], triangle.vertices[1], triangle.vertices[2], result);
+	
+	intersectionPoint = result.z * r.direction + r.origin;
+	outside = glm::dot(r.direction, triangle.normal) < 0;
+	normal = outside ? triangle.normal : - triangle.normal;
+	return result.z;
+}
+
 // CHECKITOUT
 /**
  * Test intersection between a ray and a transformed sphere. Untransformed,
