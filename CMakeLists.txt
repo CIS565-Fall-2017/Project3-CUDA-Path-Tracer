@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 3.0)
 
 project(cis565_path_tracer)
 
-set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
+#set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
+set(CMAKE_SYSTEM_VERSION 8.1 CACHE TYPE INTERNAL FORCE)
 
 # Set up include and lib paths
 set(EXTERNAL "external")

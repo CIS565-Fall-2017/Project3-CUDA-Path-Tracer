@@ -63,7 +63,7 @@ CAMERA
 RES         800 800
 FOVY        45
 ITERATIONS  5000
-DEPTH       8
+DEPTH       16
 FILE        cornell
 EYE         0.0 5 10.5
 LOOKAT      0 5 0

@@ -391,6 +391,6 @@ void ShadeDirectLighting(thrust::default_random_engine& rng, glm::vec3 intersect
 		return;
 	}
 
-	// Set the final color of the object
+	// Set the final color of the object (LTE)
 	tempPS.color *= materialColor * materials[geoms[light_index].materialid].color * materials[geoms[light_index].materialid].emittance * adot / pdf;
 }

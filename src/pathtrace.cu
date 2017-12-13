@@ -22,7 +22,7 @@
 #include <thrust/partition.h>
 
 // Toggle options for features 1 - ON & 0 - OFF
-#define ERRORCHECK	1
+#define ERRORCHECK	0
 #define AA	1
 #define DOF	0
 #define PATHCOMPACTION	0
