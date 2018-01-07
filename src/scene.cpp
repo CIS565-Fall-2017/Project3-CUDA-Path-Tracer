@@ -30,6 +30,7 @@ Scene::Scene(string filename) {
             }
         }
     }
+	fp_in.close();
 }
 
 int Scene::loadGeom(string objectid) {
@@ -116,8 +117,10 @@ int Scene::loadCamera() {
 
     string line;
     utilityCore::safeGetline(fp_in, line);
+	// look at is the location of the reference
     while (!line.empty() && fp_in.good()) {
         vector<string> tokens = utilityCore::tokenizeString(line);
+		// eye is the camera location
         if (strcmp(tokens[0].c_str(), "EYE") == 0) {
             camera.position = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
         } else if (strcmp(tokens[0].c_str(), "LOOKAT") == 0) {
@@ -148,6 +151,31 @@ int Scene::loadCamera() {
 
     cout << "Loaded camera!" << endl;
     return 1;
+}
+float ColorSum(glm::vec3& color)
+{
+	float sum{ color[0] + color[1] + color[2]};
+	sum *= 256;
+	return sum;
+}
+int materialSummary(Material& m)
+{
+      int i{0};
+      if ( ColorSum(m.color) > 0 ) {
+		  if (m.emittance > 0) {
+			  i = static_cast<int>(MaterialType::Emissive);
+		  }
+		  else {
+			  i = static_cast<int>(MaterialType::Lambert);
+		  }
+      }
+      if ( m.hasReflective > 0) {
+	      i = i + static_cast<int>(MaterialType::Reflective);
+      }
+      if ( m.hasRefractive > 0  && m.indexOfRefraction > 0) {
+	      i = i + static_cast<int>(MaterialType::Refractive);
+      }
+      return i;
 }
 
 int Scene::loadMaterial(string materialid) {
@@ -182,6 +210,8 @@ int Scene::loadMaterial(string materialid) {
                 newMaterial.emittance = atof(tokens[1].c_str());
             }
         }
+        newMaterial.summaryState = materialSummary(newMaterial);
+		//int u = numMaterials(newMaterial);
         materials.push_back(newMaterial);
         return 1;
     }

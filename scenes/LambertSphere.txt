@@ -48,9 +48,18 @@ REFR        0
 REFRIOR     0
 EMITTANCE   0
 
+// red transmissive
+MATERIAL 5
+RGB         0  0   0
+SPECEX      0
+SPECRGB     .98 .98 .98
+REFL        0
+REFR        1
+REFRIOR     1.333
+EMITTANCE   0
 // Camera
 CAMERA
-RES         800 800
+RES         1200 1200
 FOVY        45
 ITERATIONS  5000
 DEPTH       8
@@ -111,7 +120,7 @@ SCALE       .01 10 10
 // Sphere
 OBJECT 6
 sphere
-material 4
+material 5
 TRANS       -2 4 -1
 ROTAT       0 0 0
 SCALE       3 3 3

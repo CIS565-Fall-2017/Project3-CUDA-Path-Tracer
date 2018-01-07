@@ -1,6 +1,8 @@
 #include "main.h"
 #include "preview.h"
 #include <cstring>
+#include <iostream>
+#include <iomanip>
 
 static std::string startTimeString;
 
@@ -26,6 +28,9 @@ int iteration;
 int width;
 int height;
 
+static int priorStart{ 0 };
+static const int printInterval{ 400 };
+
 //-------------------------------
 //-------------MAIN--------------
 //-------------------------------
@@ -37,12 +42,19 @@ int main(int argc, char** argv) {
         printf("Usage: %s SCENEFILE.txt\n", argv[0]);
         return 1;
     }
-
+	printf("Usage \n");
+	printf("Path Trace Method: N   No Compaction\n");
+	printf("                   F   Compaction with No Sorting\n");
+	printf("                   C   Compaction with Sorting\n");
+	printf("                   S   Save the file\n");
+	printf("                   Esc Exit and Save\n");
+	printf("                   left click Rotate Pose\n");
+	printf("                   right click Zoom\n");
+	printf("                   Space  Reset Image\n");
     const char *sceneFile = argv[1];
-
     // Load scene file
     scene = new Scene(sceneFile);
-
+	scene->state.method = pathTraceMethod::CompactionWithSorting;
     // Set up camera stuff from loaded path tracer settings
     iteration = 0;
     renderState = &scene->state;
@@ -74,7 +86,18 @@ int main(int argc, char** argv) {
 
     return 0;
 }
-
+void  printTiming(int iteration)
+{
+	StreamCompaction::Efficient::timer().endGpuTimer();
+	float time{ StreamCompaction::Efficient::timer()
+						.getGpuElapsedTimeForPreviousOperation() };
+	std::cout << "Total Iterations:" << std::setw(5) <<iteration << ";  Iteration Intvl :";
+	std::cout <<std::setw(4) << iteration - priorStart; 
+	std::cout << "; time per iteration (ms): " << 
+		std::setw(6) << std::setprecision(4) <<
+		time / static_cast<float>(iteration - priorStart) << std::endl;
+	priorStart = iteration; 
+}
 void saveImage() {
     float samples = iteration;
     // output image file
@@ -125,6 +148,7 @@ void runCuda() {
     if (iteration == 0) {
         pathtraceFree();
         pathtraceInit(scene);
+		StreamCompaction::Efficient::timer().startGpuTimer();
     }
 
     if (iteration < renderState->iterations) {
@@ -135,10 +159,14 @@ void runCuda() {
         // execute the kernel
         int frame = 0;
         pathtrace(pbo_dptr, frame, iteration);
-
+		if (iteration - priorStart >= printInterval) {
+			printTiming(iteration);
+			StreamCompaction::Efficient::timer().startGpuTimer();
+		}
         // unmap buffer object
         cudaGLUnmapBufferObject(pbo);
     } else {
+		printTiming(iteration);
         saveImage();
         pathtraceFree();
         cudaDeviceReset();
@@ -150,13 +178,37 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
     if (action == GLFW_PRESS) {
       switch (key) {
       case GLFW_KEY_ESCAPE:
+		printTiming(iteration);
         saveImage();
         glfwSetWindowShouldClose(window, GL_TRUE);
         break;
       case GLFW_KEY_S:
+		printTiming(iteration);
         saveImage();
+		StreamCompaction::Efficient::timer().startGpuTimer();
         break;
+	  case GLFW_KEY_N:
+		printTiming(iteration);
+		StreamCompaction::Efficient::timer().startGpuTimer();
+	    scene->state.method = pathTraceMethod::NoCompaction;
+		std::cout << "Method Changed to No Compaction" << std::endl;
+		break;
+	  case GLFW_KEY_C:
+		printTiming(iteration);
+		StreamCompaction::Efficient::timer().startGpuTimer();
+		scene->state.method = pathTraceMethod::CompactionWithSorting;
+		std::cout << "Method Changed to "
+			"Compaction with Sorting" << std::endl;
+		break;
+	  case GLFW_KEY_F:
+		printTiming(iteration);
+		StreamCompaction::Efficient::timer().startGpuTimer();
+		scene -> state.method = pathTraceMethod::Compaction;
+		std::cout << "Method Changed to Compaction"
+			  " No Sorting" << std::endl;
+	    break;
       case GLFW_KEY_SPACE:
+		printTiming(iteration);
         camchanged = true;
         renderState = &scene->state;
         Camera &cam = renderState->camera;
