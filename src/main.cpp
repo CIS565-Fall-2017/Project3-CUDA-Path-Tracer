@@ -37,12 +37,12 @@ int main(int argc, char** argv) {
     startTimeString = currentTimeString();
 
 
-    if (argc < 2) {
-        printf("Usage: %s SCENEFILE.txt\n", argv[0]);
-        return 1;
-    }
-
-    const char *sceneFile = argv[1];
+    //if (argc < 2) {
+    //    printf("Usage: %s SCENEFILE.txt\n", argv[0]);
+    //    return 1;
+    //}
+    //const char *sceneFile = argv[1];
+	const char *sceneFile = "C:/Users/Josh/Box Sync/UPennCGGT/cis565/Project3-CUDA-Path-Tracer/scenes/cornellspherelight.txt";
 
     // Load scene file
     scene = new Scene(sceneFile);

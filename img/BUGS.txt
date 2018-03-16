@@ -1,0 +1,41 @@
+seems to be view dependent. also increasing splits makes the body go black but the outline silouette edges stay the same
+
+
+SSS :
+spherelight2SS
+404 325 -> light is black(done)
+401 581 -> top middle of box
+388 621 -> top, back near cam *black pix 1 split, S1
+395 633 -> side facing camera, top
+691 633 -> side facing camera, top right corner
+FOR:
+// Sphere lambert
+OBJECT 1
+cube
+material 6
+TRANS       0 -2 0   
+ROTAT       0 0 0
+SCALE       8 8 8
+
+392 666 -> black side face, facing camera, below white region when s0` was fixed at .1
+392 652 -> white side face, facing camera, in white region when s0` was fixed at .1
+392 579 -> black top,  beyond white region when s0` was fixed at .1
+392 593 -> white top,  inside white region when s0` was fixed at .1
+
+
+Sd/S1 way too dim
+DEBUG MODE
+348 398 white pixel top of box for Sd:
+RdJensen 0.002 0.001 0.001
+sigTrLum 0.17
+rMax 6
+max_t 9.7
+Ft_wo = 0.92
+Ft_wi = 0.32
+pdfdirect 13.3
+abdotdirect .06
+colordirect (final) 0.03 0.029 0.028
+misweight 0.001
+discSamplePdf 0.0008
+Sd .77, .97 1.11
+

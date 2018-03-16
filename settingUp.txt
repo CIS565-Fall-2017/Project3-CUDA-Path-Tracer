@@ -1,0 +1,14 @@
+have git bash installed.
+rclick in window and bring up a git bash
+do (without quotes):
+"mkdir build; cd build; cmake-gui .."
+click configure (might have to copy ), then generate, then open project
+
+
+for the CUDA path tracer scene file go to project properties, debugging, command args and change it (or just move the string to inside main.cpp)
+
+To add new files and classes:
+make sure to add them to the list in src/CMakeLists.txt
+
+To add new libraries:
+add them to CMakeLists.txt in the root dir. Follow the example of existing ones

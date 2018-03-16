@@ -1,0 +1,157 @@
+// Camera
+CAMERA
+RES         800 800
+FOVY        19.5
+ITERATIONS  10000
+DEPTH       10
+FILE        cornell
+EYE         0.0 5 19
+LOOKAT      0 5 0
+UP          0 1 0
+
+// Emissive material (light)
+MATERIAL 0
+RGB         1 1 1
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   50
+SSS         0
+SIGA        0 0 0
+SIGSPRIME   0 0 0
+
+// Diffuse white
+MATERIAL 1
+RGB         .98 .98 .98
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+SSS         0
+SIGA        0 0 0
+SIGSPRIME   0 0 0
+
+// Diffuse red
+MATERIAL 2
+RGB         .85 .35 .35
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+SSS         0
+SIGA        0 0 0
+SIGSPRIME   0 0 0
+
+// Diffuse green
+MATERIAL 3
+RGB         .35 .85 .35
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+SSS         0
+SIGA        0 0 0
+SIGSPRIME   0 0 0
+
+// Reflective white
+MATERIAL 4
+RGB         .98 .98 .98
+SPECEX      0
+SPECRGB     .98 .98 .98
+REFL        1
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+SSS         0
+SIGA        0 0 0
+SIGSPRIME   0 0 0
+
+// Refractive white
+MATERIAL 5
+RGB         0.90 0.9 1 
+SPECEX      0
+SPECRGB     0.9 1.0 0.9
+REFL        1
+REFR        1
+REFRIOR     1.49
+EMITTANCE   0
+SSS         0
+SIGA        0 0 0
+SIGSPRIME   0 0 0
+
+// SSS white
+MATERIAL 6
+RGB         1 1 1
+SPECEX      0
+SPECRGB     0 0 0
+REFL        1
+REFR        0
+REFRIOR     1.5
+EMITTANCE   0
+SSS         1
+SIGA        0.0021 0.0041 0.0071
+SIGSPRIME   2.19 2.62 3
+
+// Ceiling light
+OBJECT 0
+sphere
+material 0
+TRANS       2.5 2.5 -2
+ROTAT       0 0 0
+SCALE       1 1 1
+
+// Floor
+OBJECT 1
+cube
+material 1
+TRANS       0 0 0
+ROTAT       0 0 0
+SCALE       10 .01 10
+
+// Ceiling
+OBJECT 2
+cube
+material 1
+TRANS       0 10 0
+ROTAT       0 0 90
+SCALE       .01 10 10
+
+// Back wall
+OBJECT 3
+cube
+material 1
+TRANS       0 5 -5
+ROTAT       0 90 0
+SCALE       .01 10 10
+
+// Left wall
+OBJECT 4
+cube
+material 2
+TRANS       -5 5 0
+ROTAT       0 0 0
+SCALE       .01 10 10
+
+// Right wall
+OBJECT 5
+cube
+material 3
+TRANS       5 5 0
+ROTAT       0 0 0
+SCALE       .01 10 10
+
+// Sphere
+OBJECT 6
+sphere
+material 6
+TRANS       -2.5 6 1
+ROTAT       45 45 0
+SCALE       2.0 2.0 2.0

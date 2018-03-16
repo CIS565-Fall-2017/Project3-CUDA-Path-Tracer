@@ -838,20 +838,34 @@ void scatterRayNaive(
 
 
 	 if (1 == m.hasSubSurface) {//subsurface
-		float SchlickR = 0.f;
-		if (1 == m.hasReflective) { 
-			float SchlickR0 = (1.f - m.indexOfRefraction) / (1.f + m.indexOfRefraction);
-			SchlickR0 *= SchlickR0;
-			const float cosi = cosTheta(isect.surfaceNormal, -path.ray.direction);
-			SchlickR = SchlickR0 + (1.f - SchlickR0)*cosi*cosi*cosi*cosi*cosi;
-		}
 		thrust::uniform_real_distribution<float> u01(0, 1);
-		if (u01(rng) < SchlickR) {
-			chooseReflection(path, isect, m, bxdfPDF, bxdfColor, rng, true, SchlickR);
+
+		//BAD
+		//float SchlickR = 0.f;
+		//if (1 == m.hasReflective) { 
+		//	float SchlickR0 = (1.f - m.indexOfRefraction) / (1.f + m.indexOfRefraction);
+		//	SchlickR0 *= SchlickR0;
+		//	const float cosi = cosTheta(isect.surfaceNormal, -path.ray.direction);
+		//	//this will equal 1 when light heads straight into surface
+		//	//in that case should be prob that we do a transmission interaction and not a reflection
+		//	SchlickR = SchlickR0 + (1.f - SchlickR0)*cosi*cosi*cosi*cosi*cosi;
+		//	SchlickR = 1.f - SchlickR;//get refl prob proxy
+		//}
+		//if (u01(rng) < SchlickR) {
+		//	chooseReflection(path, isect, m, bxdfPDF, bxdfColor, rng, true, SchlickR);
+		//	path.specularbounce = true;
+		//} else {
+		//	chooseSubSurface(path, isect, m, bxdfPDF, bxdfColor, rng, dev_geoms);
+		//	bxdfPDF *= (1.f - SchlickR);
+		//}
+
+		const float prob = (1 == m.hasReflective) ? 0.5f : 0.f;
+		if (u01(rng) < prob) {
+			chooseReflection(path, isect, m, bxdfPDF, bxdfColor, rng, true, prob);
 			path.specularbounce = true;
 		} else {
 			chooseSubSurface(path, isect, m, bxdfPDF, bxdfColor, rng, dev_geoms);
-			bxdfPDF *= (1.f - SchlickR);
+			bxdfPDF *= (1.f - prob);
 		}
      } else if (0 == m.hasReflective && 0 == m.hasRefractive) {//just diffuse
 		 path.ray.origin = getPointOnRay(path.ray, isect.t);
