@@ -150,8 +150,8 @@ SCALE       .01 10 10
 
 // Sphere
 OBJECT 6
-sphere
-material 4
+cube
+material 6
 TRANS       -2.5 6 1
 ROTAT       45 45 0
 SCALE       2 2 2
