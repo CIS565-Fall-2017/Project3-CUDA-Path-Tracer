@@ -1,3 +1,5 @@
+need visual studio 2015
+need cuda 9.1 (8.0 couldnt set the proper sm_61 for the gtx 1060)
 have git bash installed.
 rclick in window and bring up a git bash
 do (without quotes):
@@ -7,6 +9,7 @@ click configure (might have to copy ), then generate, then open project
 DEBUGOLD cmakelists: moving these two lines after the win32 if and before the 'separte compile on' causes linker issues, moving back to teh beginning of the file does not
 find_package(Threads REQUIRED)
 find_package(CUDA 8.0 REQUIRED)
+
 
 for the CUDA path tracer scene file go to project properties, debugging, command args and change it (or just move the string to inside main.cpp)
 
