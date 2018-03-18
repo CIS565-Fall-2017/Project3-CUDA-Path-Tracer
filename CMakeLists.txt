@@ -7,33 +7,44 @@ project(cis565_path_tracer)
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 
 
+#USEFUL FOR SEEING WHY STRANGE THINGS ARE HAPPENING
 #set(CUDA_VERBOSE_BUILD ON)
 
 # Set up include and lib paths
-set(EXTERNAL "external")
-include_directories("${EXTERNAL}")
-include_directories("${EXTERNAL}/include")
-if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    set(EXTERNAL_LIB_PATH "${EXTERNAL}/lib/osx")
-elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-    set(EXTERNAL_LIB_PATH "${EXTERNAL}/lib/linux" "/usr/lib64")
-elseif(WIN32)
-    set(EXTERNAL_LIB_PATH "${EXTERNAL}/lib/win")
-endif()
+set(DEPENDENCIES "dependencies")
+#include_directories("${DEPENDENCIES}")
+include_directories("${DEPENDENCIES}/include")
+#if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+#	set(EXTERNAL_LIB_PATH "${DEPENDENCIES}/lib/osx")
+#elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+#	set(EXTERNAL_LIB_PATH "${DEPENDENCIES}/lib/linux" "/usr/lib64")
+#elseif(WIN32)
+#	set(EXTERNAL_LIB_PATH "${DEPENDENCIES}/lib/win")
+#endif()
+set(EXTERNAL_LIB_PATH "${DEPENDENCIES}/lib/x64")
 link_directories(${EXTERNAL_LIB_PATH})
 list(APPEND CMAKE_LIBRARY_PATH "${EXTERNAL_LIB_PATH}")
 
 
 # Find up and set up core dependency libs
 
-set(GLFW_INCLUDE_DIR "${EXTERNAL}/include")
+set(GLFW_INCLUDE_DIR "${DEPENDENCIES}/include")
 set(GLFW_LIBRARY_DIR "${CMAKE_LIBRARY_PATH}")
 find_library(GLFW_LIBRARY "glfw3" HINTS "${GLFW_LIBRARY_DIR}")
 
-set(GLEW_INCLUDE_DIR "${EXTERNAL}/include")
+set(GLEW_INCLUDE_DIR "${DEPENDENCIES}/include")
 set(GLEW_LIBRARY_DIR "${CMAKE_LIBRARY_PATH}")
 add_definitions(-DGLEW_STATIC)
-find_package(GLEW)
+#find_package(GLEW)
+find_library(GLEW_LIBRARY "glew32s" HINTS "${GLEW_LIBRARY_DIR}")
+
+set(ASSIMP_INCLUDE_DIR "${DEPENDENCIES}/include")
+set(ASSIMP_LIBRARY_DIR "${CMAKE_LIBRARY_PATH}")
+find_library(ASSIMP_LIBRARY "assimp-vc140-mt" HINTS "${ASSIMP_LIBRARY_DIR}")
+
+set(SOIL2_INCLUDE_DIR "${DEPENDENCIES}/include")
+set(SOIL2_LIBRARY_DIR "${CMAKE_LIBRARY_PATH}")
+find_library(SOIL2_LIBRARY "SOIL2" HINTS "${SOIL2_LIBRARY_DIR}")
 
 find_package(OpenGL)
 
@@ -41,6 +52,8 @@ set(CORELIBS
     "${GLFW_LIBRARY}"
     "${OPENGL_LIBRARY}"
     "${GLEW_LIBRARY}"
+    "${ASSIMP_LIBRARY}"
+    "${SOIL2_LIBRARY}"
     )
 
 # Enable C++11 for host code
