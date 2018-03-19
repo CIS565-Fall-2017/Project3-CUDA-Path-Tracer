@@ -103,6 +103,7 @@ SIGSPRIME   2.19 2.62 3
 // Ceiling light
 OBJECT 0
 sphere
+meshpath
 material 0
 TRANS       2.5 2.5 -2
 ROTAT       0 0 0
@@ -111,6 +112,7 @@ SCALE       1 1 1
 // Floor
 OBJECT 1
 cube
+meshpath
 material 1
 TRANS       0 0 0
 ROTAT       0 0 0
@@ -119,6 +121,7 @@ SCALE       10 .01 10
 // Ceiling
 OBJECT 2
 cube
+meshpath
 material 1
 TRANS       0 10 0
 ROTAT       0 0 90
@@ -127,6 +130,7 @@ SCALE       .01 10 10
 // Back wall
 OBJECT 3
 cube
+meshpath
 material 1
 TRANS       0 5 -5
 ROTAT       0 90 0
@@ -135,6 +139,7 @@ SCALE       .01 10 10
 // Left wall
 OBJECT 4
 cube
+meshpath
 material 2
 TRANS       -5 5 0
 ROTAT       0 0 0
@@ -143,6 +148,7 @@ SCALE       .01 10 10
 // Right wall
 OBJECT 5
 cube
+meshpath
 material 3
 TRANS       5 5 0
 ROTAT       0 0 0
@@ -151,7 +157,17 @@ SCALE       .01 10 10
 // Sphere
 OBJECT 6
 cube
-material 6
+meshpath
+material 5
 TRANS       -2.5 6 1
 ROTAT       45 45 0
 SCALE       2 2 2
+
+// Mesh
+OBJECT 7
+mesh
+meshpath res/objects/rock/rock.obj
+material 2
+TRANS       0 0 0 
+ROTAT       0 0 0
+SCALE       0 0 0

@@ -19,15 +19,15 @@
 #include "interactions.h"
 #include "integrators.h"
 
-#include "stream_compaction\sharedandbank.h" 
-#include "stream_compaction\radix.h" 
+//#include "stream_compaction\sharedandbank.h" 
+//#include "stream_compaction\radix.h" 
 
-#define ERRORCHECK			1 
-#define COMPACT				1 //0 NONE, 1 THRUST, 2 CUSTOM(breaks render, just use for timing compare)
-#define PT_TECHNIQUE		1 //0 NAIVE, 1 MIS, 2 Multikern MIS(slower)
-#define FIRSTBOUNCECACHING	0
-#define TIMER				0
-#define MATERIALSORTING		1 
+#define ERRORCHECK			0 
+#define COMPACT				0 //0 NONE, 1 THRUST, 2 CUSTOM(breaks render, just use for timing compare)
+#define PT_TECHNIQUE		1 //0 NAIVE, 1 MIS, 2 Multikern MIS(slower, currently faster but obviously broken, prob 1 iter then done)
+#define FIRSTBOUNCECACHING	1
+#define TIMER				1
+#define MATERIALSORTING		0 
 //https://thrust.1ithub.io/doc/group__stream__compaction.html#ga5fa8f86717696de88ab484410b43829b
 //https://stackoverflow.com/questions/34103410/glmvec3-and-epsilon-comparison
 struct isDead { //needed for thrust's predicate, the last arg in remove_if

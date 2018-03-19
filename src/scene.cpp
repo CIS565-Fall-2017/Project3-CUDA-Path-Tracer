@@ -54,8 +54,19 @@ int Scene::loadGeom(string objectid) {
             } else if (strcmp(line.c_str(), "plane") == 0) {
                 cout << "Creating new plane..." << endl;
                 newGeom.type = PLANE;
+            } else if (strcmp(line.c_str(), "mesh") == 0) {
+                cout << "Creating new mesh..." << endl;
+                newGeom.type = MESH;
             }
 			//TODO: ADD MORE OBJ TYPES HERE
+        }
+
+		////save mesh path
+        utilityCore::safeGetline(fp_in, line);
+        if (!line.empty() && fp_in.good()) {
+            vector<string> tokens = utilityCore::tokenizeString(line);
+			newGeom.meshPath = 2 == tokens.size() ? tokens[1] : "";
+			cout << "Saving meshPath " << newGeom.meshPath << endl;
         }
 
         //link material

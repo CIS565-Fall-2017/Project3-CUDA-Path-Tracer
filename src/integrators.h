@@ -282,9 +282,9 @@ __global__ void shadeMaterialMIS_throughput(const int iter, const int depth,
 	int pixelx = path.MSPaintPixel.x;
 	int pixely = path.MSPaintPixel.y;
 	//if (398 == pixelx && 580 == pixely && 0 == depth) {//black spec debug mode, top of box 
-	if (400 == pixelx && 580 == pixely && 0 == depth) {//black spec debug mode, top of box 
-		printf("\npixelx: %i, pixely: %i, depth: %i, iter: %i", pixelx, pixely, depth, iter);
-	}
+	//if (400 == pixelx && 580 == pixely && 0 == depth) {//black spec debug mode, top of box 
+	//	printf("\npixelx: %i, pixely: %i, depth: %i, iter: %i", pixelx, pixely, depth, iter);
+	//}
 
 	//DO SSS HERE FOR NOW
 	if (1 == m.hasSubSurface) {
