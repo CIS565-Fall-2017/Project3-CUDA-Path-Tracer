@@ -4,6 +4,7 @@
 #include <vector>
 #include <cuda_runtime.h>
 #include "glm/glm.hpp"
+#include "model.h"
 
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
 
@@ -11,7 +12,7 @@ enum GeomType {
     SPHERE,
     CUBE,
 	PLANE,
-	MESH,
+	MODEL,
 };
 
 struct Ray {
@@ -22,15 +23,14 @@ struct Ray {
 struct Geom {
     enum GeomType type;
     int materialid;
-    std::string meshPath;
+    std::string modelPath;
+	Model* model = nullptr;
     glm::vec3 translation;
     glm::vec3 rotation;
     glm::vec3 scale;
     glm::mat4 transform;
     glm::mat4 inverseTransform;
-    //glm::mat4 invTranspose;
-    glm::mat3 invTranspose;//only transforming normals with this
-							//so no need for translation 
+    glm::mat3 invTranspose;//only transforming normals with this //so no need for translation 
 };
 
 struct Material {

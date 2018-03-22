@@ -18,20 +18,25 @@ struct Vertex {
 
 struct Texture {
 	unsigned int id;//gpu bound opaque ref
+	uint8_t* data;
 	std::string type;//diffuse, specular, normal, height, ..
 	aiString path;//file path
+	int width;
+	int height;
+	int channels;
+	//~Texture() { free(data); }
 };
 
 class Mesh {
 public: //Data
 	std::vector<Vertex> mVertices;
 	std::vector<unsigned int> mIndices;
-	std::vector<Texture> mTextures;
+	std::vector<Texture*> mTextures;//these should be references to the model loaded textures to save memory for redundant textures in a model
 	unsigned int mVAO;
 	uint32_t texFlags;
 
 public: //Functions
-	Mesh(std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<Texture> textures, uint32_t texFlags)
+	Mesh(std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<Texture*> textures, uint32_t texFlags)
 		:mVertices(vertices), mIndices(indices), mTextures(textures) , texFlags(texFlags)
 	{
 		//setupMesh();
@@ -49,7 +54,7 @@ public: //Functions
 		for (unsigned int i = 0; i < mTextures.size(); ++i) {
 			//glActiveTexture(GL_TEXTURE0 + i);
 			std::string number;
-			std::string name = mTextures[i].type;
+			std::string name = mTextures[i]->type;
 			if (name == "texture_diffuse") {
 				number = std::to_string(diffuseNum++);
 			} else if (name == "texture_specular") {
@@ -66,7 +71,7 @@ public: //Functions
 				std::cout << "Not sure which texture type this is: " << name << std::endl;
 			}
 			//glUniform1i(glGetUniformLocation(shader.program, (name + number).c_str()), i);
-			//glBindTexture(GL_TEXTURE_2D, mTextures[i].id);
+			//glBindTexture(GL_TEXTURE_2D, mTextures[i]->id);
 		}
 		//glUniform1i(glGetUniformLocation(shader.program, "textureFlags"), texFlags);
 

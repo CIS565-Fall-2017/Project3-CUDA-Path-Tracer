@@ -43,6 +43,6 @@ public://functions
 	Mesh processMesh(const aiMesh* mesh, const aiScene* scene);
 
 	//see if there's any tetuxtures of the specified type for the mesh material (calls utilit function that uploads texture to opengl and returns id using SOIL)
-	std::vector<Texture> loadMaterialTextures(aiMaterial* mat, aiTextureType type);
+	std::vector<Texture*> loadMaterialTextures(aiMaterial* mat, aiTextureType type);
 };
 

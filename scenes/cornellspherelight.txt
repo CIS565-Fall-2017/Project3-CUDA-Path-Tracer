@@ -166,7 +166,7 @@ SCALE       2 2 2
 // Mesh
 OBJECT 7
 mesh
-meshpath res/objects/rock/rock.obj
+meshpath ../res/objects/rock/rock.obj false 1.0
 material 2
 TRANS       0 0 0 
 ROTAT       0 0 0

@@ -13,6 +13,8 @@ Scene::Scene(string filename) {
         cout << "Error reading from file - aborting!" << endl;
         throw;
     }
+
+	//load materials, objects, and camera
     while (fp_in.good()) {
         string line;
         utilityCore::safeGetline(fp_in, line);
@@ -28,8 +30,9 @@ Scene::Scene(string filename) {
                 loadCamera();
                 cout << " " << endl;
             }
-        }
-    }
+        }//if line exists
+   }//while valid file pointer input
+
 }
 
 int Scene::loadGeom(string objectid) {
@@ -54,9 +57,9 @@ int Scene::loadGeom(string objectid) {
             } else if (strcmp(line.c_str(), "plane") == 0) {
                 cout << "Creating new plane..." << endl;
                 newGeom.type = PLANE;
-            } else if (strcmp(line.c_str(), "mesh") == 0) {
-                cout << "Creating new mesh..." << endl;
-                newGeom.type = MESH;
+            } else if (strcmp(line.c_str(), "model") == 0) {
+                cout << "Creating new model..." << endl;
+                newGeom.type = MODEL;
             }
 			//TODO: ADD MORE OBJ TYPES HERE
         }
@@ -64,9 +67,17 @@ int Scene::loadGeom(string objectid) {
 		////save mesh path
         utilityCore::safeGetline(fp_in, line);
         if (!line.empty() && fp_in.good()) {
-            vector<string> tokens = utilityCore::tokenizeString(line);
-			newGeom.meshPath = 2 == tokens.size() ? tokens[1] : "";
-			cout << "Saving meshPath " << newGeom.meshPath << endl;
+            const std::vector<std::string> tokens = utilityCore::tokenizeString(line);
+			if (tokens.size() > 1 && tokens.size() < 4) {
+				std::cout << "\n If importing model need: path, mirrored flag, scaling" << endl;
+				
+			} else if (tokens.size() == 4) {
+				const std::string modelPath = tokens[1];
+				const bool mirrored = "true" == tokens[2] ? true : false;
+				const float scaling = std::stof(tokens[3]);
+				cout << "loading model " << modelPath << endl;
+				newGeom.model = new Model(modelPath, mirrored, scaling);
+			}
         }
 
         //link material

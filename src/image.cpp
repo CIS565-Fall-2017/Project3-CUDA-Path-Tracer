@@ -1,3 +1,4 @@
+#pragma once
 #include <iostream>
 #include <string>
 #include <stb/stb_image_write.h>

@@ -1,3 +1,4 @@
+#pragma once
 #include "model.h"
 
 //#include "shader.h"
@@ -10,9 +11,7 @@
 
 //SOIL
 #include <SOIL2/SOIL2.h>
-
-//external
-#include "stb/stb_image.h"
+#include <stb/stb_image.h>
 
 #include <fstream>
 #include <sstream>
@@ -29,7 +28,8 @@ std::map<std::string, uint32_t> textureFlags = {
 };
 
 
-unsigned int TextureFromFile(const char* path, const std::string& dir, bool gamma = false);
+uint8_t TextureFromFile(const char* path, const std::string& dir, int& height, int& width, int& channels, uint8_t*& data);
+
 Model::Model(const std::string& path, const bool mirrored, const float unifscale)
 	: mirrored(mirrored) , modelmat(scale(mat4(1.f), vec3(unifscale)))
 {
@@ -73,7 +73,7 @@ void Model::processNode(aiNode* node, const aiScene const* scene) {
 Mesh Model::processMesh(const aiMesh* mesh, const aiScene* scene) {
 	std::vector<Vertex> vertices;
 	std::vector<unsigned int> indices;
-	std::vector<Texture> textures;
+	std::vector<Texture*> textures;
 
 	//vertices
 	for (unsigned int i = 0; i < mesh->mNumVertices; ++i) {
@@ -128,39 +128,40 @@ Mesh Model::processMesh(const aiMesh* mesh, const aiScene* scene) {
 	aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
 
 	//diffuse maps
-	std::vector<Texture> diffuseMaps = loadMaterialTextures(material, aiTextureType_DIFFUSE);
+	const std::vector<Texture*> diffuseMaps = loadMaterialTextures(material, aiTextureType_DIFFUSE);
 	textures.insert(textures.end(), diffuseMaps.begin(), diffuseMaps.end());
 
 	//spec maps
-	std::vector<Texture> specularMaps = loadMaterialTextures(material, aiTextureType_SPECULAR);
+	const std::vector<Texture*> specularMaps = loadMaterialTextures(material, aiTextureType_SPECULAR);
 	textures.insert(textures.end(), specularMaps.begin(), specularMaps.end());
 
 	//normal maps
-	std::vector<Texture> normalMaps = loadMaterialTextures(material, aiTextureType_NORMALS);
+	const std::vector<Texture*> normalMaps = loadMaterialTextures(material, aiTextureType_NORMALS);
 	textures.insert(textures.end(), normalMaps.begin(), normalMaps.end());
 
 	//height maps
-	std::vector<Texture> heightMaps = loadMaterialTextures(material, aiTextureType_HEIGHT);
+	const std::vector<Texture*> heightMaps = loadMaterialTextures(material, aiTextureType_HEIGHT);
 	textures.insert(textures.end(), heightMaps.begin(), heightMaps.end());
 
 	//shininess(gloss) maps
-	std::vector<Texture> shininessMaps = loadMaterialTextures(material, aiTextureType_SHININESS);
+	const std::vector<Texture*> shininessMaps = loadMaterialTextures(material, aiTextureType_SHININESS);
 	textures.insert(textures.end(), shininessMaps.begin(), shininessMaps.end());
 
 	//emissive maps
-	std::vector<Texture> emissiveMaps = loadMaterialTextures(material, aiTextureType_EMISSIVE);
+	const std::vector<Texture*> emissiveMaps = loadMaterialTextures(material, aiTextureType_EMISSIVE);
 	textures.insert(textures.end(), emissiveMaps.begin(), emissiveMaps.end());
 
 	uint32_t texFlags = 0;
-	for (auto& texture : textures) {
-		texFlags |= textureFlags.at(texture.type);
+	//for (auto& texture : textures) {
+	for (auto texture : textures) {
+		texFlags |= textureFlags.at(texture->type);
 	}
 
 	//std::move this, std::move the args in the constructor
 	return Mesh(vertices, indices, textures, texFlags);
 }
 
-std::vector<Texture> Model::loadMaterialTextures(aiMaterial* mat, aiTextureType type) {
+std::vector<Texture*> Model::loadMaterialTextures(aiMaterial* mat, aiTextureType type) {
 	std::string typeName;
 	if (type == aiTextureType_DIFFUSE)			typeName = "texture_diffuse";
 	else if (type == aiTextureType_SPECULAR)	typeName = "texture_specular";
@@ -175,7 +176,7 @@ std::vector<Texture> Model::loadMaterialTextures(aiMaterial* mat, aiTextureType 
 	//const int jawn5 = mat->GetTextureCount(aiTextureType_OPACITY);
 	//const int jawn6 = mat->GetTextureCount(aiTextureType_REFLECTION);
 	//const int jawn7 = mat->GetTextureCount(aiTextureType_UNKNOWN);
-	std::vector<Texture> textures;
+	std::vector<Texture*> textures;
 	for (unsigned int i = 0; i < mat->GetTextureCount(type); ++i) {
 		aiString str;
 		mat->GetTexture(type, i, &str);
@@ -183,7 +184,7 @@ std::vector<Texture> Model::loadMaterialTextures(aiMaterial* mat, aiTextureType 
 		bool skip = false;
 		for (unsigned int j = 0; j < mTexturesLoaded.size(); ++j) {
 			if (std::strcmp(mTexturesLoaded[j].path.C_Str(), str.C_Str()) == 0) {
-				textures.push_back(mTexturesLoaded[j]);
+				textures.push_back(&mTexturesLoaded[j]);
 				skip = true;
 				break;
 			}
@@ -194,37 +195,47 @@ std::vector<Texture> Model::loadMaterialTextures(aiMaterial* mat, aiTextureType 
 		//typeName = typeName == std::string("texture_height") ? std::string("texture_normal") : typeName;
 
 		Texture texture;
-		texture.id = TextureFromFile(str.C_Str(), mDirectory);
+		texture.id = TextureFromFile(str.C_Str(), mDirectory, texture.width, texture.height, texture.channels, texture.data);
 		texture.type = typeName;
 		texture.path = str;
-		textures.push_back(texture);
 		mTexturesLoaded.push_back(texture);
+		//textures.push_back(texture);
+		textures.push_back(&mTexturesLoaded.back());
 	}
 	return textures;
 }
 
-unsigned int TextureFromFile(const char* path, const std::string& directory, const bool gamma) {
+uint8_t TextureFromFile(const char* path, const std::string& directory, 
+	int& width, int& height, int& channels, uint8_t*& data)
+{
 	std::string filename(path);
-	//determine if dds
-	bool isDDS = false;
-	if (filename.substr(filename.find_last_of(".") + 1) == "dds") { isDDS = true; }
 	filename = directory + '/' + filename;
 
-	//GLuint tex_2d = 0;
-	uint32_t tex_2d = 0;
-	if (isDDS) {
-		tex_2d = SOIL_load_OGL_texture(filename.c_str(), SOIL_LOAD_AUTO, SOIL_CREATE_NEW_ID,
-			SOIL_FLAG_DDS_LOAD_DIRECT | SOIL_FLAG_INVERT_Y | SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB | SOIL_FLAG_TEXTURE_REPEATS |
-			SOIL_FLAG_COMPRESS_TO_DXT);
+
+	////determine if dds filetype
+	//const bool isDDS = filename.substr(filename.find_last_of(".") + 1) == "dds" ? true : false;
+	//uint32_t texFlags = SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB | SOIL_FLAG_TEXTURE_REPEATS;
+	//texFlags = isDDS ? texFlags | SOIL_FLAG_DDS_LOAD_DIRECT | SOIL_FLAG_INVERT_Y | SOIL_FLAG_COMPRESS_TO_DXT : texFlags;
+
+	//////GLuint textureID = 0;
+	uint32_t textureID = 0;
+	//textureID = SOIL_load_OGL_texture(filename.c_str(), SOIL_LOAD_AUTO, SOIL_CREATE_NEW_ID, texFlags);
+	///* check for an error during the load process */
+	//if (0 == textureID) { printf("SOIL loading error: '%s'\n", SOIL_last_result()); return -1; } else { return textureID; }
+
+
+	data = SOIL_load_image(filename.c_str(), &width, &height, &channels, SOIL_LOAD_AUTO);
+	if (data) {
+		//save texture data to model textures
 	} else {
-		tex_2d = SOIL_load_OGL_texture(filename.c_str(), SOIL_LOAD_AUTO, SOIL_CREATE_NEW_ID,
-		 SOIL_FLAG_MIPMAPS | SOIL_FLAG_NTSC_SAFE_RGB | SOIL_FLAG_TEXTURE_REPEATS );
+		std::cout << "Texture failed to load: " << path << std::endl;
 	}
-	/* check for an error during the load process */
-	if (0 == tex_2d) { printf("SOIL loading error: '%s'\n", SOIL_last_result()); return -1; } else { return tex_2d; }
+	return textureID;
 
 
-
+	//////////////////////////
+	//////NON SOIL METHOD/////
+	//////////////////////////
 	//unsigned int textureID;
 	//glGenTextures(1, &textureID);
 	//int width, height, nrComponents;
