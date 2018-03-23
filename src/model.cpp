@@ -1,5 +1,6 @@
 #pragma once
 #include "model.h"
+#include "mesh.h"
 
 //#include "shader.h"
 
@@ -11,12 +12,19 @@
 
 //SOIL
 #include <SOIL2/SOIL2.h>
-#include <stb/stb_image.h>
+
+//////external
+//#include <stb/stb_image.h>
 
 #include <fstream>
 #include <sstream>
 #include <iostream>
 #include <map>
+
+//assimp
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
 
 std::map<std::string, uint32_t> textureFlags = {
 	{"texture_diffuse",			1 <<  0},
@@ -73,7 +81,7 @@ void Model::processNode(aiNode* node, const aiScene const* scene) {
 Mesh Model::processMesh(const aiMesh* mesh, const aiScene* scene) {
 	std::vector<Vertex> vertices;
 	std::vector<unsigned int> indices;
-	std::vector<Texture*> textures;
+	std::vector<uint32_t> texIdx;
 
 	//vertices
 	for (unsigned int i = 0; i < mesh->mNumVertices; ++i) {
@@ -128,40 +136,40 @@ Mesh Model::processMesh(const aiMesh* mesh, const aiScene* scene) {
 	aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
 
 	//diffuse maps
-	const std::vector<Texture*> diffuseMaps = loadMaterialTextures(material, aiTextureType_DIFFUSE);
-	textures.insert(textures.end(), diffuseMaps.begin(), diffuseMaps.end());
+	const std::vector<uint32_t> diffuseMaps = loadMaterialTextures(material, aiTextureType_DIFFUSE);
+	texIdx.insert(texIdx.end(), diffuseMaps.begin(), diffuseMaps.end());
 
 	//spec maps
-	const std::vector<Texture*> specularMaps = loadMaterialTextures(material, aiTextureType_SPECULAR);
-	textures.insert(textures.end(), specularMaps.begin(), specularMaps.end());
+	const std::vector<uint32_t> specularMaps = loadMaterialTextures(material, aiTextureType_SPECULAR);
+	texIdx.insert(texIdx.end(), specularMaps.begin(), specularMaps.end());
 
 	//normal maps
-	const std::vector<Texture*> normalMaps = loadMaterialTextures(material, aiTextureType_NORMALS);
-	textures.insert(textures.end(), normalMaps.begin(), normalMaps.end());
+	const std::vector<uint32_t> normalMaps = loadMaterialTextures(material, aiTextureType_NORMALS);
+	texIdx.insert(texIdx.end(), normalMaps.begin(), normalMaps.end());
 
 	//height maps
-	const std::vector<Texture*> heightMaps = loadMaterialTextures(material, aiTextureType_HEIGHT);
-	textures.insert(textures.end(), heightMaps.begin(), heightMaps.end());
+	const std::vector<uint32_t> heightMaps = loadMaterialTextures(material, aiTextureType_HEIGHT);
+	texIdx.insert(texIdx.end(), heightMaps.begin(), heightMaps.end());
 
 	//shininess(gloss) maps
-	const std::vector<Texture*> shininessMaps = loadMaterialTextures(material, aiTextureType_SHININESS);
-	textures.insert(textures.end(), shininessMaps.begin(), shininessMaps.end());
+	const std::vector<uint32_t> shininessMaps = loadMaterialTextures(material, aiTextureType_SHININESS);
+	texIdx.insert(texIdx.end(), shininessMaps.begin(), shininessMaps.end());
 
 	//emissive maps
-	const std::vector<Texture*> emissiveMaps = loadMaterialTextures(material, aiTextureType_EMISSIVE);
-	textures.insert(textures.end(), emissiveMaps.begin(), emissiveMaps.end());
+	const std::vector<uint32_t> emissiveMaps = loadMaterialTextures(material, aiTextureType_EMISSIVE);
+	texIdx.insert(texIdx.end(), emissiveMaps.begin(), emissiveMaps.end());
 
 	uint32_t texFlags = 0;
-	//for (auto& texture : textures) {
-	for (auto texture : textures) {
-		texFlags |= textureFlags.at(texture->type);
+	//for (auto& texture : texIdx) {
+	for (auto& idx : texIdx) {
+		texFlags |= textureFlags.at(mTexturesLoaded[idx].type);
 	}
 
 	//std::move this, std::move the args in the constructor
-	return Mesh(vertices, indices, textures, texFlags);
+	return Mesh(vertices, indices, texIdx, texFlags, *this);
 }
 
-std::vector<Texture*> Model::loadMaterialTextures(aiMaterial* mat, aiTextureType type) {
+std::vector<uint32_t> Model::loadMaterialTextures(aiMaterial* mat, aiTextureType type) {
 	std::string typeName;
 	if (type == aiTextureType_DIFFUSE)			typeName = "texture_diffuse";
 	else if (type == aiTextureType_SPECULAR)	typeName = "texture_specular";
@@ -176,7 +184,7 @@ std::vector<Texture*> Model::loadMaterialTextures(aiMaterial* mat, aiTextureType
 	//const int jawn5 = mat->GetTextureCount(aiTextureType_OPACITY);
 	//const int jawn6 = mat->GetTextureCount(aiTextureType_REFLECTION);
 	//const int jawn7 = mat->GetTextureCount(aiTextureType_UNKNOWN);
-	std::vector<Texture*> textures;
+	std::vector<uint32_t> textures;
 	for (unsigned int i = 0; i < mat->GetTextureCount(type); ++i) {
 		aiString str;
 		mat->GetTexture(type, i, &str);
@@ -184,7 +192,7 @@ std::vector<Texture*> Model::loadMaterialTextures(aiMaterial* mat, aiTextureType
 		bool skip = false;
 		for (unsigned int j = 0; j < mTexturesLoaded.size(); ++j) {
 			if (std::strcmp(mTexturesLoaded[j].path.C_Str(), str.C_Str()) == 0) {
-				textures.push_back(&mTexturesLoaded[j]);
+				textures.push_back(j);
 				skip = true;
 				break;
 			}
@@ -200,7 +208,7 @@ std::vector<Texture*> Model::loadMaterialTextures(aiMaterial* mat, aiTextureType
 		texture.path = str;
 		mTexturesLoaded.push_back(texture);
 		//textures.push_back(texture);
-		textures.push_back(&mTexturesLoaded.back());
+		textures.push_back(mTexturesLoaded.size()-1);
 	}
 	return textures;
 }

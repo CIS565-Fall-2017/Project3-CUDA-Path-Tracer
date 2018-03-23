@@ -1,23 +1,21 @@
 #pragma once
-
-//our files
 #include "mesh.h"
-
+class Shader;
 
 //std
 #include <string>
 #include <vector>
 
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 using namespace glm;
 
 //assimp
-//class aiNode;
-//class aiScene;
-//class aiMaterial;
-//class aiMesh;
-#include <assimp/Importer.hpp>
-#include <assimp/scene.h>
-#include <assimp/postprocess.h>
+enum aiTextureType;
+class aiNode;
+class aiMaterial;
+struct aiScene;
+struct aiMesh;
 
 class Model {
 public://data
@@ -43,6 +41,6 @@ public://functions
 	Mesh processMesh(const aiMesh* mesh, const aiScene* scene);
 
 	//see if there's any tetuxtures of the specified type for the mesh material (calls utilit function that uploads texture to opengl and returns id using SOIL)
-	std::vector<Texture*> loadMaterialTextures(aiMaterial* mat, aiTextureType type);
+	std::vector<uint32_t> loadMaterialTextures(aiMaterial* mat, aiTextureType type);
 };
 

@@ -1,11 +1,11 @@
 #pragma once
 #include <assimp/Importer.hpp>
-//#include "shader.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <iostream>
 #include <vector>
-#include <map>
+
+class Model;
+class Shader;
 
 struct Vertex {
 	glm::vec3 pos;
@@ -30,60 +30,17 @@ struct Texture {
 class Mesh {
 public: //Data
 	std::vector<Vertex> mVertices;
-	std::vector<unsigned int> mIndices;
-	std::vector<Texture*> mTextures;//these should be references to the model loaded textures to save memory for redundant textures in a model
-	unsigned int mVAO;
+	std::vector<uint32_t> mIndices;
+	std::vector<uint32_t> mTextures;//these should be references to the model loaded textures to save memory for redundant textures in a model
+	uint32_t mVAO;
 	uint32_t texFlags;
+	Model& parentModel;
 
 public: //Functions
-	Mesh(std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<Texture*> textures, uint32_t texFlags)
-		:mVertices(vertices), mIndices(indices), mTextures(textures) , texFlags(texFlags)
-	{
-		//setupMesh();
-	}
+	Mesh(std::vector<Vertex> vertices, std::vector<uint32_t> indices, std::vector<uint32_t> textures, uint32_t texFlags, Model& model);
+	void Draw();
 
-	void Draw() { //Shader shader) {
-		unsigned int diffuseNum = 1;
-		unsigned int specNum = 1;
-		unsigned int norNum = 1;
-		unsigned int heightNum = 1;
-		unsigned int shininessNum = 1;
-		unsigned int emissiveNum = 1;
-
-		//bind textures for this mesh
-		for (unsigned int i = 0; i < mTextures.size(); ++i) {
-			//glActiveTexture(GL_TEXTURE0 + i);
-			std::string number;
-			std::string name = mTextures[i]->type;
-			if (name == "texture_diffuse") {
-				number = std::to_string(diffuseNum++);
-			} else if (name == "texture_specular") {
-				number = std::to_string(specNum++);
-			} else if (name == "texture_normal") {
-				number = std::to_string(norNum++);
-			} else if (name == "texture_height") {
-				number = std::to_string(heightNum++);
-			} else if (name == "texture_shininess") {
-				number = std::to_string(shininessNum++);
-			} else if (name == "texture_emissive") {
-				number = std::to_string(emissiveNum++);
-			} else {
-				std::cout << "Not sure which texture type this is: " << name << std::endl;
-			}
-			//glUniform1i(glGetUniformLocation(shader.program, (name + number).c_str()), i);
-			//glBindTexture(GL_TEXTURE_2D, mTextures[i]->id);
-		}
-		//glUniform1i(glGetUniformLocation(shader.program, "textureFlags"), texFlags);
-
-
-		//glBindVertexArray(mVAO);
-		//glDrawElements(GL_TRIANGLES, mIndices.size(), GL_UNSIGNED_INT, 0);
-
-		////always good to practice to set everything back to defaults once configured
-		//glBindVertexArray(0);
-		//glActiveTexture(GL_TEXTURE0);
-	}
-
+	//void Draw(Shader shader);
 //private:
 	//unsigned int mVBO, mIBO;//should VAO be private instead of public?
 
