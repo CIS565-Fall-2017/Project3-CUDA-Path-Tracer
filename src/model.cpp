@@ -42,6 +42,11 @@ Model::Model(const std::string& path, const bool mirrored, const float unifscale
 	: mirrored(mirrored) , modelmat(scale(mat4(1.f), vec3(unifscale)))
 {
 	loadModel(path);
+	std::cout << "Num Meshes: " << mMeshes.size();
+	for (auto& mesh : mMeshes) {
+		std::cout << "\nNum verts: " << mesh.mVertices.size() << "\tNum indices: " << mesh.mIndices.size();
+	}
+	std::cout << "\n";
 }
 
 
@@ -53,7 +58,8 @@ Model::Model(const std::string& path, const bool mirrored, const float unifscale
 
 void Model::loadModel(const std::string& path) {
 	Assimp::Importer importer;
-	const aiScene* scene = importer.ReadFile(path, aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_CalcTangentSpace | aiProcess_GenSmoothNormals);
+	const aiScene* scene = importer.ReadFile(path, aiProcess_Triangulate | aiProcess_FlipUVs | 
+		aiProcess_CalcTangentSpace | aiProcess_GenSmoothNormals | aiProcess_JoinIdenticalVertices | aiProcess_GenUVCoords);
 	if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {
 		std::cout << "ERROR::ASSIMP:: " << importer.GetErrorString() << std::endl;
 		return;
