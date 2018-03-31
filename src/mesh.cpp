@@ -10,11 +10,20 @@
 
 
 
-Mesh::Mesh(std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<uint32_t> textures, uint32_t texFlags, Model& model)
-	:mVertices(vertices), mIndices(indices), mTextures(textures), texFlags(texFlags), parentModel(model)
+//Mesh::Mesh(std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<uint32_t> textures, uint32_t texFlags, Model& model)
+//	:mVertices(vertices), mIndices(indices), mTextures(textures), texFlags(texFlags), parentModel(model)
+//{
+//	//setupMesh();
+//}
+
+Mesh::Mesh( uint32_t numVertices, uint32_t numIndices, uint32_t mVertices_startOffset, 
+	uint32_t mIndices_startOffset, std::vector<uint32_t> textures, uint32_t texFlags, Model& model)
+	: numVertices(numVertices), numIndices(numIndices), mVertices_startOffset(mVertices_startOffset),
+	mIndices_startOffset(mIndices_startOffset), mTextures(textures), texFlags(texFlags), parentModel(model)
 {
 	//setupMesh();
 }
+
 
 //void Mesh::Draw(Shader shader) {
 void Mesh::Draw() {
@@ -58,13 +67,14 @@ void Mesh::Draw() {
 
 
 	//glBindVertexArray(mVAO);
-	//glDrawElements(GL_TRIANGLES, mIndices.size(), GL_UNSIGNED_INT, 0);
+	//glDrawElements(GL_TRIANGLES, numIndices, GL_UNSIGNED_INT, 0);
 
 	////always good to practice to set everything back to defaults once configured
 	//glBindVertexArray(0);
 	//glActiveTexture(GL_TEXTURE0);
 }
 
+//
 //void Mesh::setupMesh() {
 //	//tell gpu we want some buffers
 //	glGenVertexArrays(1, &mVAO);
@@ -74,16 +84,31 @@ void Mesh::Draw() {
 //	//"any subsequent VBO, EBO(IBO), attrib calls will be stored in VAO currently bound"
 //	glBindVertexArray(mVAO);
 //
+//
+//	//NOTE: Changed to contiguous vertex and index arrays for path tracer
+//	////push all the vertex info
+//	//glBindBuffer(GL_ARRAY_BUFFER, mVBO);
+//	//glBufferData(GL_ARRAY_BUFFER, mVertices.size() * sizeof(Vertex), &mVertices[0], GL_STATIC_DRAW);
+//	////push the vertex index info
+//	//glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mIBO);
+//	//glBufferData(GL_ELEMENT_ARRAY_BUFFER, mIndices.size() * sizeof(uint32_t), &mIndices[0], GL_STATIC_DRAW);
+//
 //	//push all the vertex info
 //	glBindBuffer(GL_ARRAY_BUFFER, mVBO);
-//	glBufferData(GL_ARRAY_BUFFER, mVertices.size() * sizeof(Vertex), &mVertices[0], GL_STATIC_DRAW);
-//
+//	glBufferData(GL_ARRAY_BUFFER, numVertices * sizeof(Vertex), &parentModel.mVertices[mVertices_startOffset], GL_STATIC_DRAW); 
 //	//push the vertex index info
+//	////NOTE: PathTracer won't need the relative adjustment 
+//	std::vector<uint32_t> relativeIndices(numIndices);
+//	for (uint32_t i = 0; i < numIndices; ++i) { relativeIndices[i] = parentModel.mIndices[mIndices_startOffset + i] - mVertices_startOffset; }
 //	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mIBO);
-//	glBufferData(GL_ELEMENT_ARRAY_BUFFER, mIndices.size() * sizeof(unsigned int), &mIndices[0], GL_STATIC_DRAW);
+//	glBufferData(GL_ELEMENT_ARRAY_BUFFER, numIndices * sizeof(uint32_t), &relativeIndices[0], GL_STATIC_DRAW);
+//	//for (uint32_t i = 0; i < numIndices; ++i) { parentModel.mIndices[mIndices_startOffset + i] -= mVertices_startOffset; }
+//	//glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mIBO);
+//	//glBufferData(GL_ELEMENT_ARRAY_BUFFER, numIndices * sizeof(uint32_t), &parentModel.mIndices[mIndices_startOffset], GL_STATIC_DRAW);
+//
 //
 //	//tell the gpu how to access our vertex data and which shader locations those attributes will be mapped to
-//	unsigned int location = 0;//pos
+//	uint32_t location = 0;//pos
 //	glEnableVertexAttribArray(location);
 //	glVertexAttribPointer(location, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
 //
@@ -99,9 +124,9 @@ void Mesh::Draw() {
 //	glEnableVertexAttribArray(location);
 //	glVertexAttribPointer(location, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, tan));
 //
-//	location = 4;//bitan
-//	glEnableVertexAttribArray(location);
-//	glVertexAttribPointer(location, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, bitan));
+//	////location = 4;//bitan
+//	////glEnableVertexAttribArray(location);
+//	////glVertexAttribPointer(location, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, bitan));
 //
 //	//always good to practice to set everything back to defaults once configured
 //	glBindVertexArray(0);

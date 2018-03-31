@@ -21,6 +21,8 @@ class Model {
 public://data
 	std::vector<Texture> mTexturesLoaded;//models will likely use textures more that once, only load it once
 	std::vector<Mesh> mMeshes;
+	std::vector<Vertex> mVertices;
+	std::vector<uint32_t> mIndices;
 	std::string mDirectory;
 	bool mirrored;
 	mat4 modelmat;

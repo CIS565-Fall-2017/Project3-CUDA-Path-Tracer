@@ -12,8 +12,9 @@ struct Vertex {
 	glm::vec3 nor;
 	glm::vec2 uv;
 	glm::vec4 tan;
-	glm::vec3 bitan;
+	//glm::vec3 bitan;
 	glm::vec3 col = glm::vec3(1.f, 1.f, 1.f);
+	uint32_t meshTexturesIndex;
 };
 
 struct Texture {
@@ -29,15 +30,23 @@ struct Texture {
 
 class Mesh {
 public: //Data
-	std::vector<Vertex> mVertices;
-	std::vector<uint32_t> mIndices;
+	//std::vector<Vertex> mVertices;
+	//std::vector<uint32_t> mIndices;
+	uint32_t numVertices;
+	uint32_t numIndices;
+	uint32_t mVertices_startOffset;//parentModel holds the contiguous vertex array, need starting offset into it when drawing this specific mesh
+	uint32_t mIndices_startOffset;//parentModel holds the  contiguous indices array, need starting offset into it when drawing this specific mesh
+
 	std::vector<uint32_t> mTextures;//these should be references to the model loaded textures to save memory for redundant textures in a model
 	uint32_t mVAO;
 	uint32_t texFlags;
 	Model& parentModel;
 
 public: //Functions
-	Mesh(std::vector<Vertex> vertices, std::vector<uint32_t> indices, std::vector<uint32_t> textures, uint32_t texFlags, Model& model);
+	//Mesh(std::vector<Vertex> vertices, std::vector<uint32_t> indices, std::vector<uint32_t> textures, uint32_t texFlags, Model& model);
+	Mesh(uint32_t numVertices, uint32_t numIndices, uint32_t mVertices_startOffset, 
+		uint32_t mIndices_startOffset, std::vector<uint32_t> textures, uint32_t texFlags, Model& model);
+
 	void Draw();
 
 	//void Draw(Shader shader);
@@ -78,9 +87,9 @@ public: //Functions
 	//	glEnableVertexAttribArray(location);
 	//	glVertexAttribPointer(location, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, tan));
 
-	//	location = 4;//bitan
-	//	glEnableVertexAttribArray(location);
-	//	glVertexAttribPointer(location, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, bitan));
+	////	location = 4;//bitan
+	////	glEnableVertexAttribArray(location);
+	////	glVertexAttribPointer(location, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, bitan));
 
 	//	//always good to practice to set everything back to defaults once configured
 	//	glBindVertexArray(0);

@@ -44,7 +44,7 @@ Model::Model(const std::string& path, const bool mirrored, const float unifscale
 	loadModel(path);
 	std::cout << "Num Meshes: " << mMeshes.size();
 	for (auto& mesh : mMeshes) {
-		std::cout << "\nNum verts: " << mesh.mVertices.size() << "\tNum indices: " << mesh.mIndices.size();
+		std::cout << "\nNum verts: " << mesh.numVertices << "\tNum indices: " << mesh.numIndices;
 	}
 	std::cout << "\n";
 }
@@ -85,9 +85,14 @@ void Model::processNode(aiNode* node, const aiScene const* scene) {
 }
 
 Mesh Model::processMesh(const aiMesh* mesh, const aiScene* scene) {
-	std::vector<Vertex> vertices;
-	std::vector<unsigned int> indices;
-	std::vector<uint32_t> texIdx;
+	//std::vector<Vertex> vertices;
+	//std::vector<unsigned int> indices;
+	std::vector<uint32_t> textureRefs;
+	const uint32_t currentMeshVerticesStartOffset = mVertices.size();
+	const uint32_t currentMeshIndicesStartOffset = mIndices.size();
+	uint32_t currentMeshNumVertices = 0;
+	uint32_t currentMeshNumIndices = 0;
+
 
 	//vertices
 	for (unsigned int i = 0; i < mesh->mNumVertices; ++i) {
@@ -111,24 +116,29 @@ Mesh Model::processMesh(const aiMesh* mesh, const aiScene* scene) {
 			vertex.tan = vec4(mesh->mTangents[i].x,
 				mesh->mTangents[i].y,
 				mesh->mTangents[i].z, 1.f);
-			vertex.bitan = vec3(mesh->mBitangents[i].x,
+			const glm::vec3 vertexBitan = vec3(mesh->mBitangents[i].x,
 				mesh->mBitangents[i].y,
 				mesh->mBitangents[i].z);
 			//eric lengyel 3d math book 3rd ed. pg 185
-			vertex.tan.w = (dot(cross(vertex.nor, vec3(vertex.tan)), vertex.bitan) < 0.f ? -1.f : 1.f);
+			vertex.tan.w = (dot(cross(vertex.nor, vec3(vertex.tan)), vertexBitan) < 0.f ? -1.f : 1.f);
 			if (mirrored) { vertex.tan.w *= -1.f; }//why flip it around?
 		} else {
 			vertex.tan = vec4(0.f, 0.f, 0.f, 1.f);
-			vertex.bitan = vec3(0.f, 0.f, 0.f);
+			//vertex.bitan = vec3(0.f, 0.f, 0.f);
 		}
-		vertices.push_back(vertex);
+		//vertices.push_back(vertex);
+		mVertices.push_back(vertex);
+		++currentMeshNumVertices;
 	}
+
 
 	//indices
 	for (unsigned int i = 0; i < mesh->mNumFaces; ++i) {
 		aiFace face = mesh->mFaces[i];
 		for (unsigned int j = 0; j < face.mNumIndices; ++j) {
-			indices.push_back(face.mIndices[j]);
+			//indices.push_back(face.mIndices[j]);
+			mIndices.push_back(face.mIndices[j] + currentMeshVerticesStartOffset);
+			++currentMeshNumIndices;
 		}
 	}
 
@@ -143,36 +153,39 @@ Mesh Model::processMesh(const aiMesh* mesh, const aiScene* scene) {
 
 	//diffuse maps
 	const std::vector<uint32_t> diffuseMaps = loadMaterialTextures(material, aiTextureType_DIFFUSE);
-	texIdx.insert(texIdx.end(), diffuseMaps.begin(), diffuseMaps.end());
+	textureRefs.insert(textureRefs.end(), diffuseMaps.begin(), diffuseMaps.end());
 
 	//spec maps
 	const std::vector<uint32_t> specularMaps = loadMaterialTextures(material, aiTextureType_SPECULAR);
-	texIdx.insert(texIdx.end(), specularMaps.begin(), specularMaps.end());
+	textureRefs.insert(textureRefs.end(), specularMaps.begin(), specularMaps.end());
 
 	//normal maps
 	const std::vector<uint32_t> normalMaps = loadMaterialTextures(material, aiTextureType_NORMALS);
-	texIdx.insert(texIdx.end(), normalMaps.begin(), normalMaps.end());
+	textureRefs.insert(textureRefs.end(), normalMaps.begin(), normalMaps.end());
 
 	//height maps
 	const std::vector<uint32_t> heightMaps = loadMaterialTextures(material, aiTextureType_HEIGHT);
-	texIdx.insert(texIdx.end(), heightMaps.begin(), heightMaps.end());
+	textureRefs.insert(textureRefs.end(), heightMaps.begin(), heightMaps.end());
 
 	//shininess(gloss) maps
 	const std::vector<uint32_t> shininessMaps = loadMaterialTextures(material, aiTextureType_SHININESS);
-	texIdx.insert(texIdx.end(), shininessMaps.begin(), shininessMaps.end());
+	textureRefs.insert(textureRefs.end(), shininessMaps.begin(), shininessMaps.end());
 
 	//emissive maps
 	const std::vector<uint32_t> emissiveMaps = loadMaterialTextures(material, aiTextureType_EMISSIVE);
-	texIdx.insert(texIdx.end(), emissiveMaps.begin(), emissiveMaps.end());
+	textureRefs.insert(textureRefs.end(), emissiveMaps.begin(), emissiveMaps.end());
 
 	uint32_t texFlags = 0;
-	//for (auto& texture : texIdx) {
-	for (auto& idx : texIdx) {
+	//for (auto& texture : textureRefs) {
+	for (auto& idx : textureRefs) {
 		texFlags |= textureFlags.at(mTexturesLoaded[idx].type);
 	}
 
 	//std::move this, std::move the args in the constructor
-	return Mesh(vertices, indices, texIdx, texFlags, *this);
+	//return Mesh(vertices, indices, textureRefs, texFlags, *this);
+	return Mesh(currentMeshNumVertices, currentMeshNumIndices, currentMeshVerticesStartOffset,
+		currentMeshIndicesStartOffset, textureRefs, texFlags, *this);
+
 }
 
 std::vector<uint32_t> Model::loadMaterialTextures(aiMaterial* mat, aiTextureType type) {
