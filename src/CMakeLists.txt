@@ -23,6 +23,8 @@ set(SOURCE_FILES
     "mesh.cpp"
     "model.h"
     "model.cpp"
+    "bvh.h"
+    "bvh.cpp"
     )
 
 cuda_add_library(src
