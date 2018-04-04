@@ -10,6 +10,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 using namespace glm;
 
+
+const enum class AXIS { X = 0, Y = 1, Z = 2 };
 struct AABB {
 	//AABB corners
 	glm::vec3 min;//lower left back (model space x,y,z mins)
@@ -25,7 +27,19 @@ struct AABB {
 	void GrowAABB(const AABB& aabb);
 	void GrowAABBFromCentroid(const glm::vec3& centroid);
 	void MakeAABBFromTriangleIndices(const Model& model, const uint32_t mIndicesStartIndex);
-	glm::vec3 GetCentroidFromAABB();
+	float GetComparableSurfaceArea() const ;
+	AXIS GetSplitAxis() const ;
+	glm::vec3 GetCentroidFromAABB() const;
+
+};
+
+//contiguous array of these are needed for construction, sorted into left and right children by partitioning
+//can throw away the aabb and centroid info when finished. For animation, might want to hold onto them.
+struct TriangleBVHData {
+	int32_t id;// reference to triangle indices triplet set in mIndices from the Model reference passed in to BuildBVH
+	AABB aabb;
+	glm::vec3 centroid;
+	TriangleBVHData();
 };
 
 struct BVHNode {
@@ -47,7 +61,7 @@ struct BVHNode {
 
 		struct {
 			uint32_t numTriangles;// if MSB is 1 then node is leaf so use leaf form of the union
-			uint32_t startIndex;
+			uint32_t startIdx;
 		} leaf;
 	} payload;
 };
@@ -65,8 +79,12 @@ public://data
 
 public://functions
 	BVH();
-	void BuildBVH(const Model& model);
-	uint32_t RecurseBuildBVH(uint32_t startIdx, uint32_t onePastEndIdx, const AABB& nodeCentroidAABB,
-		uint32_t allocIndex, uint32_t currentDepth, uint32_t& totalNodes, uint32_t& totalInnerNodes, uint32_t& totalLeafNodes);
-};
 
+	void BuildBVH(const Model& model);
+
+	uint32_t RecurseBuildBVH(std::vector<TriangleBVHData>& triangleBvhData, uint32_t startIdx, uint32_t onePastEndIdx, const AABB& nodeAABB, const AABB& nodeCentroidAABB,
+		uint32_t allocIndex, uint32_t currentDepth, uint32_t& totalInnerNodes, uint32_t& totalLeafNodes);
+
+	uint32_t CreateLeafNode(const uint32_t startIdx, const uint32_t allocIdx,
+		const uint32_t currentDepth, uint32_t& totalLeafNodes, const uint32_t numTriangles);
+};
