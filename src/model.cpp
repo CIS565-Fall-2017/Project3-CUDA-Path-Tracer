@@ -47,6 +47,8 @@ Model::Model(const std::string& path, const bool mirrored, const float unifscale
 		std::cout << "\nNum verts: " << mesh.numVertices << "\tNum indices: " << mesh.numIndices;
 	}
 	std::cout << "\n";
+
+	bvh.BuildBVH(*this);
 }
 
 

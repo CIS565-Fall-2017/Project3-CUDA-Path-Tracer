@@ -1,5 +1,6 @@
 #pragma once
 #include "mesh.h"
+#include "bvh.h"
 class Shader;
 
 //std
@@ -26,6 +27,8 @@ public://data
 	std::string mDirectory;
 	bool mirrored;
 	mat4 modelmat;
+	BVH bvh;
+
 
 public://functions
 	Model(const std::string& path, const bool mirrored, const float unifscale);

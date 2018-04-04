@@ -16,21 +16,57 @@
 //////external
 //#include <stb/stb_image.h>
 
+#include <algorithm>
 #include <sstream>
 #include <iostream>
 
-BVH::BVH(const Model& model) 
-	: model(model)
-{
-	BuildBVH();
-}
-
-struct TriAABBCentroid {
+//contiguous array of these are needed for construction, sorted into left and right children by partitioning
+//can throw away the aabb and centroid info when finished. For animation, might want to hold onto them.
+struct TriangleBVHData {
+	int32_t id;// reference to triangle indices triplet set in mIndices from the Model reference passed in to BuildBVH
 	AABB aabb;
 	glm::vec3 centroid;
+	TriangleBVHData() : id(-1), aabb(), centroid(glm::vec3(INFINITY, INFINITY, INFINITY)) {}
 };
 
-void BVH::BuildBVH() {
+AABB::AABB(const glm::vec3& min, const glm::vec3& max) 
+	: min(min), max(max) 
+{
+}
+
+AABB::AABB() 
+	: min(glm::vec3(INFINITY, INFINITY, INFINITY)), max(glm::vec3(-INFINITY, -INFINITY, -INFINITY))
+{
+}
+
+void AABB::GrowAABB(const AABB& aabb) {
+	min = glm::min(min, aabb.min);
+	max = glm::max(max, aabb.max);
+}
+
+void AABB::GrowAABBFromCentroid(const glm::vec3& centroid) {
+	min = glm::min(min, centroid);
+	max = glm::max(max, centroid);
+}
+
+void AABB::MakeAABBFromTriangleIndices(const Model& model, const uint32_t idx1) {
+	const glm::vec3& p1 = model.mVertices[model.mIndices[idx1+0]].pos;
+	const glm::vec3& p2 = model.mVertices[model.mIndices[idx1+1]].pos;
+	const glm::vec3& p3 = model.mVertices[model.mIndices[idx1+2]].pos;
+
+	min = glm::min(glm::min(p1, p2), p3);
+	max = glm::max(glm::max(p1, p2), p3);
+}
+
+glm::vec3 AABB::GetCentroidFromAABB() {
+	return 0.5f * (min + max);
+}
+
+BVH::BVH() 
+{
+}
+
+void BVH::BuildBVH(const Model& model) {
 	/* NOTES: On fast construction of SAH-based Bounding Volume Hierarchies. Ingo Wald
 		* SA (surface area) is actually the total surface area of the bounding box, not just the the face we care about
 		* this paper has a node occupying half a cache line (32 bytes) storing the bounding box of the node
@@ -39,11 +75,10 @@ void BVH::BuildBVH() {
 		* when preparing to split a node, form AABB around centroids of triangles
 			- There are K equidistant spaced partitions along the larges axis (checking
 			 other axes doesn't seem to be worth the effort). K-1 positions along the axis to split.
-			- Bins count the triangles that overlap it
+			- Bins count the triangles that overlap it( or centroids that fall into it)
 			- Bins keep track of the bin bounds: the bounding box of the triangles that touch it. Could be larger or smaller than the 'domain' of the actual bin.
-			- Full 3D bounds of these bind bounds are kept track of.
+			- Full 3D bounds of these bind bounds are kept track of. not just the 2d face along the axis we are splitting
 			- Cost Function: NumLeft*AreaLeft ++ NumRight*AreaRight
-			-
 
 		* In the setup, compute each triangles bounds and its centroid. Also compute total bounds and total centroid bounds.
 			-  for SIMD friendly format store the 3D positions of the above info in four 16-byte aligned floats
@@ -52,8 +87,7 @@ void BVH::BuildBVH() {
 			 and 3 stores to write tri bounds and centroid to memory
 		
 		* Triangle-to-bin projection: simply get the percentage along the centroid bounds splitting axis the triangle's centroid is
-		then scale it by the number of bins times 1.f-epsilon to get the floating point bin number. Then perform float to int truncation 
-		to get the bin number. 
+		then scale it by the number of bins times 1.f-epsilon to get the floating point bin number. Then perform float to int truncation to get the bin number. 
 			- initialize each bin to a negative box [+inf, -inf], allowing it to grow to include a triangles bound with one SSE min and one max
 			  without having to check if empty.
 			- can later merge the individual bin bounds without having to check for emptiness since growing an AABB with neg AABB using min max ops does not 
@@ -61,21 +95,26 @@ void BVH::BuildBVH() {
 			- Don't have to use all the tri's, just a subset but this requires param tuning to not degrade the bvh quality.
 		
 		* SAH evaluation: first do a linear pass from the left where you incrementally accum the bounds and num of tris for the left half. 
-			storing these two values (num tris and total tris bound surface area) for each splitting plane.
-			Then do the same for the right and evaluate teh SAH for each plane.
+			storing these two values (num tris and total tris 3d bound surface area for each splitting plane (also no need to mult each face by 2 for total area since 
+			this divides out when comapring a Surface area vs another surface area, similar to not taking the sqrt when comparing distances, 
+			just compare the squared distances))
+			Then do the same for the right and evaluate the SAH for each plane. keep track of the min cost splitting plane
 			if one of the sides of a splitting plane does not have any tris then it gets rejected as a candidate as BVH is not allowed empty partitions
 		
-		* In-place ID list partitioning: bvh is two contuguous arrays one for the node data one for the triangleID (ref the triangle in some way i.e. 3 vertex indices that refers to the main vertex array)
+		* In-place ID list partitioning: bvh is two contuguous arrays one for the node data one for the triangleID 
+		(ref the triangle in some way i.e. 3 vertex indices that refers to the main vertex array or simply and index to the actual index array)
 			- An in place bvh for N triangles has at most 2N-1 nodes, this can be pre-allocated
-			- bvh triangles are partitioned into nodes by partioning the triangleID array (uin32_t's init to 0,1,2...N)
-			- when doing sbvh will need to allocate up to spatial plit budget and create addition refs when a spatial split is neccessary.
+			- bvh triangles are partitioned into nodes by partioning the triangleID array (uint32_t's init to 0,1,2...N)
+			- when doing sbvh, will need to allocate up to spatial plit budget and create addition refs when a spatial split is neccessary.
 			- can use std::partition to do the partitioning or have two iterators, one starts at teh front of the triangleID array and one at the back
 			 the left iter scans to the right until it finds a tri that should be on the right of the split plane, the right iter scans to the left until
 			 it finds a tri that should be on the left, then swap these two triangleID's. keep going while(iterLeft < iterRight)
-			 - pass on the triangle bounds and centroid bounds of the two children to the recursive calls
+			 - pass on the triangle bounds and centroid bounds of the two children to the recursive calls, as well as teh range int he traingleID array that the call should operate over
+			 - triangleID array should probably contain the bbox and centroid of the triangle in addition to it's id since these will be needed on every recursive call
+			 - the centroid-to-bin sorting this can probably be done in-place on the triangleID struct array to prevent the need for the partition step later
 		
 		* Number of bins: 4-16 seems to work fine 16 being the best quality.
-		This number can probably decrease as you go down the tree
+		This number can probably decrease as you go down the tree?
 		
 		* Termination: max tris per leaf: 2-4 is fine. if centroid bounds is too small...
 
@@ -92,6 +131,7 @@ void BVH::BuildBVH() {
 		* if hit both children procede to the child that is closer and push the index of the other on the stack
 		* Uses Woop intersection test for triangles
 		* uses a 1D texture to store the node array, triangle data in global mem
+		* if-if seemed better than while-while
 	*/
 
 
@@ -139,17 +179,50 @@ void BVH::BuildBVH() {
 			overlap in the important top levls of a bvh which in combination with the dense character geometry makes hierarchy traversal expensive. 
 			This situation is mitigated with minimal reference duplication by the sbvh's spatial splits (when neccessary) which easily avoid top level overlap by
 			placing a small number of spatial splits. see figure 1 of teh papaer or the title image
-
-
-
-			
-
 	*/
 
 
 
-	//we need to make a temporary working set of data for each triangle's AABB and centroid
+	//we need to make a temporary working set of data for each triangle's ID AABB and centroid
 	//we'll need to shuffle around the mIndices array of Model adjecent triplets of indices is a triangle that must be moved together
-	std::vector<TriAABBCentroid> aabbcentroids(model.mIndices.size() / 3);
+	//when using sbvh might be worth having a separate indices array from the opengl one since there will be duplicates
+	const uint32_t numTriangles = model.mIndices.size() / 3;
+	std::vector<TriangleBVHData> triangleBvhData(numTriangles);
 
+	AABB localRootCentroidAABB;
+
+	for (int i = 0; i < numTriangles; ++i) {
+		TriangleBVHData& data = triangleBvhData[i];
+		data.id = i;
+		data.aabb.MakeAABBFromTriangleIndices(model, i*3);
+		data.centroid = data.aabb.GetCentroidFromAABB();
+		localRootAABB.GrowAABB(data.aabb);
+		localRootCentroidAABB.GrowAABBFromCentroid(data.centroid);
+	}
+
+	//Begin recursive building of BVH tree
+	//Params: start and one-past end for the index range to operate over (triangleBvhData vector)
+	//Centroid bounds of the node the call needs to split
+	//bvh node array index in which to put the node data
+	//stats: current depth, total nodes, total inner, total leaf
+	uint32_t allocIndex = 0, startIdx = 0, currentDepth = 0, totalNodes = 0, 
+		totalInnerNodes = 0, totalLeafNodes = 0, maxDepth = 0, onePastEndIdx = numTriangles;
+
+	maxDepth = RecurseBuildBVH(startIdx, onePastEndIdx, localRootCentroidAABB, allocIndex, currentDepth, totalNodes, totalInnerNodes, totalLeafNodes);
+	std::cout << "\n\nBVH stats: Max Depth: " << maxDepth;
+	std::cout << "\n\t TotalNodes: " << totalNodes;
+	std::cout << "\n\t TotalInnerNodes: " << totalInnerNodes;
+	std::cout << "\n\t TotalLeafNodes: " << totalLeafNodes;
+	std::cout << "\n\t localRootAABB: { " << localRootAABB.min.x << ", " << localRootAABB.min.y << ", " << localRootAABB.min.z << " }";
+	std::cout << "  { " << localRootAABB.max.x << ", " << localRootAABB.max.y << ", " << localRootAABB.max.z << " }\n";
+}
+
+uint32_t BVH::RecurseBuildBVH(const uint32_t startIdx, const uint32_t onePastEndIdx, const AABB& nodeCentroidAABB,
+	const uint32_t allocIndex, const uint32_t currentDepth, uint32_t& totalNodes, uint32_t& totalInnerNodes, uint32_t& totalLeafNodes)
+{
+	uint32_t leftDepth = currentDepth, rightDepth = currentDepth;
+
+	//do failure and early termination checks
+
+	return std::max(std::max(currentDepth, leftDepth), rightDepth);
 }
