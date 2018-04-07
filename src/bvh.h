@@ -40,6 +40,7 @@ struct TriangleBVHData {
 	int32_t id;// reference to triangle indices triplet set in mIndices from the Model reference passed in to BuildBVH
 	AABB aabb;
 	glm::vec3 centroid;
+	uint32_t bin;//used to store the bin the triangle falls into during SAH calculation
 	TriangleBVHData();
 };
 

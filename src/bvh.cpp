@@ -23,7 +23,7 @@
 
 
 TriangleBVHData::TriangleBVHData()
-	: id(-1), aabb(), centroid(glm::vec3(INFINITY, INFINITY, INFINITY))
+	: id(-1), aabb(), centroid(glm::vec3(INFINITY, INFINITY, INFINITY)), bin(-1)
 {
 
 }
@@ -277,7 +277,6 @@ uint32_t BVH::RecurseBuildBVH(std::vector<TriangleBVHData>& triangleBvhData, con
 		uint32_t num;
 		AABB aabb;
 		AABB centroidAABB;
-		float partitionPos;
 
 		//left info
 		uint32_t numLeft;
@@ -293,7 +292,7 @@ uint32_t BVH::RecurseBuildBVH(std::vector<TriangleBVHData>& triangleBvhData, con
 
 		//final SAH
 		float SAH;
-		BinInfoSAH() : num(0), aabb(), centroidAABB(), partitionPos(INFINITY),
+		BinInfoSAH() : num(0), aabb(), centroidAABB(), 
 			numLeft(0), aabbLeft(), centroidAABBLeft(), SALeft(INFINITY), 
 			numRight(0), aabbRight(), centroidAABBRight(), SARight(INFINITY), SAH(INFINITY)
 		{
@@ -324,6 +323,7 @@ uint32_t BVH::RecurseBuildBVH(std::vector<TriangleBVHData>& triangleBvhData, con
 			//in fact it might be worth storing the formulas version of the partition plane position in the binInfoSAH array
 			//just ran into more floating point issues, the other option is to add another field in TriangleBvhData data for bin number
 
+			triangleBvhData[i].bin = binNumber;
 			++binInfoSAH[binNumber].num;
 			binInfoSAH[binNumber].aabb.GrowAABB(triangleBvhData[i].aabb);
 			binInfoSAH[binNumber].centroidAABB.GrowAABBFromCentroid(triangleBvhData[i].centroid);
@@ -419,20 +419,16 @@ uint32_t BVH::RecurseBuildBVH(std::vector<TriangleBVHData>& triangleBvhData, con
 	} else {
 		uint32_t leftIter = startIdx;
 		uint32_t rightIter = onePastEndIdx - 1;
-		const float partitionPos = binInfoSAH[partitionWithMinSAH].partitionPos;
 		while (true) {
 			//sweep left to right until find one that should be to the right of the plane
-			while ( (uint32_t)(preCalcFactor * (triangleBvhData[leftIter].centroid[axis] - nodeCentroidAABB.min[axis])) <= partitionWithMinSAH 
-				&& leftIter < onePastEndIdx) { ++leftIter; }
+			while ( triangleBvhData[leftIter].bin <= partitionWithMinSAH && leftIter < onePastEndIdx) { ++leftIter; }
 			//sweep right to left until find one that should be to the left of the plane
-			while ( (uint32_t)(preCalcFactor * (triangleBvhData[rightIter].centroid[axis] - nodeCentroidAABB.min[axis])) > partitionWithMinSAH 
-				&& rightIter > startIdx) { --rightIter; }
+			while ( triangleBvhData[rightIter].bin > partitionWithMinSAH && rightIter > startIdx) { --rightIter; }
 
 			if (leftIter > rightIter) {
 				onePastLeftPartition = onePastEndIdx == leftIter ? onePastEndIdx - 1 : leftIter;//issues when there are two remaining with same centroid (should you decide to do 1 tri/bin
 				break;
-			}
-			else { //swap data
+			} else { //swap data
 				TriangleBVHData tmp = triangleBvhData[leftIter];
 				triangleBvhData[leftIter] = triangleBvhData[rightIter];
 				triangleBvhData[rightIter] = tmp;
