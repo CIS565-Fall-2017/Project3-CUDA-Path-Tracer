@@ -26,6 +26,10 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 
+#include <fstream>
+#include <chrono>
+using Clock = std::chrono::high_resolution_clock;
+
 std::map<std::string, uint32_t> textureFlags = {
 	{"texture_diffuse",			1 <<  0},
 	{"texture_specular",		1 <<  1},
@@ -48,7 +52,14 @@ Model::Model(const std::string& path, const bool mirrored, const float unifscale
 	}
 	std::cout << "\n";
 
+    auto t1 = Clock::now();
+
 	bvh.BuildBVH(*this);
+
+    auto t2 = Clock::now();
+    std::cout << "TotalTime: "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() * 0.001
+              << " seconds" << std::endl;
 }
 
 

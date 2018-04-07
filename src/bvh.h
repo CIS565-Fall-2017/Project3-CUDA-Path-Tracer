@@ -26,6 +26,7 @@ struct AABB {
 	AABB();
 	void GrowAABB(const AABB& aabb);
 	void GrowAABBFromCentroid(const glm::vec3& centroid);
+	void AddMargin();
 	void MakeAABBFromTriangleIndices(const Model& model, const uint32_t mIndicesStartIndex);
 	float GetComparableSurfaceArea() const ;
 	AXIS GetSplitAxis() const ;
@@ -72,6 +73,7 @@ public://data
 	std::vector<uint32_t> mTriangleIDs;
 	AABB localRootAABB;//The AABB of the root node in local space (must be aligned with local model axes)
 	AABB worldRootAABB;//The AABB of the root in world space (must be aligned with world axes)
+	uint32_t maxDepth;
 
 	//for sbvh, will need to allocate addtional mem for when it decides to perform a spatial split to prevent excessive overlap between children of a node
 	//recommended cutoff is 30% of nodes have spatial split (if neccessary)
@@ -82,9 +84,9 @@ public://functions
 
 	void BuildBVH(const Model& model);
 
-	uint32_t RecurseBuildBVH(std::vector<TriangleBVHData>& triangleBvhData, uint32_t startIdx, uint32_t onePastEndIdx, const AABB& nodeAABB, const AABB& nodeCentroidAABB,
-		uint32_t allocIndex, uint32_t currentDepth, uint32_t& totalInnerNodes, uint32_t& totalLeafNodes);
+	uint32_t RecurseBuildBVH(std::vector<TriangleBVHData>& triangleBvhData, uint32_t startIdx, uint32_t onePastEndIdx, const AABB& nodeCentroidAABB, 
+		const uint32_t nodeAllocIdx, uint32_t& allocIndex, uint32_t currentDepth, uint32_t& totalInnerNodes, uint32_t& totalLeafNodes);
 
-	uint32_t CreateLeafNode(const uint32_t startIdx, const uint32_t allocIdx,
+	uint32_t CreateLeafNode(const uint32_t startIdx, const uint32_t nodeAllocIdx,
 		const uint32_t currentDepth, uint32_t& totalLeafNodes, const uint32_t numTriangles);
 };

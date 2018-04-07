@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <sstream>
 #include <iostream>
+#include <array>
 
 
 TriangleBVHData::TriangleBVHData()
@@ -42,6 +43,12 @@ AABB::AABB()
 void AABB::GrowAABB(const AABB& aabb) {
 	min = glm::min(min, aabb.min);
 	max = glm::max(max, aabb.max);
+}
+
+void AABB::AddMargin() {
+	constexpr float margin = 0.005;
+	min -= glm::vec3( margin,  margin,  margin);
+	max += glm::vec3( margin,  margin,  margin);
 }
 
 void AABB::GrowAABBFromCentroid(const glm::vec3& centroid) {
@@ -206,11 +213,16 @@ void BVH::BuildBVH(const Model& model) {
 	//we need to make a temporary working set of data for each triangle's ID AABB and centroid
 	//we'll need to shuffle around the mIndices array of Model adjecent triplets of indices is a triangle that must be moved together
 	//when using sbvh might be worth having a separate indices array from the opengl one since there will be duplicates
+	AABB localRootCentroidAABB;
 	const uint32_t numTriangles = model.mIndices.size() / 3;
 	std::vector<TriangleBVHData> triangleBvhData(numTriangles);
 
-	AABB localRootCentroidAABB;
+	//an in-place bvh requires 2N-1 nodes if there's no ref duplication
+	mBVHNodes.reserve(2 * numTriangles - 1);//acutal mem alloc block
+	mBVHNodes.resize(2 * numTriangles - 1);//sets valid range, can access with [] operator, won't run into idx out of bounds issues
 
+
+	//loop through triangles and calc the triangle aabb centroids for the triangleBvhData vector
 	for (int i = 0; i < numTriangles; ++i) {
 		TriangleBVHData& data = triangleBvhData[i];
 		data.id = i;
@@ -225,10 +237,11 @@ void BVH::BuildBVH(const Model& model) {
 	//Centroid bounds of the node the call needs to split
 	//bvh node array index in which to put the node data
 	//stats: current depth, total nodes, total inner, total leaf
-	uint32_t allocIdx = 0, startIdx = 0, currentDepth = 0, 
-		totalInnerNodes = 0, totalLeafNodes = 0, maxDepth = 0, onePastEndIdx = numTriangles;
+	uint32_t allocIdx = 0, startIdx = 0, currentDepth = 0, nodeAllocIdx = 0,
+		totalInnerNodes = 0, totalLeafNodes = 0, onePastEndIdx = numTriangles;
+	maxDepth = currentDepth;
 
-	maxDepth = RecurseBuildBVH(triangleBvhData, startIdx, onePastEndIdx, localRootAABB, localRootCentroidAABB, allocIdx, currentDepth, totalInnerNodes, totalLeafNodes);
+	maxDepth = RecurseBuildBVH(triangleBvhData, startIdx, onePastEndIdx, localRootCentroidAABB, nodeAllocIdx, allocIdx, currentDepth, totalInnerNodes, totalLeafNodes);
 	std::cout << "\n\nBVH stats: Max Depth: " << maxDepth;
 	std::cout << "\n\t TotalNodes: " << totalInnerNodes + totalLeafNodes;
 	std::cout << "\n\t TotalInnerNodes: " << totalInnerNodes;
@@ -237,24 +250,24 @@ void BVH::BuildBVH(const Model& model) {
 	std::cout << "  { " << localRootAABB.max.x << ", " << localRootAABB.max.y << ", " << localRootAABB.max.z << " }\n";
 }
 
-uint32_t BVH::RecurseBuildBVH(std::vector<TriangleBVHData>& triangleBvhData, const uint32_t startIdx, const uint32_t onePastEndIdx, const AABB& nodeAABB, const AABB& nodeCentroidAABB,
-	const uint32_t allocIdx, const uint32_t currentDepth, uint32_t& totalInnerNodes, uint32_t& totalLeafNodes)
+uint32_t BVH::RecurseBuildBVH(std::vector<TriangleBVHData>& triangleBvhData, const uint32_t startIdx, 
+	const uint32_t onePastEndIdx, const AABB& nodeCentroidAABB, const uint32_t nodeAllocIdx,
+	uint32_t& allocIdx, const uint32_t currentDepth, uint32_t& totalInnerNodes, uint32_t& totalLeafNodes)
 {
 	//NOTE: Should all uint32_t's be uint64_t's to handle several million triangle meshes??? Does CUDA handle uint64_t addresses?
-	constexpr uint32_t maxTrianglesPerNode = 8;
-	constexpr uint32_t numBinsPerNode = 16;
-
-	uint32_t leftDepth = currentDepth, rightDepth = currentDepth;
+	constexpr uint32_t maxTrianglesPerNode = 1;//0.244, 0.271
+	constexpr uint32_t numBinsPerNode = 16;//paper said 16 was as high as you need to go, however if this is too large and the mesh is also very large could get __chkstk() failure since we allocate a std::array (goes on stack) for each recursion call
+	constexpr uint32_t lastBinIdx = numBinsPerNode - 1;
 
 	//peform failure checks
-	if (startIdx > onePastEndIdx) {
-		std::cout << "\n\nBVH Error: startIdx is greater than onePastEndIdx\n";
+	if (startIdx >= onePastEndIdx) {
+		std::cout << "\n\nBVH Error: startIdx is greater than or equal to onePastEndIdx\n";
 	}
 
 	//do early termination checks
 	const uint32_t numTriangles = onePastEndIdx - startIdx;
 	if (numTriangles <= maxTrianglesPerNode) { //make leaf node
-		return CreateLeafNode(startIdx, allocIdx, currentDepth, totalLeafNodes, numTriangles);
+		return CreateLeafNode(startIdx, nodeAllocIdx, currentDepth, totalLeafNodes, numTriangles);
 	}
 
 	//Begin sorting triangles into bins (if can't peform in-place partion here, have auxilary scratch memory vector for this part)
@@ -263,99 +276,203 @@ uint32_t BVH::RecurseBuildBVH(std::vector<TriangleBVHData>& triangleBvhData, con
 		//just in this bin
 		uint32_t num;
 		AABB aabb;
+		AABB centroidAABB;
+		float partitionPos;
 
 		//left info
 		uint32_t numLeft;
 		AABB aabbLeft;
+		AABB centroidAABBLeft;
 		float SALeft;
 
 		//right info
 		uint32_t numRight;
 		AABB aabbRight;
+		AABB centroidAABBRight;
 		float SARight;
-		BinInfoSAH() : numLeft(0), aabbLeft(), SALeft(0.f), numRight(0), aabbRight(), SARight(0.f) {}
-	};
-	BinInfoSAH binInfoSAH[numBinsPerNode] = {};//the last one will not have its numleft and numright info updated (partition info(left/right) kept in the 0 through n-1 bins)
 
-	//finds the longest axis of this node's triangle centroids AABB and selected that as the axis to split along
+		//final SAH
+		float SAH;
+		BinInfoSAH() : num(0), aabb(), centroidAABB(), partitionPos(INFINITY),
+			numLeft(0), aabbLeft(), centroidAABBLeft(), SALeft(INFINITY), 
+			numRight(0), aabbRight(), centroidAABBRight(), SARight(INFINITY), SAH(INFINITY)
+		{
+		}
+	};
+	//the last one will not have its numleft and numright info updated 
+	//partition info(left/right) kept in the 0 through n-1 bins, partition is the right wall of the bin
+	std::array<BinInfoSAH, numBinsPerNode> binInfoSAH;
+
+	//finds the longest axis of this node's triangle centroids AABB and selects that as the axis on which to split along 
+	//by creating regularly spaced partition planes 
 	const uint32_t axis = (uint32_t)nodeCentroidAABB.GetSplitAxis();
+	const float axisLen = nodeCentroidAABB.max[axis] - nodeCentroidAABB.min[axis];
+	constexpr float scalePercentByNumBins = (numBinsPerNode)*(1.f - FLT_EPSILON);
+	const float preCalcFactor = scalePercentByNumBins / axisLen;
 
 	//go through all triangles and determine the bin that contains their centroid, update num and aabb for that bin
 	{
-		const float scalePercentByNumBins = numBinsPerNode*(1.f - FLT_EPSILON);
-		const float axisLen = nodeCentroidAABB.max[axis] - nodeCentroidAABB.min[axis];
-		const float preCalcFactor = scalePercentByNumBins / axisLen;
-
 		for (int i = startIdx; i < onePastEndIdx; ++i) {
-			const uint32_t binNumber = preCalcFactor * (triangleBvhData[i].centroid[axis] - nodeCentroidAABB.min[axis]);
+			const float centroidLen = (triangleBvhData[i].centroid[axis] - nodeCentroidAABB.min[axis]);
+			const uint32_t binNumber = preCalcFactor * centroidLen;
+			//^The way this math works out it's best to recalc the bin num during partitioning and see if its more or less than the partitionWithMinSAH
+			//there are really quirky floating point issues with things lying verying close to the partition
+			//doing something like:
+			//const float partitionSpacing = axisLen / numBinsPerNode;
+			//const float partitionAxisPos = nodeCentroidAABB.min[axis] + ((partitionWithMinSAH + 1)*partitionSpacing);
+			//will yield slightly off position compared to what this formula thinks is the exact partiition position
+			//in fact it might be worth storing the formulas version of the partition plane position in the binInfoSAH array
+			//just ran into more floating point issues, the other option is to add another field in TriangleBvhData data for bin number
+
 			++binInfoSAH[binNumber].num;
 			binInfoSAH[binNumber].aabb.GrowAABB(triangleBvhData[i].aabb);
+			binInfoSAH[binNumber].centroidAABB.GrowAABBFromCentroid(triangleBvhData[i].centroid);
 		}
 	}
 
-	//sweep from left to right determining the numLeft and aabbLeft for that bin (partition plane is the right wall of the bin)
+	//sweep from left to right determining the numLeft and aabbLeft for that bin 
+	//(partition plane is the right wall of the bin)
 	{
 		//first bin doesn't have a previous bin to merge with, do outside the loop
 		binInfoSAH[0].numLeft = binInfoSAH[0].num;
 		binInfoSAH[0].aabbLeft = binInfoSAH[0].aabb;
+		binInfoSAH[0].centroidAABBLeft = binInfoSAH[0].centroidAABB;
 		binInfoSAH[0].SALeft = binInfoSAH[0].aabbLeft.GetComparableSurfaceArea();
 
-		for (int i = 1; i < numBinsPerNode-1; ++i) {//dont do the last bin since it is past the last partition plane
-			binInfoSAH[i].numLeft = binInfoSAH[i].num + binInfoSAH[i - 1].numLeft;
-			binInfoSAH[i].aabbLeft = binInfoSAH[i].aabb; 
-			binInfoSAH[i].aabbLeft.GrowAABB(binInfoSAH[i - 1].aabbLeft);
-			binInfoSAH[i].SALeft	= binInfoSAH[i].aabbLeft.GetComparableSurfaceArea();
+		for (int i = 1; i < lastBinIdx; ++i) {//dont do the last bin since it is past the last partition plane
+			BinInfoSAH& curr = binInfoSAH[i];
+			BinInfoSAH& prev = binInfoSAH[i - 1];
+			curr.numLeft = curr.num + prev.numLeft;
+			curr.aabbLeft = curr.aabb; 
+			curr.aabbLeft.GrowAABB(prev.aabbLeft);
+			curr.centroidAABBLeft = curr.centroidAABB;
+			curr.centroidAABBLeft.GrowAABB(prev.centroidAABBLeft);
+			curr.SALeft	= curr.aabbLeft.GetComparableSurfaceArea();
 		}
 	}
 
 	//same as above but from right to left, also keep track of minimum SAH partition
+	int32_t partitionWithMinSAH = -1;
 	{
 		//last-1 (last partition info, numBinsPerNode-2) bin doesn't have a previous right bin to merge with, do outside the loop
-		int32_t partitionWithMinSAH = -1;
-		float minSAH = FLT_MAX; 
-		const uint32_t lastPartitionIdx = numBinsPerNode - 2;
+		float minSAH = FLT_MAX;
+		constexpr uint32_t lastPartitionIdx = lastBinIdx - 1;
 		BinInfoSAH& info = binInfoSAH[lastPartitionIdx];
 		info.numRight = binInfoSAH[lastPartitionIdx + 1].num;
 		info.aabbRight = binInfoSAH[lastPartitionIdx + 1].aabb;
+		info.centroidAABBRight = binInfoSAH[lastPartitionIdx + 1].centroidAABB;
 		info.SARight = info.aabbRight.GetComparableSurfaceArea();
-		float SAH = info.SARight * info.numRight + info.SALeft * info.numLeft;
+		info.SAH = info.SARight * info.numRight + info.SALeft * info.numLeft;
 
 		//keep track of minimum SAH info
-		if (info.numLeft > 0 && info.numRight > 0 && SAH < minSAH) {
-			minSAH = SAH;
+		if (info.numLeft > 0 && info.numRight > 0 && info.SAH < minSAH) {
+			minSAH = info.SAH;
 			partitionWithMinSAH = lastPartitionIdx;
 		}
 
 		for (int i = lastPartitionIdx-1; i >= 0; --i) {
 			BinInfoSAH& curr = binInfoSAH[i];
-			curr.numRight = curr.num + binInfoSAH[i + 1].numRight;//numTriangles - binInfoSAH[i].numLeft
-			curr.aabbRight = curr.aabb; 
-			curr.aabbRight.GrowAABB(binInfoSAH[i + 1].aabbRight);
+			BinInfoSAH& prev = binInfoSAH[i + 1];
+			curr.numRight = prev.num + prev.numRight;//numTriangles - binInfoSAH[i].numLeft
+			curr.aabbRight = prev.aabb;
+			curr.aabbRight.GrowAABB(prev.aabbRight);
+			curr.centroidAABBRight = prev.centroidAABB; 
+			curr.centroidAABBRight.GrowAABB(prev.centroidAABBRight);
 			curr.SARight	= curr.aabbRight.GetComparableSurfaceArea();
-			SAH = curr.SARight * curr.numRight + curr.SALeft * curr.numLeft;
-			if (info.numLeft > 0 && info.numRight > 0 && SAH < minSAH) {
-				minSAH = SAH;
-				partitionWithMinSAH = lastPartitionIdx;
+			curr.SAH = curr.SARight * curr.numRight + curr.SALeft * curr.numLeft;
+			if (curr.numLeft > 0 && curr.numRight > 0 && curr.SAH < minSAH) {
+				minSAH = curr.SAH;
+				partitionWithMinSAH = i;
 			}
 		}
 	}
 
-	//have the splitting partion, now partition the triangleBvhData vector such that triangles centroids that appear less or equal to the axis split location 
+	//have the splitting partion, now partition the triangleBvhData vector such that triangles with centroids that appear less or equal to the axis split location 
 	//come before the triangles that appear greater than the axis split location, within the vector
+	//NOTE: this step can probably be performed when sifting centroids into bins above
 
-	//TODO^^^
+	//TODO: CLEAN THIS UP (logic), there's weird cases when axisLen is 0.f and this leads to things ending up in the same bin and
+	//-1 as the partionWithMinSAH, need to detect this early then put one half the triangles in one partition and the other in the remaining
+	uint32_t onePastLeftPartition = startIdx;
 
+	//NOTE: doubt this if is needed when doing more than 1 per bin
+	if (0.f == axisLen && -1 == partitionWithMinSAH) {
+		//kind of commone for a mesh where the aabb and/or centroids were the same for 2 triangles, was testing 1=maxTrianglesPerNode
+		//rare case, but can happen with more triangles in a higher maxTrianglesPerNode situation
+		//axis len can be 0. for partitionWIthMinSAH can be -1 if all fall into same bin due to having the same centroid
+		onePastLeftPartition = (onePastEndIdx + startIdx) >> 1;//middle index in the range we're working on
+		partitionWithMinSAH = 0;//we'll override the data in this bin to facilitate this special case
+		binInfoSAH[0].aabbLeft = AABB();
+		binInfoSAH[0].aabbRight = AABB();
+		binInfoSAH[0].centroidAABBLeft = AABB();
+		binInfoSAH[0].centroidAABBRight = AABB();
+		//find the total aabb and centroidAABB for triangles from startIdx to before onePastLeftPartition and save to left data in bin 0
+		//do the same for triangles from onePastLeftPartition to before onePastEndIdx and save to right data in bin 0
+		for (int i = startIdx; i < onePastLeftPartition; ++i) {
+			binInfoSAH[0].aabbLeft.GrowAABB(triangleBvhData[i].aabb);
+			binInfoSAH[0].centroidAABBLeft.GrowAABBFromCentroid(triangleBvhData[i].centroid);
+		}
+		for (int i = onePastLeftPartition; i < onePastEndIdx; ++i) {
+			binInfoSAH[0].aabbRight.GrowAABB(triangleBvhData[i].aabb);
+			binInfoSAH[0].centroidAABBRight.GrowAABBFromCentroid(triangleBvhData[i].centroid);
+		}
+	} else {
+		uint32_t leftIter = startIdx;
+		uint32_t rightIter = onePastEndIdx - 1;
+		const float partitionPos = binInfoSAH[partitionWithMinSAH].partitionPos;
+		while (true) {
+			//sweep left to right until find one that should be to the right of the plane
+			while ( (uint32_t)(preCalcFactor * (triangleBvhData[leftIter].centroid[axis] - nodeCentroidAABB.min[axis])) <= partitionWithMinSAH 
+				&& leftIter < onePastEndIdx) { ++leftIter; }
+			//sweep right to left until find one that should be to the left of the plane
+			while ( (uint32_t)(preCalcFactor * (triangleBvhData[rightIter].centroid[axis] - nodeCentroidAABB.min[axis])) > partitionWithMinSAH 
+				&& rightIter > startIdx) { --rightIter; }
+
+			if (leftIter > rightIter) {
+				onePastLeftPartition = onePastEndIdx == leftIter ? onePastEndIdx - 1 : leftIter;//issues when there are two remaining with same centroid (should you decide to do 1 tri/bin
+				break;
+			}
+			else { //swap data
+				TriangleBVHData tmp = triangleBvhData[leftIter];
+				triangleBvhData[leftIter] = triangleBvhData[rightIter];
+				triangleBvhData[rightIter] = tmp;
+				++leftIter;
+				--rightIter;
+			}
+		}
+	}
+
+	//TriangleBVHData is partitioned, make a BVHNode, save it to the array and recurse on the children
+	++totalInnerNodes;
+	BVHNode innerNode;
+	innerNode.leftAABB = binInfoSAH[partitionWithMinSAH].aabbLeft;
+	innerNode.rightAABB = binInfoSAH[partitionWithMinSAH].aabbRight;
+	innerNode.payload.inner.leftIdx = ++allocIdx;
+	innerNode.payload.inner.rightIdx = ++allocIdx;
+	mBVHNodes[nodeAllocIdx] = innerNode;
+
+
+	const uint32_t leftDepth = RecurseBuildBVH(triangleBvhData, startIdx, onePastLeftPartition,
+		binInfoSAH[partitionWithMinSAH].centroidAABBLeft, innerNode.payload.inner.leftIdx,
+		allocIdx, currentDepth+1, totalInnerNodes, totalLeafNodes);
+
+	const uint32_t rightDepth = RecurseBuildBVH(triangleBvhData, onePastLeftPartition, onePastEndIdx, 
+		binInfoSAH[partitionWithMinSAH].centroidAABBRight, innerNode.payload.inner.rightIdx, 
+		allocIdx, currentDepth+1, totalInnerNodes, totalLeafNodes);
 
 	return std::max(std::max(currentDepth, leftDepth), rightDepth);
 }
 
-uint32_t BVH::CreateLeafNode(const uint32_t startIdx, const uint32_t allocIdx, const uint32_t currentDepth, uint32_t& totalLeafNodes, const uint32_t numTriangles) {
+uint32_t BVH::CreateLeafNode(const uint32_t startIdx, const uint32_t nodeAllocIdx,
+	const uint32_t currentDepth, uint32_t& totalLeafNodes, const uint32_t numTriangles) 
+{
 	++totalLeafNodes;
 	BVHNode node;
 	node.payload.leaf.numTriangles = numTriangles;
 	node.payload.leaf.numTriangles |= 0x80000000;//set msb to 1 to indicate leaf node data 
 	node.payload.leaf.startIdx = startIdx;
-	mBVHNodes[allocIdx] = node;
+	mBVHNodes[nodeAllocIdx] = node;
+	//mBVHNodes.emplace_back(node);
 	return currentDepth;
 }
 
