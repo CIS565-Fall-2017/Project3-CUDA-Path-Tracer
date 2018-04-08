@@ -56,13 +56,20 @@ void AABB::GrowAABBFromCentroid(const glm::vec3& centroid) {
 	max = glm::max(max, centroid);
 }
 
-void AABB::MakeAABBFromTriangleIndices(const Model& model, const uint32_t idx1) {
-	const glm::vec3& p1 = model.mVertices[model.mIndices[idx1+0]].pos;
-	const glm::vec3& p2 = model.mVertices[model.mIndices[idx1+1]].pos;
-	const glm::vec3& p3 = model.mVertices[model.mIndices[idx1+2]].pos;
+glm::ivec3 AABB::MakeAABBFromTriangleAndGetIndices(const Model& model, const uint32_t idx1) {
+	glm::ivec3 vertIndices;
+	vertIndices[0] = model.mIndices[idx1 + 0];
+	vertIndices[1] = model.mIndices[idx1 + 1];
+	vertIndices[2] = model.mIndices[idx1 + 2];
+
+	const glm::vec3& p1 = model.mVertices[vertIndices[0]].pos;
+	const glm::vec3& p2 = model.mVertices[vertIndices[1]].pos;
+	const glm::vec3& p3 = model.mVertices[vertIndices[2]].pos;
 
 	min = glm::min(glm::min(p1, p2), p3);
 	max = glm::max(glm::max(p1, p2), p3);
+	
+	return vertIndices;
 }
 
 glm::vec3 AABB::GetCentroidFromAABB() const {
@@ -226,7 +233,7 @@ void BVH::BuildBVH(const Model& model) {
 	for (int i = 0; i < numTriangles; ++i) {
 		TriangleBVHData& data = triangleBvhData[i];
 		data.id = i;
-		data.aabb.MakeAABBFromTriangleIndices(model, i*3);
+		data.vertIndices = data.aabb.MakeAABBFromTriangleAndGetIndices(model, i*3);
 		data.centroid = data.aabb.GetCentroidFromAABB();
 		localRootAABB.GrowAABB(data.aabb);
 		localRootCentroidAABB.GrowAABBFromCentroid(data.centroid);
@@ -250,6 +257,12 @@ void BVH::BuildBVH(const Model& model) {
 	std::cout << "\n\t TotalLeafNodes: " << totalLeafNodes;
 	std::cout << "\n\t localRootAABB: { " << localRootAABB.min.x << ", " << localRootAABB.min.y << ", " << localRootAABB.min.z << " }";
 	std::cout << "  { " << localRootAABB.max.x << ", " << localRootAABB.max.y << ", " << localRootAABB.max.z << " }\n";
+
+	//pack indices into triangle indices array
+	mTriangleIndices.resize(triangleBvhData.size());
+	for (int i = 0; i < mTriangleIndices.size(); ++i) {
+		mTriangleIndices[i] = triangleBvhData[i].vertIndices;
+	}
 }
 
 uint32_t BVH::RecurseBuildBVH(std::vector<TriangleBVHData>& triangleBvhData, const uint32_t startIdx, 

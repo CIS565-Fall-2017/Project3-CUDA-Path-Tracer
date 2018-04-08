@@ -27,7 +27,7 @@ struct AABB {
 	void GrowAABB(const AABB& aabb);
 	void GrowAABBFromCentroid(const glm::vec3& centroid);
 	void AddMargin();
-	void MakeAABBFromTriangleIndices(const Model& model, const uint32_t mIndicesStartIndex);
+	glm::ivec3 MakeAABBFromTriangleAndGetIndices(const Model& model, const uint32_t mIndicesStartIndex);
 	float GetComparableSurfaceArea() const ;
 	AXIS GetSplitAxis() const ;
 	glm::vec3 GetCentroidFromAABB() const;
@@ -41,6 +41,7 @@ struct TriangleBVHData {
 	AABB aabb;
 	glm::vec3 centroid;
 	uint32_t bin;//used to store the bin the triangle falls into during SAH calculation
+	glm::ivec3 vertIndices;
 	TriangleBVHData();
 };
 
@@ -71,7 +72,7 @@ struct BVHNode {
 class BVH {
 public://data
 	std::vector<BVHNode> mBVHNodes;
-	std::vector<uint32_t> mTriangleIDs;
+	std::vector<glm::ivec3> mTriangleIndices;//not rearranging the opengl indices because some future implementations can duplicate triangle refs
 	AABB localRootAABB;//The AABB of the root node in local space (must be aligned with local model axes)
 	AABB worldRootAABB;//The AABB of the root in world space (must be aligned with world axes)
 	uint32_t maxDepth;
