@@ -243,6 +243,8 @@ void BVH::BuildBVH(const Model& model) {
 
 	maxDepth = RecurseBuildBVH(triangleBvhData, startIdx, onePastEndIdx, localRootCentroidAABB, nodeAllocIdx, allocIdx, currentDepth, totalInnerNodes, totalLeafNodes);
 	std::cout << "\n\nBVH stats: Max Depth: " << maxDepth;
+	std::cout << "\n\t TotalTri's: " << numTriangles;
+	std::cout << "\n\t DuplicateTriRefs: " << 0;
 	std::cout << "\n\t TotalNodes: " << totalInnerNodes + totalLeafNodes;
 	std::cout << "\n\t TotalInnerNodes: " << totalInnerNodes;
 	std::cout << "\n\t TotalLeafNodes: " << totalLeafNodes;
@@ -255,7 +257,7 @@ uint32_t BVH::RecurseBuildBVH(std::vector<TriangleBVHData>& triangleBvhData, con
 	uint32_t& allocIdx, const uint32_t currentDepth, uint32_t& totalInnerNodes, uint32_t& totalLeafNodes)
 {
 	//NOTE: Should all uint32_t's be uint64_t's to handle several million triangle meshes??? Does CUDA handle uint64_t addresses?
-	constexpr uint32_t maxTrianglesPerNode = 1;//0.244, 0.271
+	constexpr uint32_t maxTrianglesPerNode = 4;
 	constexpr uint32_t numBinsPerNode = 16;//paper said 16 was as high as you need to go, however if this is too large and the mesh is also very large could get __chkstk() failure since we allocate a std::array (goes on stack) for each recursion call
 	constexpr uint32_t lastBinIdx = numBinsPerNode - 1;
 
@@ -395,10 +397,10 @@ uint32_t BVH::RecurseBuildBVH(std::vector<TriangleBVHData>& triangleBvhData, con
 	//-1 as the partionWithMinSAH, need to detect this early then put one half the triangles in one partition and the other in the remaining
 	uint32_t onePastLeftPartition = startIdx;
 
-	//NOTE: doubt this if is needed when doing more than 1 per bin
+	//NOTE: not really needed when doing more than 1 per bin
 	if (0.f == axisLen && -1 == partitionWithMinSAH) {
 		//kind of commone for a mesh where the aabb and/or centroids were the same for 2 triangles, was testing 1=maxTrianglesPerNode
-		//rare case, but can happen with more triangles in a higher maxTrianglesPerNode situation
+		//rare case, but can probably happen with more triangles in a higher maxTrianglesPerNode situation
 		//axis len can be 0. for partitionWIthMinSAH can be -1 if all fall into same bin due to having the same centroid
 		onePastLeftPartition = (onePastEndIdx + startIdx) >> 1;//middle index in the range we're working on
 		partitionWithMinSAH = 0;//we'll override the data in this bin to facilitate this special case
