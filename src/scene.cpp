@@ -70,7 +70,6 @@ int Scene::loadGeom(string objectid) {
             const std::vector<std::string> tokens = utilityCore::tokenizeString(line);
 			if (tokens.size() > 1 && tokens.size() < 4) {
 				std::cout << "\n If importing model need: path, mirrored flag, scaling" << endl;
-				
 			} else if (tokens.size() == 4) {
 				const std::string modelPath = tokens[1];
 				const bool mirrored = "true" == tokens[2] ? true : false;
@@ -109,6 +108,9 @@ int Scene::loadGeom(string objectid) {
                 newGeom.translation, newGeom.rotation, newGeom.scale);
         newGeom.inverseTransform = glm::inverse(newGeom.transform);
         newGeom.invTranspose = glm::mat3(glm::inverseTranspose(newGeom.transform));
+
+		//if this is a model compute the world AABB by transforming the model space root bounds to world then fit an AABB around it
+		if (newGeom.type == GeomType::MODEL) { newGeom.model->bvh.SetWorldRootAABB(newGeom.transform); }
 
         geoms.push_back(newGeom);
         return 1;

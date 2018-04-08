@@ -25,7 +25,7 @@
 #define ERRORCHECK			0 
 #define COMPACT				0 //0 NONE, 1 THRUST, 2 CUSTOM(breaks render, just use for timing compare)
 #define PT_TECHNIQUE		1 //0 NAIVE, 1 MIS, 2 Multikern MIS(currently faster but obviously broken, prob 1 iter then done and thats why faster)
-#define FIRSTBOUNCECACHING	0 //slightly faster but sacrifice AA
+#define FIRSTBOUNCECACHING	0 //slightly faster but sacrifice AA, so what's the point
 #define TIMER				0
 #define MATERIALSORTING		0 
 //https://thrust.1ithub.io/doc/group__stream__compaction.html#ga5fa8f86717696de88ab484410b43829b
@@ -101,6 +101,8 @@ static ShadeableIntersection * dev_intersections = NULL;
 static int numlights = 0;
 static int* dev_geomLightIndices = NULL;
 static ShadeableIntersection * dev_firstbounce = NULL;
+static int numModelBVHs = 0;
+static BVH* dev_ModelBVHs = NULL;
 static int* dev_materialIDsForPathsSort = NULL;
 static int* dev_materialIDsForIntersectionsSort = NULL;
 
@@ -113,9 +115,6 @@ void pathtraceInit(Scene *scene) {
     cudaMemset(dev_image, 0, pixelcount * sizeof(glm::vec3));
 
   	cudaMalloc(&dev_paths, pixelcount * sizeof(PathSegment));
-
-  	cudaMalloc(&dev_geoms, scene->geoms.size() * sizeof(Geom));
-  	cudaMemcpy(dev_geoms, scene->geoms.data(), scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
 
   	cudaMalloc(&dev_materials, scene->materials.size() * sizeof(Material));
   	cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
@@ -141,6 +140,21 @@ void pathtraceInit(Scene *scene) {
 
 	cudaMalloc((void**)&dev_materialIDsForPathsSort, pixelcount * sizeof(int));
 	cudaMalloc((void**)&dev_materialIDsForIntersectionsSort, pixelcount * sizeof(int));
+
+	//Loop through geoms and copy any Model bvh's temporarliy here to be pushed to the gpu.
+	//The original geom data, if it was a Model, should have it's bvhIndex updated 
+	//to reflect it's corresponding bvh data position in this array.
+	//Therefore geom data should be pushed after this update
+	std::vector<BVH> geomModelBVHs;
+	for (int i = 0; i < scene->geoms.size(); ++i) {
+		if (scene->geoms[i].type == GeomType::MODEL) {
+			geomModelBVHs.emplace_back(scene->geoms[i].model->bvh);
+			++numModelBVHs;
+		}
+	}
+
+  	cudaMalloc(&dev_geoms, scene->geoms.size() * sizeof(Geom));
+  	cudaMemcpy(dev_geoms, scene->geoms.data(), scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
 
     checkCUDAError("pathtraceInit");
 }

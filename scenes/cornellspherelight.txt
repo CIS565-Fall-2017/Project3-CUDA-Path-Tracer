@@ -163,11 +163,11 @@ TRANS       -2.5 6 1
 ROTAT       45 45 0
 SCALE       2 2 2
 
-// Mesh
+// Model
 OBJECT 7
-mesh
-meshpath ../res/objects/sponzablend/sponza.blend true 1.0
+model
+modelpath ../res/objects/sponzablend/sponza.blend true 1.0
 material 2
 TRANS       0 0 0 
 ROTAT       0 0 0
-SCALE       0 0 0
+SCALE       1 1 1

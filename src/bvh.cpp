@@ -263,6 +263,13 @@ void BVH::BuildBVH(const Model& model) {
 	for (int i = 0; i < mTriangleIndices.size(); ++i) {
 		mTriangleIndices[i] = triangleBvhData[i].vertIndices;
 	}
+
+	//copy the models triangle vertex array here 
+	//long term: have either one hold all the data or make bvh a class that operates on things, members of the model class
+	mVertices = model.mVertices;
+
+	//need the worldAABB
+
 }
 
 uint32_t BVH::RecurseBuildBVH(std::vector<TriangleBVHData>& triangleBvhData, const uint32_t startIdx, 
@@ -487,3 +494,52 @@ uint32_t BVH::CreateLeafNode(const uint32_t startIdx, const uint32_t nodeAllocId
 	return currentDepth;
 }
 
+void BVH::SetWorldRootAABB(const glm::mat4& modelTransform) {
+	const glm::vec3 localRootAABB_xdim(localRootAABB.max.x - localRootAABB.min.x, 
+										0.f, 
+										0.f);
+	const glm::vec3 localRootAABB_zdim(0.f,
+										0.f,
+										localRootAABB.max.z - localRootAABB.min.z);
+
+	//create bottom ring of 4 corners of localRootAABB
+	const glm::vec4 leftBotBack = glm::vec4(localRootAABB.min, 1.f);
+	const glm::vec4 rightBotBack = glm::vec4(localRootAABB.min + localRootAABB_xdim, 1.f);
+	const glm::vec4 leftBotFront = glm::vec4(localRootAABB.min + localRootAABB_zdim, 1.f);
+	const glm::vec4 rightBotFront = glm::vec4(localRootAABB.min + localRootAABB_xdim + localRootAABB_zdim, 1.f);
+
+	//create top ring of 4 corners of localRootAABB
+	const glm::vec4 rightTopFront = glm::vec4(localRootAABB.max, 1.f);
+	const glm::vec4 rightTopBack = glm::vec4(localRootAABB.max - localRootAABB_zdim, 1.f);
+	const glm::vec4 leftTopFront = glm::vec4(localRootAABB.max - localRootAABB_xdim, 1.f);
+	const glm::vec4 leftTopBack = glm::vec4(localRootAABB.max - localRootAABB_xdim - localRootAABB_zdim, 1.f);
+
+
+	//tranform bottom ring of corners to world
+	const glm::vec4 worldleftBotBack	= modelTransform * leftBotBack;
+	const glm::vec4 worldrightBotBack	= modelTransform * rightBotBack; 
+	const glm::vec4 worldleftBotFront	= modelTransform * leftBotFront;
+	const glm::vec4 worldrightBotFront	= modelTransform * rightBotFront;
+
+	//tranform top ring of corners to world
+	const glm::vec4 worldrightTopFront	= modelTransform * rightTopFront;
+	const glm::vec4 worldrightTopBack	= modelTransform * rightTopBack; 
+	const glm::vec4 worldleftTopFront	= modelTransform * leftTopFront;
+	const glm::vec4 worldleftTopBack	= modelTransform * leftTopBack;
+
+	worldRootAABB = AABB();//reset
+	//can use centroid calls to build the AABB from these 8 corners
+	//bot ring
+	worldRootAABB.GrowAABBFromCentroid(worldleftBotBack);
+	worldRootAABB.GrowAABBFromCentroid(worldrightBotBack);
+	worldRootAABB.GrowAABBFromCentroid(worldleftBotFront);
+	worldRootAABB.GrowAABBFromCentroid(worldrightBotFront);
+	//top ring
+	worldRootAABB.GrowAABBFromCentroid(worldrightTopFront);
+	worldRootAABB.GrowAABBFromCentroid(worldrightTopBack);
+	worldRootAABB.GrowAABBFromCentroid(worldleftTopFront);
+	worldRootAABB.GrowAABBFromCentroid(worldleftTopBack);
+
+	std::cout << "\n\n\t BVH worldRootAABB: { " << worldRootAABB.min.x << ", " << worldRootAABB.min.y << ", " << worldRootAABB.min.z << " }";
+	std::cout << "  { " << worldRootAABB.max.x << ", " << worldRootAABB.max.y << ", " << worldRootAABB.max.z << " }\n";
+}

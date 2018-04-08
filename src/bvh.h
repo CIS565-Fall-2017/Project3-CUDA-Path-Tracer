@@ -73,6 +73,7 @@ class BVH {
 public://data
 	std::vector<BVHNode> mBVHNodes;
 	std::vector<glm::ivec3> mTriangleIndices;//not rearranging the opengl indices because some future implementations can duplicate triangle refs
+	std::vector<Vertex> mVertices;
 	AABB localRootAABB;//The AABB of the root node in local space (must be aligned with local model axes)
 	AABB worldRootAABB;//The AABB of the root in world space (must be aligned with world axes)
 	uint32_t maxDepth;
@@ -91,4 +92,6 @@ public://functions
 
 	uint32_t CreateLeafNode(const uint32_t startIdx, const uint32_t nodeAllocIdx,
 		const uint32_t currentDepth, uint32_t& totalLeafNodes, const uint32_t numTriangles);
+
+	void SetWorldRootAABB(const glm::mat4& modelTransform);
 };
