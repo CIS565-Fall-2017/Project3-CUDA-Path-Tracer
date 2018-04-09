@@ -20,17 +20,28 @@ struct Ray {
     glm::vec3 direction;
 };
 
+struct ModelInfo {
+	Model* model = nullptr;
+	AABB worldRootAABB = AABB();//check this first, if hit begin fetching nodes
+	uint32_t bvhMaxDepth = 0;//informs the max stack size for pushing and popping of bvhNode indexes during traversal on the gpu
+	//Corresponding Start Index for the 3 contiguous arrays for Model data
+	//NOTE: might be worth normalizing the index pointers as the model data is looped through and compacted into contiguous arrays
+	//then sent to the gpu.This will avoid additional sums with the startIdx's to calculate correct array position 
+	uint32_t startIdxBVHNode = 0;//bvh node array
+	uint32_t startIdxTriIndex = 0;//triangle indices array
+	uint32_t startIdxTriVertex = 0;//triangle vertex array
+};
+
 struct Geom {
     enum GeomType type;
     int materialid;
-    std::string modelPath;
-	Model* model = nullptr;
-    glm::vec3 translation;
-    glm::vec3 rotation;
-    glm::vec3 scale;
+	ModelInfo modelInfo;
+    glm::vec3 translation;//really store this?
+    glm::vec3 rotation;//really store this?
+    glm::vec3 scale;//really store this?
     glm::mat4 transform;
     glm::mat4 inverseTransform;
-    glm::mat3 invTranspose;//only transforming normals with this //so no need for translation 
+    glm::mat3 invTranspose;//transpose the inverse on the fly or store this? //only transforming normals with this so no need for translation (mat4)
 };
 
 struct Material {

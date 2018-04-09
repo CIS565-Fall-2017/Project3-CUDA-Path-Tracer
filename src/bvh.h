@@ -73,10 +73,10 @@ class BVH {
 public://data
 	std::vector<BVHNode> mBVHNodes;
 	std::vector<glm::ivec3> mTriangleIndices;//not rearranging the opengl indices because some future implementations can duplicate triangle refs
-	std::vector<Vertex> mVertices;
-	AABB localRootAABB;//The AABB of the root node in local space (must be aligned with local model axes)
-	AABB worldRootAABB;//The AABB of the root in world space (must be aligned with world axes)
+	AABB localRootAABB;//The AABB of the root node in local space (aligned with local model axes)
+	AABB worldRootAABB;//The AABB of the root in world space (aligned with world axes)
 	uint32_t maxDepth;
+	uint32_t totalNodes;
 
 	//for sbvh, will need to allocate addtional mem for when it decides to perform a spatial split to prevent excessive overlap between children of a node
 	//recommended cutoff is 30% of nodes have spatial split (if neccessary)

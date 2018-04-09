@@ -102,7 +102,9 @@ static int numlights = 0;
 static int* dev_geomLightIndices = NULL;
 static ShadeableIntersection * dev_firstbounce = NULL;
 static int numModelBVHs = 0;
-static BVH* dev_ModelBVHs = NULL;
+static Vertex* dev_TriVertices = NULL;
+static glm::ivec3* dev_TriIndices = NULL;
+static BVHNode* dev_BVHNodes = NULL;
 static int* dev_materialIDsForPathsSort = NULL;
 static int* dev_materialIDsForIntersectionsSort = NULL;
 
@@ -141,17 +143,57 @@ void pathtraceInit(Scene *scene) {
 	cudaMalloc((void**)&dev_materialIDsForPathsSort, pixelcount * sizeof(int));
 	cudaMalloc((void**)&dev_materialIDsForIntersectionsSort, pixelcount * sizeof(int));
 
-	//Loop through geoms and copy any Model bvh's temporarliy here to be pushed to the gpu.
-	//The original geom data, if it was a Model, should have it's bvhIndex updated 
-	//to reflect it's corresponding bvh data position in this array.
-	//Therefore geom data should be pushed after this update
-	std::vector<BVH> geomModelBVHs;
+	//loop through geoms and for each MODEL setup modelInfo to have proper array start index
+	std::vector<Vertex> allTriVertexAllModels;
+	std::vector<glm::ivec3> allTriIndexAllModels;
+	std::vector<BVHNode> allBVHNodeAllModels;
+	uint32_t currSizeTriVertexArray = 0;
+	uint32_t currSizeTriIndexArray = 0;
+	uint32_t currSizeBVHNodeArray = 0;
 	for (int i = 0; i < scene->geoms.size(); ++i) {
 		if (scene->geoms[i].type == GeomType::MODEL) {
-			geomModelBVHs.emplace_back(scene->geoms[i].model->bvh);
-			++numModelBVHs;
+			scene->geoms[i].modelInfo.startIdxTriVertex = currSizeTriVertexArray;
+			scene->geoms[i].modelInfo.startIdxTriIndex = currSizeTriIndexArray;
+			scene->geoms[i].modelInfo.startIdxBVHNode = currSizeBVHNodeArray;
+			currSizeTriVertexArray += scene->geoms[i].modelInfo.model->mVertices.size();
+			currSizeTriIndexArray += scene->geoms[i].modelInfo.model->bvh.mTriangleIndices.size();
+			currSizeBVHNodeArray += scene->geoms[i].modelInfo.model->bvh.mBVHNodes.size();
 		}
 	}
+
+	//reserve first to prevent multiple allocs and copies during array insertions into the contig array
+	allTriVertexAllModels.reserve(currSizeTriVertexArray);
+	allTriIndexAllModels.reserve(currSizeTriIndexArray);
+	allBVHNodeAllModels.reserve(currSizeBVHNodeArray);
+
+	for (int i = 0; i < scene->geoms.size(); ++i) {
+		if (scene->geoms[i].type == GeomType::MODEL) {
+
+			allTriVertexAllModels.insert(allTriVertexAllModels.end(), 
+				scene->geoms[i].modelInfo.model->mVertices.begin(),
+				scene->geoms[i].modelInfo.model->mVertices.end());
+
+			allTriIndexAllModels.insert(allTriIndexAllModels.end(),
+				scene->geoms[i].modelInfo.model->bvh.mTriangleIndices.begin(),
+				scene->geoms[i].modelInfo.model->bvh.mTriangleIndices.end());
+
+			allBVHNodeAllModels.insert(allBVHNodeAllModels.end(),
+				scene->geoms[i].modelInfo.model->bvh.mBVHNodes.begin(),
+				scene->geoms[i].modelInfo.model->bvh.mBVHNodes.end());
+		}
+	}
+	std::cout << "\n\nSize allTriVertexAllModels: " << currSizeTriVertexArray;
+	std::cout << "\nSize allTriIndexAllModels: " << currSizeTriIndexArray;
+	std::cout << "\nSize allBVHNodeAllModels: " << currSizeBVHNodeArray;
+
+  	cudaMalloc(&dev_TriVertices, currSizeTriVertexArray * sizeof(Vertex));
+  	cudaMemcpy(dev_TriVertices, allTriVertexAllModels.data(), currSizeTriVertexArray * sizeof(Vertex), cudaMemcpyHostToDevice);
+
+  	cudaMalloc(&dev_TriIndices, currSizeTriIndexArray * sizeof(glm::ivec3));
+  	cudaMemcpy(dev_TriIndices, allTriIndexAllModels.data(), currSizeTriIndexArray * sizeof(glm::ivec3), cudaMemcpyHostToDevice);
+
+  	cudaMalloc(&dev_BVHNodes, currSizeBVHNodeArray * sizeof(BVHNode));
+  	cudaMemcpy(dev_BVHNodes, allBVHNodeAllModels.data(), currSizeBVHNodeArray * sizeof(BVHNode), cudaMemcpyHostToDevice);
 
   	cudaMalloc(&dev_geoms, scene->geoms.size() * sizeof(Geom));
   	cudaMemcpy(dev_geoms, scene->geoms.data(), scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);

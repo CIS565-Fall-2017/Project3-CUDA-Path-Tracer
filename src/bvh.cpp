@@ -249,27 +249,26 @@ void BVH::BuildBVH(const Model& model) {
 	maxDepth = currentDepth;
 
 	maxDepth = RecurseBuildBVH(triangleBvhData, startIdx, onePastEndIdx, localRootCentroidAABB, nodeAllocIdx, allocIdx, currentDepth, totalInnerNodes, totalLeafNodes);
+	totalNodes = totalInnerNodes + totalLeafNodes;
 	std::cout << "\n\nBVH stats: Max Depth: " << maxDepth;
 	std::cout << "\n\t TotalTri's: " << numTriangles;
 	std::cout << "\n\t DuplicateTriRefs: " << 0;
-	std::cout << "\n\t TotalNodes: " << totalInnerNodes + totalLeafNodes;
+	std::cout << "\n\t TotalNodes: " << totalNodes;
 	std::cout << "\n\t TotalInnerNodes: " << totalInnerNodes;
 	std::cout << "\n\t TotalLeafNodes: " << totalLeafNodes;
 	std::cout << "\n\t localRootAABB: { " << localRootAABB.min.x << ", " << localRootAABB.min.y << ", " << localRootAABB.min.z << " }";
 	std::cout << "  { " << localRootAABB.max.x << ", " << localRootAABB.max.y << ", " << localRootAABB.max.z << " }\n";
 
-	//pack indices into triangle indices array
+	//shrink down to actual size, but leave the reserve on the end in case we need to reform the bvh in the future (animation)
+	mBVHNodes.resize(totalNodes);
+	
+	//pack indices into triangle indices array, don't touch/re-use the model's as there may be duplicate refs depending on bvh implementation
 	mTriangleIndices.resize(triangleBvhData.size());
 	for (int i = 0; i < mTriangleIndices.size(); ++i) {
 		mTriangleIndices[i] = triangleBvhData[i].vertIndices;
 	}
 
-	//copy the models triangle vertex array here 
-	//long term: have either one hold all the data or make bvh a class that operates on things, members of the model class
-	mVertices = model.mVertices;
-
-	//need the worldAABB
-
+	//SetWorldRootAABB is called during scene file munging (scene.cpp), model transform is informed by the scene file
 }
 
 uint32_t BVH::RecurseBuildBVH(std::vector<TriangleBVHData>& triangleBvhData, const uint32_t startIdx, 

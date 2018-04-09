@@ -75,7 +75,8 @@ int Scene::loadGeom(string objectid) {
 				const bool mirrored = "true" == tokens[2] ? true : false;
 				const float scaling = std::stof(tokens[3]);
 				cout << "loading model " << modelPath << endl;
-				newGeom.model = new Model(modelPath, mirrored, scaling);
+				newGeom.modelInfo.model = new Model(modelPath, mirrored, scaling);
+				newGeom.modelInfo.bvhMaxDepth = newGeom.modelInfo.model->bvh.maxDepth;
 			}
         }
 
@@ -109,8 +110,11 @@ int Scene::loadGeom(string objectid) {
         newGeom.inverseTransform = glm::inverse(newGeom.transform);
         newGeom.invTranspose = glm::mat3(glm::inverseTranspose(newGeom.transform));
 
-		//if this is a model compute the world AABB by transforming the model space root bounds to world then fit an AABB around it
-		if (newGeom.type == GeomType::MODEL) { newGeom.model->bvh.SetWorldRootAABB(newGeom.transform); }
+		if (newGeom.type == GeomType::MODEL) { 
+			//if this is a model compute the world AABB by transforming the model space root bounds to world then fit an AABB around it
+			newGeom.modelInfo.model->bvh.SetWorldRootAABB(newGeom.transform);
+			newGeom.modelInfo.worldRootAABB = newGeom.modelInfo.model->bvh.worldRootAABB;
+		}
 
         geoms.push_back(newGeom);
         return 1;
