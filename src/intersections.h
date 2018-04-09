@@ -12,7 +12,8 @@
  * Falls slightly short so that it doesn't intersect the object it's hitting.
  */
 __host__ __device__ glm::vec3 getPointOnRay(Ray r, float t) {
-    return r.origin + (t - .0001f) * glm::normalize(r.direction);
+    //return r.origin + (t - .0001f) * glm::normalize(r.direction);
+	return r.origin + (t - .0001f) * r.direction;
 }
 
 /**
@@ -36,7 +37,8 @@ __host__ __device__ float boxIntersectionTest(const Geom& box, const Ray& r,
         glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) {
     Ray q;
     q.origin    =                multiplyMV(box.inverseTransform, glm::vec4(r.origin   , 1.0f));
-    q.direction = glm::normalize(multiplyMV(box.inverseTransform, glm::vec4(r.direction, 0.0f)));
+    //q.direction = glm::normalize(multiplyMV(box.inverseTransform, glm::vec4(r.direction, 0.0f)));
+	q.direction = multiplyMV(box.inverseTransform, glm::vec4(r.direction, 0.0f));
 
     float tmin = -1e38f;
     float tmax = 1e38f;
@@ -92,12 +94,10 @@ __host__ __device__ float sphereIntersectionTest(const Geom& sphere, const Ray& 
     const float radius = 1;
 	const float rSqrd = radius*radius;
 
-    glm::vec3 ro = multiplyMV(sphere.inverseTransform, glm::vec4(r.origin, 1.0f));
-    glm::vec3 rd = glm::normalize(multiplyMV(sphere.inverseTransform, glm::vec4(r.direction, 0.0f)));
-
     Ray rt;
-    rt.origin = ro;
-    rt.direction = rd;
+    rt.origin = multiplyMV(sphere.inverseTransform, glm::vec4(r.origin, 1.0f));
+    //rt.direction = glm::normalize(multiplyMV(sphere.inverseTransform, glm::vec4(r.direction, 0.0f)));
+	rt.direction = multiplyMV(sphere.inverseTransform, glm::vec4(r.direction, 0.0f));
 
     const float vDotDirection = glm::dot(rt.origin, rt.direction);
 	const float radicand = vDotDirection * vDotDirection - (glm::dot(rt.origin, rt.origin) - rSqrd);
@@ -138,7 +138,8 @@ __host__ __device__ float planeIntersectionTest(const Geom& plane, const Ray& r,
 	//transform the ray into obj space
 	Ray rloc;
 	rloc.origin = multiplyMV(plane.inverseTransform, glm::vec4(r.origin, 1.0f));
-	rloc.direction = glm::normalize(multiplyMV(plane.inverseTransform, glm::vec4(r.direction, 0.0f)));
+	//rloc.direction = glm::normalize(multiplyMV(plane.inverseTransform, glm::vec4(r.direction, 0.0f)));
+	rloc.direction = multiplyMV(plane.inverseTransform, glm::vec4(r.direction, 0.0f));
 
 	glm::vec3 nplane(0, 0, 1);
 	//double sided, comment to make single sided
@@ -148,7 +149,7 @@ __host__ __device__ float planeIntersectionTest(const Geom& plane, const Ray& r,
 
     //Ray-plane intersection
     const float t = glm::dot(nplane, (glm::vec3(0.5f, 0.5f, 0) - rloc.origin)) / glm::dot(nplane, rloc.direction);
-    glm::vec3 ploc = t * rloc.direction + rloc.origin;
+	glm::vec3 ploc = getPointOnRay(rloc, t);
 
     //Check that ploc is within the bounds of the square
     if(t > 0 && ploc.x >= -maxextent && ploc.x <= maxextent 
@@ -158,10 +159,23 @@ __host__ __device__ float planeIntersectionTest(const Geom& plane, const Ray& r,
 		normal = glm::normalize(plane.invTranspose * nplane);
 		//ComputeTBN(pLocal, &(isect->normalGeometric), &(isect->tangent), &(isect->bitangent));
 		//isect->uv = GetUVCoordinates(pLocal);
-		return t;
+		return glm::length(r.origin - intersectionPoint);
     }
     return -1;
 }
+
+__host__ __device__ float modelIntersectionTest(const Geom& model, const Ray& r,
+	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) 
+{
+	//transform the ray into 
+    Ray rloc;
+    rloc.origin = multiplyMV(model.inverseTransform, glm::vec4(r.origin, 1.0f));
+	rloc.direction = multiplyMV(model.inverseTransform, glm::vec4(r.direction, 0.0f));
+
+
+	return -1;
+}
+
 
 
 __host__ __device__ float shapeIntersectionTest(const Geom& geom, const Ray& ray,
@@ -175,7 +189,10 @@ __host__ __device__ float shapeIntersectionTest(const Geom& geom, const Ray& ray
 
 	} else if (geom.type == GeomType::PLANE) {
 		return planeIntersectionTest(geom, ray, intersectionPoint, normal, outside);
-	}
+	} 
+	//else if (geom.type == GeomType::MODEL) {
+	//	return modelIntersectionTest(geom, ray, intersectionPoint, normal, outside);
+	//}
 }
 
 

@@ -43,6 +43,7 @@ int main(int argc, char** argv) {
     //}
     //const char *sceneFile = argv[1];
 	const char *sceneFile = "C:/Users/loshj/Box Sync/UPennCGGT/cis565/Project3-CUDA-Path-Tracer/scenes/cornellspherelight.txt";
+	//const char *sceneFile = "C:/Users/loshj/Box Sync/UPennCGGT/cis565/Project3-CUDA-Path-Tracer/scenes/cornellplanes.txt";
 
     // Load scene file
     scene = new Scene(sceneFile);

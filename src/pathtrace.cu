@@ -25,7 +25,6 @@
 #define ERRORCHECK			0 
 #define COMPACT				0 //0 NONE, 1 THRUST, 2 CUSTOM(breaks render, just use for timing compare)
 #define PT_TECHNIQUE		1 //0 NAIVE, 1 MIS, 2 Multikern MIS(currently faster but obviously broken, prob 1 iter then done and thats why faster)
-#define FIRSTBOUNCECACHING	0 //slightly faster but sacrifice AA, so what's the point
 #define TIMER				0
 #define MATERIALSORTING		0 
 //https://thrust.1ithub.io/doc/group__stream__compaction.html#ga5fa8f86717696de88ab484410b43829b
@@ -100,7 +99,6 @@ static ShadeableIntersection * dev_intersections = NULL;
 //need something for lights
 static int numlights = 0;
 static int* dev_geomLightIndices = NULL;
-static ShadeableIntersection * dev_firstbounce = NULL;
 static int numModelBVHs = 0;
 static Vertex* dev_TriVertices = NULL;
 static glm::ivec3* dev_TriIndices = NULL;
@@ -124,8 +122,6 @@ void pathtraceInit(Scene *scene) {
   	cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
   	cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
-  	cudaMalloc(&dev_firstbounce, pixelcount * sizeof(ShadeableIntersection));
-  	cudaMemset(dev_firstbounce, 0, pixelcount * sizeof(ShadeableIntersection));
     // TODO: initialize any extra device memeory you need
 	//check which geoms are emissive and copy them to its own array(for large scenes 
 	//rather not pass geoms if we don't have to)
@@ -208,9 +204,11 @@ void pathtraceFree() {
   	cudaFree(dev_materials);
   	cudaFree(dev_intersections);
     // TODO: clean up any extra device memory you created
+	cudaFree(dev_TriVertices);
+	cudaFree(dev_TriIndices);
+	cudaFree(dev_BVHNodes);
 	cudaFree(dev_geomLightIndices);
 	numlights = 0;
-  	cudaFree(dev_firstbounce);
 	cudaFree(dev_materialIDsForPathsSort);
 	cudaFree(dev_materialIDsForIntersectionsSort);
 
@@ -241,15 +239,9 @@ __global__ void generateRayFromCamera(const Camera cam, const int iter, const in
 	thrust::uniform_real_distribution<float> u(-0.5f, 0.5f);
 
 	//camera top right is (0,0)
-#if 1 == FIRSTBOUNCECACHING
-	segment.ray.direction = glm::normalize(cam.view
-		- cam.right * cam.pixelLength.x * (x - cam.resolution.x * 0.5f)
-		- cam.up    * cam.pixelLength.y * (y - cam.resolution.y * 0.5f));
-#else
 	segment.ray.direction = glm::normalize(cam.view
 		- cam.right * cam.pixelLength.x * (x - cam.resolution.x * 0.5f + u(rng))
 		- cam.up    * cam.pixelLength.y * (y - cam.resolution.y * 0.5f + u(rng)));
-#endif
 
 	segment.MSPaintPixel = glm::ivec2(cam.resolution.x - 1 - x, y);
 	segment.pixelIndex = index;
@@ -270,11 +262,10 @@ __global__ void generateRayFromCamera(const Camera cam, const int iter, const in
 __global__ void computeIntersections(const int iter, const int depth,
 	const int num_paths, PathSegment * pathSegments,
 	const Geom* const geoms, const int geoms_size,
-	ShadeableIntersection* const intersections,
-	ShadeableIntersection* const firstbounce, const int firstbouncecaching) 
+	ShadeableIntersection* const intersections)
+
 {
 	int path_index = blockIdx.x * blockDim.x + threadIdx.x;
-	const int actual_first_iter = 1;//iter 0 is an initialization step
 
 	if (path_index >= num_paths) { return; }
 	PathSegment pathSegment = pathSegments[path_index];
@@ -289,52 +280,29 @@ __global__ void computeIntersections(const int iter, const int depth,
 	glm::vec3 tmp_intersect;
 	glm::vec3 tmp_normal;
 
-	//FIRSTBOUNCECACHING
-	// naive parse through global geoms
-	if ((1 == firstbouncecaching && 0 == depth && actual_first_iter == iter) || (0 < depth) || (0 == firstbouncecaching)) {
-		for (int i = 0; i < geoms_size; i++) {
-			const Geom & geom = geoms[i];
-			t = shapeIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+	//parse through geoms finding closest intersection
+	for (int i = 0; i < geoms_size; i++) {
+		const Geom & geom = geoms[i];
+		t = shapeIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
 
-			//min
-			if (t > 0.0f && t_min > t) {
-				t_min = t;
-				hit_geom_index = i;
-				intersect_point = tmp_intersect;
-				normal = tmp_normal;
-			}
-		}//for i < geoms_size
-	}//if we need to find closest intersection
-
-	if (1 == firstbouncecaching && 0 == depth && actual_first_iter == iter) {//first time we call computeintersection
-		if (-1 == hit_geom_index) {
-			firstbounce[path_index].t = -1.f;
-			intersections[path_index].t = -1.f;
-		} else {
-			firstbounce[path_index].t = t_min;
-			firstbounce[path_index].materialId = geoms[hit_geom_index].materialid;
-			firstbounce[path_index].surfaceNormal = normal;
-			firstbounce[path_index].geomId = hit_geom_index;
-
-			intersections[path_index].t = t_min;
-			intersections[path_index].materialId = geoms[hit_geom_index].materialid;
-			intersections[path_index].surfaceNormal = normal;
-			intersections[path_index].geomId = hit_geom_index;
+		//min
+		if (t > 0.0f && t_min > t) {
+			t_min = t;
+			hit_geom_index = i;
+			intersect_point = tmp_intersect;
+			normal = tmp_normal;
 		}
-	} else if (0 == depth && actual_first_iter < iter && 1 == firstbouncecaching) { //first depth in other iters when firstbounce is enabled
-		intersections[path_index].t = firstbounce[path_index].t;
-		intersections[path_index].materialId = firstbounce[path_index].materialId;
-		intersections[path_index].surfaceNormal = firstbounce[path_index].surfaceNormal;
-		intersections[path_index].geomId = firstbounce[path_index].geomId;
-	} else {//first bounce is off or depth is greater than 0, do it normally
-		if (-1 == hit_geom_index) {
-			intersections[path_index].t = -1.f;
-		} else {
-			intersections[path_index].t = t_min;
-			intersections[path_index].materialId = geoms[hit_geom_index].materialid;
-			intersections[path_index].surfaceNormal = normal;
-			intersections[path_index].geomId = hit_geom_index;
-		}
+	}//for i < geoms_size
+
+
+	//set intersections fields depending on whether we hit anything or not
+	if (-1 == hit_geom_index) {
+		intersections[path_index].t = -1.f;
+	} else {
+		intersections[path_index].t = t_min;
+		intersections[path_index].materialId = geoms[hit_geom_index].materialid;
+		intersections[path_index].surfaceNormal = normal;
+		intersections[path_index].geomId = hit_geom_index;
 	}
 }
 // Add the current iteration's output to the overall image
@@ -424,8 +392,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) { //, const int MAXBOUNCES) {
 		dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
 		computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
 			iter, depth, num_paths, dev_paths, dev_geoms, hst_scene->geoms.size(), 
-			dev_intersections, dev_firstbounce, FIRSTBOUNCECACHING
-			);
+			dev_intersections );
 		checkCUDAError("trace one bounce");
 		//cudaDeviceSynchronize();
 #if 1 == MATERIALSORTING
