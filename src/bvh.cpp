@@ -84,17 +84,26 @@ float AABB::GetComparableSurfaceArea() const {
 }
 
 AXIS AABB::GetSplitAxis() const {
-	const float lenX = max.x - min.x;
-	const float lenY = max.y - min.y;
-	const float lenZ = max.z - min.z;
-	const float max = std::max(std::max(lenX, lenY), lenZ);
-	if (lenX == max) {
+	//const float lenX = max.x - min.x;
+	//const float lenY = max.y - min.y;
+	//const float lenZ = max.z - min.z;
+	//const float max = std::max(std::max(lenX, lenY), lenZ);
+	//if (lenX == max) {
+	//	return AXIS::X;
+	//} else if (lenY == max) {
+	//	return AXIS::Y;
+	//} else if (lenZ == max) {
+	//	return AXIS::Z;
+	//}
+	glm::vec3 d = max - min;//longest component of the diagonal of the aabb is the max extent
+	if (d.x > d.y && d.x > d.z) {
 		return AXIS::X;
-	} else if (lenY == max) {
+	} else if (d.y > d.z) {
 		return AXIS::Y;
-	} else if (lenZ == max) {
+	} else {
 		return AXIS::Z;
 	}
+
 }
 
 BVH::BVH() 

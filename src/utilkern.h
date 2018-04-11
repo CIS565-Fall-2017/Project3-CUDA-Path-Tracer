@@ -16,34 +16,37 @@ __host__ __device__ inline unsigned int utilhash(unsigned int a) {
     return a;
 }
 
-__host__ __device__
-inline float getLuminance(const glm::vec3& color) {
+__host__ __device__ __forceinline__  float getLuminance(const glm::vec3& color) {
 	return color.r*0.2126f + color.g*0.7152f + color.b*0.0722f;
 }
 
-__host__ __device__
+__host__ __device__ __forceinline__  bool fequal(const float a, const float b) {
+	return fabs(a - b) <= FLT_EPSILON;
+}
+
+__host__ __device__ inline
 thrust::default_random_engine makeSeededRandomEngine(int iter, int index, int depth) {
     int h = utilhash((1 << 31) | (depth << 22) | iter) ^ utilhash(index);
     return thrust::default_random_engine(h);
 }
 
-__host__ __device__ bool isBlack(const glm::vec3 c) {
+__host__ __device__ __forceinline__ bool isBlack(const glm::vec3 c) {
 	return (c.r <= 0.f && c.g <= 0.f && c.b <= 0.f);
 }
 
-__host__ __device__ float absDot(const glm::vec3 a, const glm::vec3 b) {
+__host__ __device__ __forceinline__ float absDot(const glm::vec3 a, const glm::vec3 b) {
 	return glm::abs(glm::dot(a, b));
 }
 
-__host__ __device__ float cosTheta(const glm::vec3 a, const glm::vec3 b) {
+__host__ __device__ __forceinline__ float cosTheta(const glm::vec3 a, const glm::vec3 b) {
 	return glm::dot(a, b);
 }
 
-__host__ __device__ float absCosTheta(const glm::vec3 a, const glm::vec3 b) {
+__host__ __device__ __forceinline__ float absCosTheta(const glm::vec3 a, const glm::vec3 b) {
 	return glm::abs(glm::dot(a, b));
 }
 
-__host__ __device__ bool sameHemisphere(const glm::vec3& wo, const glm::vec3& wi, const glm::vec3& n) {
+__host__ __device__ inline bool sameHemisphere(const glm::vec3& wo, const glm::vec3& wi, const glm::vec3& n) {
 	const float woDotN = glm::dot(wo, n);
 	const float wiDotN = glm::dot(wi, n);
 	if ( (woDotN > 0.f && wiDotN > 0.f) ||
@@ -55,7 +58,7 @@ __host__ __device__ bool sameHemisphere(const glm::vec3& wo, const glm::vec3& wi
 }
 
 
-__host__ __device__ glm::vec3 Faceforward(const glm::vec3 &n, const glm::vec3 &v) {
+__host__ __device__ __forceinline__ glm::vec3 Faceforward(const glm::vec3 &n, const glm::vec3 &v) {
     return (glm::dot(n, v) < 0.f) ? -n : n;
 }
 

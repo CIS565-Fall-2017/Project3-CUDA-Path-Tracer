@@ -73,7 +73,8 @@ __host__ __device__ float boxIntersectionTest(const Geom& box, const Ray& r,
         }
         intersectionPoint = multiplyMV(box.transform, glm::vec4(getPointOnRay(q, tmin), 1.0f));
         normal = glm::normalize(multiplyMV(box.transform, glm::vec4(tmin_n, 0.0f)));
-        return glm::length(r.origin - intersectionPoint);
+        //return glm::length(r.origin - intersectionPoint);
+		return tmin;
     }
     return -1;
 }
@@ -114,10 +115,10 @@ __host__ __device__ float sphereIntersectionTest(const Geom& sphere, const Ray& 
     if (t1 < 0 && t2 < 0) {
         return -1;
     } else if (t1 > 0 && t2 > 0) {
-        t = min(t1, t2);
+        t = glm::min(t1, t2);
         outside = true;
     } else {
-        t = max(t1, t2);
+        t = glm::max(t1, t2);
         outside = false;
     }
 
@@ -128,7 +129,8 @@ __host__ __device__ float sphereIntersectionTest(const Geom& sphere, const Ray& 
     normal = glm::normalize(multiplyMV(glm::mat4(sphere.invTranspose), glm::vec4(objspaceIntersection, 0.f)));
 
 
-    return glm::length(r.origin - intersectionPoint);
+    //return glm::length(r.origin - intersectionPoint);
+	return t;
 }
 
 //plane is 1x1 centered at 0
@@ -159,13 +161,80 @@ __host__ __device__ float planeIntersectionTest(const Geom& plane, const Ray& r,
 		normal = glm::normalize(plane.invTranspose * nplane);
 		//ComputeTBN(pLocal, &(isect->normalGeometric), &(isect->tangent), &(isect->bitangent));
 		//isect->uv = GetUVCoordinates(pLocal);
-		return glm::length(r.origin - intersectionPoint);
+		//return glm::length(r.origin - intersectionPoint);
+		return t;
     }
     return -1;
 }
+__host__ __device__ float isectAABB(const AABB& b, const Ray& r, const glm::vec3& dir_inv) {
+    float t1 = (b.min[0] - r.origin[0])*dir_inv[0];
+    float t2 = (b.max[0] - r.origin[0])*dir_inv[0];
+ 
+    float tmin = glm::min(t1, t2);
+    float tmax = glm::max(t1, t2);
+ 
+    for (int i = 1; i < 3; ++i) {
+        t1 = (b.min[i] - r.origin[i])*dir_inv[i];
+        t2 = (b.max[i] - r.origin[i])*dir_inv[i];
+ 
+        tmin = glm::max(tmin, glm::min(t1, t2));
+        tmax = glm::min(tmax, glm::max(t1, t2));
+    }
+ 
+	if (tmax > glm::max(tmin, 0.f)) {
+		return (tmin < 0.f) ? tmax : tmin;
+	} else {
+		return -1.f;
+	}
+}
+
+__host__ __device__ glm::vec3 interpTriangleValues(const glm::ivec3& indices,
+	const Vertex* triVertexData, const float* triAreas) 
+{
+	//cpu version has tbn calculation using uv's, this was already done and stored in the vertex data by assimp
+	const glm::vec3 normals[3] = { triVertexData[indices[0]].nor, triVertexData[indices[1]].nor, triVertexData[indices[2]].nor };
+	const glm::vec2 uvs[3] = { triVertexData[indices[0]].uv, triVertexData[indices[1]].uv, triVertexData[indices[2]].uv };
+
+	//TODO: might have to involve tan and its w value to figure out the proper normal
+
+	//triAreas[0] hold the invers of the total area. see isectTriangle for 
+	//which entries correspond to which barycentric internal triangle(should be opposite of its corresponding interp vertex
+	return glm::vec3(glm::normalize( normals[0] * triAreas[1] * triAreas[0] +
+									 normals[1] * triAreas[2] * triAreas[0] +
+									 normals[2] * triAreas[3] * triAreas[0]));
+}
+
+__host__ __device__ float isectTriangle(const glm::ivec3& indices, 
+	const Vertex* triVertexData, const Ray& rloc, float* triAreas) 
+{
+	//0. gather triangles points and calculate the planeNormal
+	const glm::vec3 points[3] = {triVertexData[indices[0]].pos, triVertexData[indices[1]].pos, triVertexData[indices[2]].pos };
+	const glm::vec3 edgeCross = glm::cross(points[1] - points[0], points[2] - points[0]);//how does assimp wind the verts? ccw? cw?
+	const glm::vec3 planeNormal = glm::normalize(edgeCross);
+
+    //1. Ray-plane intersection
+    const float t =  glm::dot(planeNormal, (points[0] - rloc.origin)) / glm::dot(planeNormal, rloc.direction);
+    if(t < 0) return -1.f;
+
+    const glm::vec3 ploc = rloc.origin + t * rloc.direction;
+
+    //2. Barycentric test
+    triAreas[0] = 0.5f * glm::length(edgeCross);
+	triAreas[1] = 0.5f * glm::length(glm::cross(ploc - points[1], ploc - points[2])) / triAreas[0];
+	triAreas[2] = 0.5f * glm::length(glm::cross(ploc - points[2], ploc - points[0])) / triAreas[0];
+    triAreas[3] = 0.5f * glm::length(glm::cross(ploc - points[0], ploc - points[1])) / triAreas[0];
+	const float sum = triAreas[1] + triAreas[2] + triAreas[3];
+
+	return (triAreas[1] >= 0 && triAreas[1] <= 1 && 
+			triAreas[2] >= 0 && triAreas[2] <= 1 &&
+			triAreas[3] >= 0 && triAreas[3] <= 1 && 
+			fequal(sum, 1.0f)) ? 
+			t : -1.f;
+}
+
 
 __host__ __device__ float modelIntersectionTest(const Geom& model, const Ray& r,
-	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) 
+	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside, const BVHNode* bvhNodeData, const glm::ivec3* triIdxData, const Vertex* triVertexData) 
 {
 	//transform the ray into 
     Ray rloc;
@@ -173,7 +242,92 @@ __host__ __device__ float modelIntersectionTest(const Geom& model, const Ray& r,
 	rloc.direction = multiplyMV(model.inverseTransform, glm::vec4(r.direction, 0.0f));
 
 
-	return -1;
+
+	//for "Fast/Branchless Ray/Bounding Box Intersections" see(specifically part 2 dealing with NaN that arrise when ray is perfectly alligned with a slab)
+	//https://tavianator.com/fast-branchless-raybounding-box-intersections/	
+	//https://tavianator.com/fast-branchless-raybounding-box-intersections-part-2-nans/
+	//calc inverse of ray slope's so we don't have to use divides during aabb testing
+	const glm::vec3 dir_inv(1.f / r.direction);
+
+	//needed for finding interp tri attributes later
+	uint32_t closestTriIdx; 
+	float triAreas[4];
+	Vertex vertices[3];
+
+	//max stack size should be the maxDepth+1(node depth starts at 0) of the bvh we are traversing, largest I've seen is 32 (lucy.ply 1 tri/node)
+	const uint32_t MSB_32BIT = 0x80000000;
+	const uint32_t MAX_STACK_SIZE = 32;
+	uint32_t stack[MAX_STACK_SIZE];
+	int32_t stackPopIdx = -1;
+	//push the first node index on the stack and update the stackPopIdx
+	stack[++stackPopIdx] = model.modelInfo.startIdxBVHNode;
+	float t = -1.f;
+	while (stackPopIdx >= 0) {
+		//pop off the stack to get the bvh index and then fetch the bvh data associated with this item
+		const uint32_t bvhNodeIdx = stack[stackPopIdx--];
+		const BVHNode nodeData = bvhNodeData[bvhNodeIdx];
+
+		//check if leaf or inner node (msb of first payload member)
+		const bool isInner = (MSB_32BIT & nodeData.payload.leaf.numTriangles) == 0;
+
+		if (isInner) {//if inner perform isect testing of the two child aabb's. if both isect, push furthest on the stack, then closest (next pop will be the closer of the nodes)
+			//one function call, pass both children AABB's, return t values, depending on hit combination and who's closer push onto the stack appropriately
+			const float tLeft = isectAABB(nodeData.leftAABB, rloc, dir_inv);
+			const float tRight = isectAABB(nodeData.rightAABB, rloc, dir_inv);
+
+			if (tLeft != -1.f && tRight != -1.f) {//both hit by ray
+				if (tLeft <= tRight) {//left is closest, push last
+					stack[++stackPopIdx] = nodeData.payload.inner.rightIdx;
+					stack[++stackPopIdx] = nodeData.payload.inner.leftIdx;
+				} else {//right is closest push last
+					stack[++stackPopIdx] = nodeData.payload.inner.rightIdx;
+					stack[++stackPopIdx] = nodeData.payload.inner.leftIdx;
+				}
+			} else if (tLeft != -1.f) { //only the left hit
+				stack[++stackPopIdx] = nodeData.payload.inner.leftIdx;
+			} else if (tRight != -1.f) {//only the right hit
+				stack[++stackPopIdx] = nodeData.payload.inner.rightIdx;
+			}
+
+		} else {//else begin checking for triangle hits, take the closest amongst the hits, also get normal and uv information
+			float tTriClosest = FLT_MAX;
+			for (int i = 0; i < nodeData.payload.leaf.numTriangles; ++i) {
+				const uint32_t triIdx = nodeData.payload.leaf.startIdx + i;
+				const glm::ivec3 indices = triIdxData[triIdx];
+				float tmpTriAreas[4];
+				float tTri = isectTriangle(indices, triVertexData, rloc, tmpTriAreas);
+				if (tTri != -1.f && tTri < tTriClosest) {
+					tTriClosest = tTri;
+					closestTriIdx = triIdx;
+					//save off data for later use during attribute interpolation
+					triAreas[0] = 1.f/tmpTriAreas[0];
+					triAreas[1] = tmpTriAreas[1];
+					triAreas[2] = tmpTriAreas[2];
+					triAreas[3] = tmpTriAreas[3];
+					//NOTE: will this buried global fetch hurt perf?
+					//vertices[0] = triVertexData[indices[0]];
+					//vertices[1] = triVertexData[indices[1]];
+					//vertices[2] = triVertexData[indices[2]];
+				}
+			}
+			//if t value returned from triangle testing was -1.f keep going in the loop else break out of loop
+			if (tTriClosest != FLT_MAX) {
+				t = tTriClosest; 
+				break;
+			}
+		}
+	}
+
+	
+	if (t == -1.f || t == FLT_MAX) {//if t is still -1.f return -1.f 
+		return -1.f;
+	} else { //otherwise find the intersectionPoint and normal with the valid t value (isectpoint - r.origin)
+		const glm::vec3 ploc = getPointOnRay(rloc, t);
+		intersectionPoint = glm::vec3(model.transform * glm::vec4(ploc, 1));
+		const glm::ivec3 indices = triIdxData[closestTriIdx];
+		const glm::vec3 nTri = interpTriangleValues(indices, triVertexData, triAreas);
+		normal = glm::normalize(model.invTranspose * nTri);
+	}
 }
 
 
@@ -190,9 +344,9 @@ __host__ __device__ float shapeIntersectionTest(const Geom& geom, const Ray& ray
 	} else if (geom.type == GeomType::PLANE) {
 		return planeIntersectionTest(geom, ray, intersectionPoint, normal, outside);
 	} 
-	//else if (geom.type == GeomType::MODEL) {
-	//	return modelIntersectionTest(geom, ray, intersectionPoint, normal, outside);
-	//}
+	else if (geom.type == GeomType::MODEL) {
+		return modelIntersectionTest(geom, ray, intersectionPoint, normal, outside);
+	}
 }
 
 
