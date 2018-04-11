@@ -188,27 +188,27 @@ __host__ __device__ float isectAABB(const AABB& b, const Ray& r, const glm::vec3
 	}
 }
 
-__host__ __device__ glm::vec3 interpTriangleValues(const glm::ivec3& indices,
-	const Vertex* triVertexData, const float* triAreas) 
+__host__ __device__ void interpTriangleValues(const glm::ivec3& indices,
+	const Vertex* dev_TriVertices, const float* triAreas, glm::vec3& normal) 
 {
 	//cpu version has tbn calculation using uv's, this was already done and stored in the vertex data by assimp
-	const glm::vec3 normals[3] = { triVertexData[indices[0]].nor, triVertexData[indices[1]].nor, triVertexData[indices[2]].nor };
-	const glm::vec2 uvs[3] = { triVertexData[indices[0]].uv, triVertexData[indices[1]].uv, triVertexData[indices[2]].uv };
+	const glm::vec3 normals[3] = { dev_TriVertices[indices[0]].nor, dev_TriVertices[indices[1]].nor, dev_TriVertices[indices[2]].nor };
+	const glm::vec2 uvs[3] = { dev_TriVertices[indices[0]].uv, dev_TriVertices[indices[1]].uv, dev_TriVertices[indices[2]].uv };
 
 	//TODO: might have to involve tan and its w value to figure out the proper normal
 
 	//triAreas[0] hold the invers of the total area. see isectTriangle for 
 	//which entries correspond to which barycentric internal triangle(should be opposite of its corresponding interp vertex
-	return glm::vec3(glm::normalize( normals[0] * triAreas[1] * triAreas[0] +
+	normal = glm::vec3(glm::normalize( normals[0] * triAreas[1] * triAreas[0] +
 									 normals[1] * triAreas[2] * triAreas[0] +
 									 normals[2] * triAreas[3] * triAreas[0]));
 }
 
 __host__ __device__ float isectTriangle(const glm::ivec3& indices, 
-	const Vertex* triVertexData, const Ray& rloc, float* triAreas) 
+	const Vertex* dev_TriVertices, const Ray& rloc, float* triAreas) 
 {
 	//0. gather triangles points and calculate the planeNormal
-	const glm::vec3 points[3] = {triVertexData[indices[0]].pos, triVertexData[indices[1]].pos, triVertexData[indices[2]].pos };
+	const glm::vec3 points[3] = {dev_TriVertices[indices[0]].pos, dev_TriVertices[indices[1]].pos, dev_TriVertices[indices[2]].pos };
 	const glm::vec3 edgeCross = glm::cross(points[1] - points[0], points[2] - points[0]);//how does assimp wind the verts? ccw? cw?
 	const glm::vec3 planeNormal = glm::normalize(edgeCross);
 
@@ -234,7 +234,8 @@ __host__ __device__ float isectTriangle(const glm::ivec3& indices,
 
 
 __host__ __device__ float modelIntersectionTest(const Geom& model, const Ray& r,
-	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside, const BVHNode* bvhNodeData, const glm::ivec3* triIdxData, const Vertex* triVertexData) 
+	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside, 
+	const BVHNode* dev_BVHNodes, const glm::ivec3* dev_TriIndices, const Vertex* dev_TriVertices) 
 {
 	//transform the ray into 
     Ray rloc;
@@ -265,7 +266,7 @@ __host__ __device__ float modelIntersectionTest(const Geom& model, const Ray& r,
 	while (stackPopIdx >= 0) {
 		//pop off the stack to get the bvh index and then fetch the bvh data associated with this item
 		const uint32_t bvhNodeIdx = stack[stackPopIdx--];
-		const BVHNode nodeData = bvhNodeData[bvhNodeIdx];
+		const BVHNode nodeData = dev_BVHNodes[bvhNodeIdx];
 
 		//check if leaf or inner node (msb of first payload member)
 		const bool isInner = (MSB_32BIT & nodeData.payload.leaf.numTriangles) == 0;
@@ -293,9 +294,9 @@ __host__ __device__ float modelIntersectionTest(const Geom& model, const Ray& r,
 			float tTriClosest = FLT_MAX;
 			for (int i = 0; i < nodeData.payload.leaf.numTriangles; ++i) {
 				const uint32_t triIdx = nodeData.payload.leaf.startIdx + i;
-				const glm::ivec3 indices = triIdxData[triIdx];
+				const glm::ivec3 indices = dev_TriIndices[triIdx];
 				float tmpTriAreas[4];
-				float tTri = isectTriangle(indices, triVertexData, rloc, tmpTriAreas);
+				float tTri = isectTriangle(indices, dev_TriVertices, rloc, tmpTriAreas);
 				if (tTri != -1.f && tTri < tTriClosest) {
 					tTriClosest = tTri;
 					closestTriIdx = triIdx;
@@ -305,9 +306,9 @@ __host__ __device__ float modelIntersectionTest(const Geom& model, const Ray& r,
 					triAreas[2] = tmpTriAreas[2];
 					triAreas[3] = tmpTriAreas[3];
 					//NOTE: will this buried global fetch hurt perf?
-					//vertices[0] = triVertexData[indices[0]];
-					//vertices[1] = triVertexData[indices[1]];
-					//vertices[2] = triVertexData[indices[2]];
+					//vertices[0] = dev_TriVertices[indices[0]];
+					//vertices[1] = dev_TriVertices[indices[1]];
+					//vertices[2] = dev_TriVertices[indices[2]];
 				}
 			}
 			//if t value returned from triangle testing was -1.f keep going in the loop else break out of loop
@@ -324,16 +325,17 @@ __host__ __device__ float modelIntersectionTest(const Geom& model, const Ray& r,
 	} else { //otherwise find the intersectionPoint and normal with the valid t value (isectpoint - r.origin)
 		const glm::vec3 ploc = getPointOnRay(rloc, t);
 		intersectionPoint = glm::vec3(model.transform * glm::vec4(ploc, 1));
-		const glm::ivec3 indices = triIdxData[closestTriIdx];
-		const glm::vec3 nTri = interpTriangleValues(indices, triVertexData, triAreas);
-		normal = glm::normalize(model.invTranspose * nTri);
+		const glm::ivec3 indices = dev_TriIndices[closestTriIdx];
+		interpTriangleValues(indices, dev_TriVertices, triAreas, normal);
+		normal = glm::normalize(model.invTranspose * normal);
 	}
 }
 
 
 
 __host__ __device__ float shapeIntersectionTest(const Geom& geom, const Ray& ray,
-	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside) 
+	glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside,
+	const BVHNode* dev_BVHNodes, const glm::ivec3* dev_TriIndices, const Vertex* dev_TriVertices) 
 {
 	if (geom.type == GeomType::CUBE) {
 		return boxIntersectionTest(geom, ray, intersectionPoint, normal, outside);
@@ -345,7 +347,8 @@ __host__ __device__ float shapeIntersectionTest(const Geom& geom, const Ray& ray
 		return planeIntersectionTest(geom, ray, intersectionPoint, normal, outside);
 	} 
 	else if (geom.type == GeomType::MODEL) {
-		return modelIntersectionTest(geom, ray, intersectionPoint, normal, outside);
+		return modelIntersectionTest(geom, ray, intersectionPoint, normal, outside, 
+			dev_BVHNodes, dev_TriIndices, dev_TriVertices);
 	}
 }
 

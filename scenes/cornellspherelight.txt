@@ -165,8 +165,8 @@ SCALE       2 2 2
 
 // Model
 OBJECT 7
-model
-modelpath ../res/objects/rock/rock.obj true 1.0
+sphere
+modelpath ../res/objects/tri1/tri1.obj false 1.0
 material 2
 TRANS       0 0 0 
 ROTAT       0 0 0

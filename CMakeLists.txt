@@ -6,6 +6,10 @@ project(cis565_path_tracer)
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 
+# Crucial magic for CUDA linking
+find_package(Threads REQUIRED)
+find_package(CUDA 8.0 REQUIRED)
+
 
 #USEFUL FOR SEEING WHY STRANGE THINGS ARE HAPPENING
 #set(CUDA_VERBOSE_BUILD ON)
@@ -81,10 +85,7 @@ if (WIN32)
 	list(APPEND CORELIBS legacy_stdio_definitions.lib)
 endif()
 
-
-# Crucial magic for CUDA linking
-find_package(Threads REQUIRED)
-find_package(CUDA 8.0 REQUIRED)
+# Put crucial magice for CUDA linking back here if it doesn't work (find_package(Threads REQUIRED))
 
 set(CUDA_ATTACH_VS_BUILD_RULE_TO_CUDA_FILE ON)
 set(CUDA_SEPARABLE_COMPILATION ON)

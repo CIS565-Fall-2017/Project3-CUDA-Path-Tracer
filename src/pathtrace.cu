@@ -89,12 +89,12 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution,
     }
 }
 
-static Scene * hst_scene = NULL;
-static glm::vec3 * dev_image = NULL;
-static Geom * dev_geoms = NULL;
-static Material * dev_materials = NULL;
-static PathSegment * dev_paths = NULL;
-static ShadeableIntersection * dev_intersections = NULL;
+static Scene* hst_scene = NULL;
+static glm::vec3* dev_image = NULL;
+static Geom* dev_geoms = NULL;
+static Material* dev_materials = NULL;
+static PathSegment* dev_paths = NULL;
+static ShadeableIntersection* dev_intersections = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
 //need something for lights
 static int numlights = 0;
@@ -262,7 +262,8 @@ __global__ void generateRayFromCamera(const Camera cam, const int iter, const in
 __global__ void computeIntersections(const int iter, const int depth,
 	const int num_paths, PathSegment * pathSegments,
 	const Geom* const geoms, const int geoms_size,
-	ShadeableIntersection* const intersections)
+	ShadeableIntersection* const intersections,
+	const BVHNode* dev_BVHNodes, const glm::ivec3* dev_TriIndices, const Vertex* dev_TriVertices) 
 
 {
 	int path_index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -283,7 +284,8 @@ __global__ void computeIntersections(const int iter, const int depth,
 	//parse through geoms finding closest intersection
 	for (int i = 0; i < geoms_size; i++) {
 		const Geom & geom = geoms[i];
-		t = shapeIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+		t = shapeIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside,
+			dev_BVHNodes, dev_TriIndices, dev_TriVertices);
 
 		//min
 		if (t > 0.0f && t_min > t) {
@@ -391,8 +393,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter) { //, const int MAXBOUNCES) {
 		// tracing
 		dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
 		computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
-			iter, depth, num_paths, dev_paths, dev_geoms, hst_scene->geoms.size(), 
-			dev_intersections );
+			iter, depth, num_paths, dev_paths, dev_geoms, hst_scene->geoms.size(), dev_intersections,
+			dev_BVHNodes, dev_TriIndices, dev_TriVertices);
 		checkCUDAError("trace one bounce");
 		//cudaDeviceSynchronize();
 #if 1 == MATERIALSORTING

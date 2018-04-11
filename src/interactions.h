@@ -203,7 +203,7 @@ float lightPdfLi(const Geom& randlight, const glm::vec3& pisect,
 
 
 	bool outside;
-    if(0.f > shapeIntersectionTest(randlight, wiWray, pisect_thislight, nisect_thislight,outside)) {
+    if(0.f > shapeIntersectionTest(randlight, wiWray, pisect_thislight, nisect_thislight,outside, nullptr, nullptr, nullptr)) {
         return 0.f;
     }
 
@@ -562,7 +562,7 @@ glm::vec3 getL_S1(const Ray& pathray,
 			//poke through first
 			const Geom& thisgeom = dev_geoms[isect.geomId];
 			bool outside;
-			const float tsurface = shapeIntersectionTest(thisgeom, wiray_direct, psurface, nsurface, outside);
+			const float tsurface = shapeIntersectionTest(thisgeom, wiray_direct, psurface, nsurface, outside, nullptr, nullptr, nullptr);
 			if (thisgeom.type == GeomType::CUBE && glm::dot(nsurface, widirect) < 0.f)	nsurface *= -1;//cube is flipping the normal other shapes aren't
 			psurface += nsurface*0.005f;//need a little more umf than EPSILON
 			//if (0 > tsurface || outside == true) { continue; }//if our scatter length is outside? prob set a point below the surface and shoot in the direction of refracted and see what tmax is
@@ -651,7 +651,7 @@ glm::vec3 getL_Sd(const Ray& pathray, const ShadeableIntersection& isect,
 
 			const Geom& thisgeom = dev_geoms[isect.geomId];
 			bool outside;
-			const float t = shapeIntersectionTest(thisgeom, discRay, pPHit, nPHit, outside);
+			const float t = shapeIntersectionTest(thisgeom, discRay, pPHit, nPHit, outside, nullptr, nullptr, nullptr);
 			if (thisgeom.type == GeomType::CUBE && !outside) { nPHit *= -1.f; } //cube's flipping the normal, other shapes aren't
 			pPHit += nPHit*EPSILON;
 
@@ -752,7 +752,7 @@ void chooseSubSurface(PathSegment& path, ShadeableIntersection& isect, const Mat
 		//intersection should return a new intersection within max_t with a pos and normal
 		const Geom& thisgeom = dev_geoms[isect.geomId];
 		bool outside;
-		const float t = shapeIntersectionTest(thisgeom, discRay, pPHit, nPHit, outside);
+		const float t = shapeIntersectionTest(thisgeom, discRay, pPHit, nPHit, outside, nullptr, nullptr, nullptr);
 		if (thisgeom.type == GeomType::CUBE && !outside) { nPHit *= -1.f; } //cube's flipping the normal, other shapes aren't
 		pPHit += nPHit*0.005f;
 
