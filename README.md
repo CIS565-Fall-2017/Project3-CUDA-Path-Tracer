@@ -35,7 +35,7 @@ at 5000 samples, we have a much more converged image than the naively integrated
 
 ![](img/cornell_MIS_5000samp.png)
 
-and this also converges quite satisfyingly at higher sample counts (20k):
+and I let this thing run while I grabbed lunch, here's 20k spp:
 
 ![](img/cornell_MIS_20000samp.png)
 
