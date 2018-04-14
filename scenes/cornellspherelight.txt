@@ -159,15 +159,6 @@ OBJECT 6
 model
 modelpath ../res/objects/bunny/bunny.ply false 1.0
 material 2
-TRANS       -2 1 -2 
+TRANS       0 1 0 
 ROTAT       0 0 0
-SCALE       10 10 10 
-
-// Model
-OBJECT 7
-model
-modelpath ../res/objects/rock/rock.obj false 1.0
-material 2
-TRANS       2 1 2 
-ROTAT       0 0 0
-SCALE       1 1 1
+SCALE       30 30 30 

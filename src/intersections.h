@@ -263,14 +263,14 @@ __host__ __device__ float modelIntersectionTest(const Geom& model, const Ray& r,
 	uint32_t stack[MAX_STACK_SIZE];
 	int32_t stackPopIdx = -1;
 	//push the first node index on the stack and update the stackPopIdx
-	stack[++stackPopIdx] = model.modelInfo.startIdxBVHNode;
+	stack[++stackPopIdx] = 0;
 	float t = FLT_MAX;
 	bool fullTraversal = false;//false
 
 	//YOU CAN PRINTF
 	while (stackPopIdx >= 0) {
 		//pop off the stack to get the bvh index and then fetch the bvh data associated with this item
-		const uint32_t bvhNodeIdx = stack[stackPopIdx--];
+		const uint32_t bvhNodeIdx = stack[stackPopIdx--] + model.modelInfo.startIdxBVHNode;
 		const BVHNode nodeData = dev_BVHNodes[bvhNodeIdx];
 
 		//check if leaf or inner node (msb of first payload member)
