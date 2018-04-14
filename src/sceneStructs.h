@@ -22,8 +22,6 @@ struct Ray {
 
 struct ModelInfo {
 	Model* model = nullptr;
-	AABB worldRootAABB = AABB();//check this first, if hit begin fetching nodes
-	uint32_t bvhMaxDepth = 0;//informs the max stack size for pushing and popping of bvhNode indexes during traversal on the gpu
 	//Corresponding Start Index for the 3 contiguous arrays for Model data
 	//NOTE: might be worth normalizing the index pointers as the model data is looped through and compacted into contiguous arrays
 	//then sent to the gpu.This will avoid additional sums with the startIdx's to calculate correct array position 

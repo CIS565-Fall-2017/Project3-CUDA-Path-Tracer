@@ -115,6 +115,8 @@ __global__ void copyMaterialIDsToArrays(const int num_paths,
 {
 	const int thid = blockDim.x * blockIdx.x + threadIdx.x;
 	if (thid >= num_paths) { return; }
-	dev_materialIDsForIntersectionsSort[thid]	= dev_intersections[thid].materialId;
-	dev_materialIDsForPathsSort[thid]			= dev_intersections[thid].materialId;
+	//dev_materialIDsForIntersectionsSort[thid]	= dev_intersections[thid].materialId;
+	//dev_materialIDsForPathsSort[thid]			= dev_intersections[thid].materialId;
+	dev_materialIDsForIntersectionsSort[thid]	= dev_intersections[thid].geomId;//better, distinguishes accel structures, could also keep like materials together in the scene file to get materialID sorting benefits as well
+	dev_materialIDsForPathsSort[thid]			= dev_intersections[thid].geomId;
 }

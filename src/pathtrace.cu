@@ -23,10 +23,10 @@
 //#include "stream_compaction\radix.h" 
 
 #define ERRORCHECK			1
-#define COMPACT				1 //Important for expensive things like AS traversal or costly materials; 0 NONE, 1 THRUST, 2 CUSTOM(breaks render, just use for timing compare)
+#define COMPACT				0 //removes dead rays. Important for expensive things like AS traversal or costly materials; 0 NONE, 1 THRUST, 2 CUSTOM(breaks render, just use for timing compare)
 #define PT_TECHNIQUE		1 //0 NAIVE, 1 MIS, 2 Multikern MIS(currently faster but obviously broken, prob 1 iter then done and thats why faster)
 #define TIMER				0
-#define MATERIALSORTING		0 //should extend the idea of a material to discriminate between models
+#define MATERIALSORTING		1 //should extend the idea of a material to discriminate between models
 //https://thrust.1ithub.io/doc/group__stream__compaction.html#ga5fa8f86717696de88ab484410b43829b
 //https://stackoverflow.com/questions/34103410/glmvec3-and-epsilon-comparison
 struct isDead { //needed for thrust's predicate, the last arg in remove_if
@@ -151,6 +151,8 @@ void pathtraceInit(Scene *scene) {
 			scene->geoms[i].modelInfo.startIdxTriVertex = currSizeTriVertexArray;
 			scene->geoms[i].modelInfo.startIdxTriIndex = currSizeTriIndexArray;
 			scene->geoms[i].modelInfo.startIdxBVHNode = currSizeBVHNodeArray;
+			printf("\n\ngeom %i: startIdxTriVertex: %i, startIdxTriIndex: %i startIdxBVHNode: %i",
+				i, scene->geoms[i].modelInfo.startIdxTriVertex, scene->geoms[i].modelInfo.startIdxTriIndex, scene->geoms[i].modelInfo.startIdxBVHNode);
 			currSizeTriVertexArray += scene->geoms[i].modelInfo.model->mVertices.size();
 			currSizeTriIndexArray += scene->geoms[i].modelInfo.model->bvh.mTriangleIndices.size();
 			currSizeBVHNodeArray += scene->geoms[i].modelInfo.model->bvh.mBVHNodes.size();
@@ -176,11 +178,14 @@ void pathtraceInit(Scene *scene) {
 			allBVHNodeAllModels.insert(allBVHNodeAllModels.end(),
 				scene->geoms[i].modelInfo.model->bvh.mBVHNodes.begin(),
 				scene->geoms[i].modelInfo.model->bvh.mBVHNodes.end());
+
+			printf("\n\nafter insert geom %i: allTriVertexAllModels.size(): %i, allTriIndexAllModels.size(): %i allBVHNodeAllModels.size(): %i",
+										   i, allTriVertexAllModels.size(),		allTriIndexAllModels.size(),	allBVHNodeAllModels.size());
 		}
 	}
-	std::cout << "\n\nSize allTriVertexAllModels: " << currSizeTriVertexArray;
-	std::cout << "\nSize allTriIndexAllModels: " << currSizeTriIndexArray;
-	std::cout << "\nSize allBVHNodeAllModels: " << currSizeBVHNodeArray;
+	printf("\n\nSize allTriVertexAllModels: %i", allTriVertexAllModels.size());
+	printf("\nSize allTriIndexAllModels: %i" , allTriIndexAllModels.size());
+	printf("\nSize allBVHNodeAllModels: %i" , allBVHNodeAllModels.size());
 
   	cudaMalloc(&dev_TriVertices, currSizeTriVertexArray * sizeof(Vertex));
   	cudaMemcpy(dev_TriVertices, allTriVertexAllModels.data(), currSizeTriVertexArray * sizeof(Vertex), cudaMemcpyHostToDevice);

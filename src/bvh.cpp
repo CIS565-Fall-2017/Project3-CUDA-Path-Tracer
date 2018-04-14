@@ -85,17 +85,6 @@ float AABB::GetComparableSurfaceArea() const {
 }
 
 AXIS AABB::GetSplitAxis() const {
-	//const float lenX = max.x - min.x;
-	//const float lenY = max.y - min.y;
-	//const float lenZ = max.z - min.z;
-	//const float max = std::max(std::max(lenX, lenY), lenZ);
-	//if (lenX == max) {
-	//	return AXIS::X;
-	//} else if (lenY == max) {
-	//	return AXIS::Y;
-	//} else if (lenZ == max) {
-	//	return AXIS::Z;
-	//}
 	glm::vec3 d = max - min;//longest component of the diagonal of the aabb is the max extent
 	if (d.x > d.y && d.x > d.z) {
 		return AXIS::X;
@@ -104,7 +93,6 @@ AXIS AABB::GetSplitAxis() const {
 	} else {
 		return AXIS::Z;
 	}
-
 }
 
 BVH::BVH() 
@@ -508,7 +496,7 @@ uint32_t BVH::CreateLeafNode(const uint32_t startIdx, const uint32_t nodeAllocId
 	return currentDepth;
 }
 
-void BVH::SetWorldRootAABB(const glm::mat4& modelTransform) {
+void BVH::GetWorldRootAABB(const glm::mat4& modelTransform) const {
 	const glm::vec3 localRootAABB_xdim(localRootAABB.max.x - localRootAABB.min.x, 
 										0.f, 
 										0.f);
@@ -541,7 +529,7 @@ void BVH::SetWorldRootAABB(const glm::mat4& modelTransform) {
 	const glm::vec4 worldleftTopFront	= modelTransform * leftTopFront;
 	const glm::vec4 worldleftTopBack	= modelTransform * leftTopBack;
 
-	worldRootAABB = AABB();//reset
+	AABB worldRootAABB;//reset
 	//can use centroid calls to build the AABB from these 8 corners
 	//bot ring
 	worldRootAABB.GrowAABBFromCentroid(worldleftBotBack);

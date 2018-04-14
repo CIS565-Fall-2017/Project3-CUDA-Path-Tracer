@@ -73,10 +73,9 @@ class BVH {
 public://data
 	std::vector<BVHNode> mBVHNodes;
 	std::vector<glm::ivec3> mTriangleIndices;//not rearranging the opengl indices because some future implementations can duplicate triangle refs
-	AABB localRootAABB;//The AABB of the root node in local space (aligned with local model axes)
-	AABB worldRootAABB;//The AABB of the root in world space (aligned with world axes)
 	uint32_t maxDepth;
 	uint32_t totalNodes;
+	AABB localRootAABB;//not actually used anywhere, just needed to get an idea of size of world space object for scene scaling
 
 	//for sbvh, will need to allocate addtional mem for when it decides to perform a spatial split to prevent excessive overlap between children of a node
 	//recommended cutoff is 30% of nodes have spatial split (if neccessary)
@@ -93,5 +92,5 @@ public://functions
 	uint32_t CreateLeafNode(const uint32_t startIdx, const uint32_t nodeAllocIdx,
 		const uint32_t currentDepth, uint32_t& totalLeafNodes, const uint32_t numTriangles);
 
-	void SetWorldRootAABB(const glm::mat4& modelTransform);
+	void GetWorldRootAABB(const glm::mat4& modelTransform) const;
 };
