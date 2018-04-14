@@ -155,7 +155,7 @@ int Scene::loadCamera() {
         } else if (strcmp(tokens[0].c_str(), "LOOKAT") == 0) {
             camera.lookAt = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
         } else if (strcmp(tokens[0].c_str(), "UP") == 0) {
-            camera.up = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+			camera.up = glm::normalize(glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str())));
         }
 
         utilityCore::safeGetline(fp_in, line);
@@ -177,9 +177,8 @@ int Scene::loadCamera() {
 	//camera.pixelLength = glm::vec2(2 * xscaled / (float)camera.resolution.x
 	//						, 2 * yscaled / (float)camera.resolution.y);
 
-
-	camera.right = glm::normalize(glm::cross(camera.view, camera.up));
     camera.view = glm::normalize(camera.lookAt - camera.position);
+	camera.right = glm::normalize(glm::cross(camera.view, camera.up));
 
     //set up render camera stuff
     int arraylen = camera.resolution.x * camera.resolution.y;

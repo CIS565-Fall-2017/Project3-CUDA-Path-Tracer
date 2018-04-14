@@ -186,6 +186,53 @@ __host__ __device__ float isectAABB(const AABB& b, const Ray& r, const glm::vec3
 	} else {
 		return -1.f;
 	}
+
+////bool Bounds3f::Intersect(const Ray &r, float* t) const {
+//    //TODO
+//	float t;
+//    float t_n = -FLT_MAX;
+//    float t_f = FLT_MAX;
+//    const glm::vec2 minmax_xyz[3] = {glm::vec2(b.min.x, b.max.x), glm::vec2(b.min.y, b.max.y), glm::vec2(b.min.z, b.max.z)};
+//    for(int i = 0; i < 3; i++){
+//        //Ray parallel to slab check
+//        const float minbound = minmax_xyz[i][0];
+//        const float maxbound = minmax_xyz[i][1];
+//        if(r.direction[i] == 0){
+//            if(r.origin[i] < minbound || r.origin[i] > maxbound){
+//				return -1.f;
+//            }
+//        }
+//        //If not parallel, do slab intersect check
+//        float t0 = (minbound - r.origin[i])/r.direction[i];
+//        float t1 = (maxbound - r.origin[i])/r.direction[i];
+//        if(t0 > t1) {
+//            float temp = t1;
+//            t1 = t0;
+//            t0 = temp;
+//        }
+//        if(t0 > t_n) {
+//            t_n = t0;
+//        }
+//        if(t1 < t_f) {
+//            t_f = t1;
+//        }
+//    }
+//    if(t_n < t_f) {
+//        if(r.origin.x >= minmax_xyz[0][0] && r.origin.y >= minmax_xyz[1][0] && r.origin.z >= minmax_xyz[2][0]
+//        && r.origin.x <= minmax_xyz[0][1] && r.origin.y <= minmax_xyz[1][1] && r.origin.z <= minmax_xyz[2][1]){
+//			return t_n;
+//        } else {
+//            float temp_t = t_n > 0 ? t_n : t_f;
+//            if(temp_t < 0) {
+//				return -1.f;
+//            }
+//            return temp_t;
+//        }
+//    } else {//If t_near was greater than t_far, we did not hit the cube
+//        return -1.f;
+//    }
+////}
+
 }
 
 __host__ __device__ void interpTriangleValues(const glm::ivec3& indices,
@@ -200,8 +247,8 @@ __host__ __device__ void interpTriangleValues(const glm::ivec3& indices,
 	//triAreas[0] hold the invers of the total area. see isectTriangle for 
 	//which entries correspond to which barycentric internal triangle(should be opposite of its corresponding interp vertex
 	normal = glm::vec3(glm::normalize( normals[0] * triAreas[1] * triAreas[0] +
-									 normals[1] * triAreas[2] * triAreas[0] +
-									 normals[2] * triAreas[3] * triAreas[0]));
+									   normals[1] * triAreas[2] * triAreas[0] +
+									   normals[2] * triAreas[3] * triAreas[0]   ));
 }
 
 __host__ __device__ float isectTriangle(const glm::ivec3& indices, 
@@ -248,28 +295,37 @@ __host__ __device__ float modelIntersectionTest(const Geom& model, const Ray& r,
 	//https://tavianator.com/fast-branchless-raybounding-box-intersections/	
 	//https://tavianator.com/fast-branchless-raybounding-box-intersections-part-2-nans/
 	//calc inverse of ray slope's so we don't have to use divides during aabb testing
-	const glm::vec3 dir_inv(1.f / r.direction);
+	const glm::vec3 dir_inv(1.f / rloc.direction);
 
 	//needed for finding interp tri attributes later
 	uint32_t closestTriIdx; 
 	float triAreas[4];
-	Vertex vertices[3];
+	//Vertex vertices[3];
 
 	//max stack size should be the maxDepth+1(node depth starts at 0) of the bvh we are traversing, largest I've seen is 32 (lucy.ply 1 tri/node)
 	const uint32_t MSB_32BIT = 0x80000000;
+	const uint32_t NUM_TRIS_MASK = ~MSB_32BIT;
 	const uint32_t MAX_STACK_SIZE = 32;
 	uint32_t stack[MAX_STACK_SIZE];
 	int32_t stackPopIdx = -1;
 	//push the first node index on the stack and update the stackPopIdx
 	stack[++stackPopIdx] = model.modelInfo.startIdxBVHNode;
-	float t = -1.f;
+	float t = FLT_MAX;
+	bool fullTraversal = false;//false
+
+	int debugCount = -1;
+	bool debugCase = false;
+	//YOU CAN PRINTF
 	while (stackPopIdx >= 0) {
+		++debugCount;
 		//pop off the stack to get the bvh index and then fetch the bvh data associated with this item
 		const uint32_t bvhNodeIdx = stack[stackPopIdx--];
 		const BVHNode nodeData = dev_BVHNodes[bvhNodeIdx];
 
+
 		//check if leaf or inner node (msb of first payload member)
 		const bool isInner = (MSB_32BIT & nodeData.payload.leaf.numTriangles) == 0;
+
 
 		if (isInner) {//if inner perform isect testing of the two child aabb's. if both isect, push furthest on the stack, then closest (next pop will be the closer of the nodes)
 			//one function call, pass both children AABB's, return t values, depending on hit combination and who's closer push onto the stack appropriately
@@ -277,12 +333,13 @@ __host__ __device__ float modelIntersectionTest(const Geom& model, const Ray& r,
 			const float tRight = isectAABB(nodeData.rightAABB, rloc, dir_inv);
 
 			if (tLeft != -1.f && tRight != -1.f) {//both hit by ray
-				if (tLeft <= tRight) {//left is closest, push last
+				fullTraversal =  true; //hit both, need full traversal to not slip past something
+				if (tLeft < tRight) {//left is closest, push last
 					stack[++stackPopIdx] = nodeData.payload.inner.rightIdx;
 					stack[++stackPopIdx] = nodeData.payload.inner.leftIdx;
 				} else {//right is closest push last
-					stack[++stackPopIdx] = nodeData.payload.inner.rightIdx;
 					stack[++stackPopIdx] = nodeData.payload.inner.leftIdx;
+					stack[++stackPopIdx] = nodeData.payload.inner.rightIdx;
 				}
 			} else if (tLeft != -1.f) { //only the left hit
 				stack[++stackPopIdx] = nodeData.payload.inner.leftIdx;
@@ -290,15 +347,53 @@ __host__ __device__ float modelIntersectionTest(const Geom& model, const Ray& r,
 				stack[++stackPopIdx] = nodeData.payload.inner.rightIdx;
 			}
 
+			//DEBUG INFO:REMOVE WHEN DONE
+			//AABB aabbtris = nodeData.rightAABB; aabbtris.GrowAABB(nodeData.leftAABB);//diag should be all pos vals
+			//const glm::vec3 d = aabbtris.max - aabbtris.min;
+			//int axis = -1;
+			//if (d.x > d.y && d.x > d.z) { axis = 0; } else if (d.y > d.z) { axis = 1; } else { axis = 2; }
+			//const float overlap = nodeData.leftAABB.max[axis] - nodeData.rightAABB.min[axis];
+			//const glm::vec3 leftHit = getPointOnRay(rloc, tLeft);
+			//const glm::vec3 rightHit = getPointOnRay(rloc, tRight);
+
+			//stop on both hit 
+			//if (debugCount == 0 && tLeft != -1 && tRight != -1) {
+			//	if (tLeft < tRight) {
+			//		t = tLeft; debugCase = true;  break;
+			//	} else {
+			//		t = tRight; debugCase = true; break;
+			//	}
+			//}
+			
+			////exclusively left box (both hit continues)
+			//if (debugCount == 0) {
+			//	if (tLeft != -1 && tRight == -1) {
+			//		t = tLeft; debugCase = true;  break;
+			//	} else if (tLeft == -1 && tRight != -1) {
+			//		t = FLT_MAX;  break;
+			//	}
+			//}
+
+			////exclusively right box (both hit continues)
+			//if (debugCount == 0) {
+			//	if (tRight != -1 && tLeft == -1) {
+			//		t = tRight; debugCase = true;  break;
+			//	} else if (tRight == -1 && tLeft != -1) {
+			//		t = FLT_MAX;  break;
+			//	}
+			//}
+			//DEBUG INFO:REMOVE WHEN DONE
+
+
 		} else {//else begin checking for triangle hits, take the closest amongst the hits, also get normal and uv information
-			float tTriClosest = FLT_MAX;
-			for (int i = 0; i < nodeData.payload.leaf.numTriangles; ++i) {
+			uint32_t numTris = NUM_TRIS_MASK & nodeData.payload.leaf.numTriangles;
+			for (uint32_t i = 0; i < numTris; ++i) {
 				const uint32_t triIdx = nodeData.payload.leaf.startIdx + i;
 				const glm::ivec3 indices = dev_TriIndices[triIdx];
 				float tmpTriAreas[4];
 				float tTri = isectTriangle(indices, dev_TriVertices, rloc, tmpTriAreas);
-				if (tTri != -1.f && tTri < tTriClosest) {
-					tTriClosest = tTri;
+				if (tTri != -1.f && tTri < t) {
+					t = tTri;
 					closestTriIdx = triIdx;
 					//save off data for later use during attribute interpolation
 					triAreas[0] = 1.f/tmpTriAreas[0];
@@ -311,23 +406,27 @@ __host__ __device__ float modelIntersectionTest(const Geom& model, const Ray& r,
 					//vertices[2] = dev_TriVertices[indices[2]];
 				}
 			}
-			//if t value returned from triangle testing was -1.f keep going in the loop else break out of loop
-			if (tTriClosest != FLT_MAX) {
-				t = tTriClosest; 
-				break;
-			}
-		}
-	}
+			if (t != FLT_MAX && !fullTraversal) { break; }//if hit a triangle break out
+		}// else (leaf node)
+	}//while stackPopIdx is valid
 
 	
-	if (t == -1.f || t == FLT_MAX) {//if t is still -1.f return -1.f 
+	if (t == FLT_MAX) {//if t is still FLT_MAX return -1.f 
 		return -1.f;
 	} else { //otherwise find the intersectionPoint and normal with the valid t value (isectpoint - r.origin)
+		//printf("\n%f closestTriHit", t);
 		const glm::vec3 ploc = getPointOnRay(rloc, t);
-		intersectionPoint = glm::vec3(model.transform * glm::vec4(ploc, 1));
-		const glm::ivec3 indices = dev_TriIndices[closestTriIdx];
-		interpTriangleValues(indices, dev_TriVertices, triAreas, normal);
-		normal = glm::normalize(model.invTranspose * normal);
+		intersectionPoint = glm::vec3(model.transform * glm::vec4(ploc, 1));//WHY NOT JUST DO r.orgin + t*r.direction
+
+		//if (debugCase) {
+		//	normal = glm::vec3(0, 0, 0);
+		//} else {
+			const glm::ivec3 indices = dev_TriIndices[closestTriIdx];
+			interpTriangleValues(indices, dev_TriVertices, triAreas, normal);
+			normal = glm::normalize(model.invTranspose * normal);
+		//}
+
+		return t;
 	}
 }
 
@@ -345,10 +444,11 @@ __host__ __device__ float shapeIntersectionTest(const Geom& geom, const Ray& ray
 
 	} else if (geom.type == GeomType::PLANE) {
 		return planeIntersectionTest(geom, ray, intersectionPoint, normal, outside);
-	} 
-	else if (geom.type == GeomType::MODEL) {
+	} else if (geom.type == GeomType::MODEL) {
 		return modelIntersectionTest(geom, ray, intersectionPoint, normal, outside, 
 			dev_BVHNodes, dev_TriIndices, dev_TriVertices);
+	} else {//doesn't recognize the type
+		return -1.f;
 	}
 }
 
@@ -357,7 +457,8 @@ __host__ __device__ float shapeIntersectionTest(const Geom& geom, const Ray& ray
 //////// FIND CLOSEST INTERSECTION /////////
 ////////////////////////////////////////////
 __host__ __device__ glm::vec3 findClosestIntersection(const Ray& ray,
-	const Geom* const geoms, int geoms_size, int& hit_geom_index)
+	const Geom* const geoms, int geoms_size, int& hit_geom_index,
+	const BVHNode* dev_BVHNodes, const glm::ivec3* dev_TriIndices, const Vertex* dev_TriVertices) 
 {
 	float t;
 	float t_min = FLT_MAX;
@@ -380,11 +481,16 @@ __host__ __device__ glm::vec3 findClosestIntersection(const Ray& ray,
 
 		} else if (geom.type == GeomType::PLANE) {
 			t = planeIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside);
+		} else if (geom.type == GeomType::MODEL) {
+			t = modelIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside,
+				dev_BVHNodes, dev_TriIndices, dev_TriVertices);
+		} else {//doesn't recognize the type
+			t = -1.f;
 		}
 
 		// Compute the minimum t from the intersection tests to determine what
 		// scene geometry object was hit first.
-		if (t > 0.0f && t_min > t) {
+		if (0.f < t && t < t_min) {
 			t_min = t;
 			hit_geom_index = i;
 			nisect = tmp_normal;

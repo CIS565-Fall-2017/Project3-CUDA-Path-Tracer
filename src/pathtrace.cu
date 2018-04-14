@@ -22,11 +22,11 @@
 //#include "stream_compaction\sharedandbank.h" 
 //#include "stream_compaction\radix.h" 
 
-#define ERRORCHECK			0 
-#define COMPACT				0 //0 NONE, 1 THRUST, 2 CUSTOM(breaks render, just use for timing compare)
+#define ERRORCHECK			1
+#define COMPACT				1 //Important for expensive things like AS traversal or costly materials; 0 NONE, 1 THRUST, 2 CUSTOM(breaks render, just use for timing compare)
 #define PT_TECHNIQUE		1 //0 NAIVE, 1 MIS, 2 Multikern MIS(currently faster but obviously broken, prob 1 iter then done and thats why faster)
 #define TIMER				0
-#define MATERIALSORTING		0 
+#define MATERIALSORTING		0 //should extend the idea of a material to discriminate between models
 //https://thrust.1ithub.io/doc/group__stream__compaction.html#ga5fa8f86717696de88ab484410b43829b
 //https://stackoverflow.com/questions/34103410/glmvec3-and-epsilon-comparison
 struct isDead { //needed for thrust's predicate, the last arg in remove_if
@@ -42,27 +42,27 @@ void printElapsedTime(T time, std::string note = "")
 	std::cout << "   elapsed time: " << time << "ms    " << note << std::endl;
 }
 //ALREADY DEFINED IN STREAM_COMPACTION
-//#define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
-//#define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
-//void checkCUDAErrorFn(const char *msg, const char *file, int line) {
-//#if ERRORCHECK
-//    cudaDeviceSynchronize();
-//    cudaError_t err = cudaGetLastError();
-//    if (cudaSuccess == err) {
-//        return;
-//    }
-//
-//    fprintf(stderr, "CUDA error");
-//    if (file) {
-//        fprintf(stderr, " (%s:%d)", file, line);
-//    }
-//    fprintf(stderr, ": %s: %s\n", msg, cudaGetErrorString(err));
-//#  ifdef _WIN32
-//    getchar();
-//#  endif
-//    exit(EXIT_FAILURE);
-//#endif
-//}
+#define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+#define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
+void checkCUDAErrorFn(const char *msg, const char *file, int line) {
+#if ERRORCHECK
+    cudaDeviceSynchronize();
+    cudaError_t err = cudaGetLastError();
+    if (cudaSuccess == err) {
+        return;
+    }
+
+    fprintf(stderr, "CUDA error");
+    if (file) {
+        fprintf(stderr, " (%s:%d)", file, line);
+    }
+    fprintf(stderr, ": %s: %s\n", msg, cudaGetErrorString(err));
+#  ifdef _WIN32
+    getchar();
+#  endif
+    exit(EXIT_FAILURE);
+#endif
+}
 
 
 //Kernel that writes the image to the OpenGL PBO directly.
@@ -271,6 +271,28 @@ __global__ void computeIntersections(const int iter, const int depth,
 	if (path_index >= num_paths) { return; }
 	PathSegment pathSegment = pathSegments[path_index];
 
+	int pixelx = pathSegment.MSPaintPixel.x;
+	int pixely = pathSegment.MSPaintPixel.y;
+	//if (440 == pixelx && 440 == pixely) {//by tail, campos (EYE): 3.3 5.3 3.5, when hitting 2nd level
+	//	printf("\npixelx: %i, pixely: %i, depth: %i, iter: %i", pixelx, pixely, depth, iter);
+	//}
+	//if (354 == pixelx && 217 == pixely) {//right of gap, both hit, close but different t
+	//	printf("\npixelx: %i, pixely: %i, depth: %i, iter: %i", pixelx, pixely, depth, iter);
+	//}
+	//if (346 == pixelx && 217 == pixely) {//left of gap, both hit, close but different t
+	//	printf("\npixelx: %i, pixely: %i, depth: %i, iter: %i", pixelx, pixely, depth, iter);
+	//}
+	//if (351 == pixelx && 217 == pixely) {//nub in gap
+	//	printf("\npixelx: %i, pixely: %i, depth: %i, iter: %i", pixelx, pixely, depth, iter);
+	//}
+	//if (351 == pixelx && 216 == pixely) {//above nub in gap
+	//	printf("\npixelx: %i, pixely: %i, depth: %i, iter: %i", pixelx, pixely, depth, iter);
+	//}
+	//if (349 == pixelx && 217 == pixely) {//in gap, both hit, close but different t
+	//	printf("\npixelx: %i, pixely: %i, depth: %i, iter: %i", pixelx, pixely, depth, iter);
+	//}
+
+
 	float t;
 	glm::vec3 intersect_point;
 	glm::vec3 normal;
@@ -295,6 +317,9 @@ __global__ void computeIntersections(const int iter, const int depth,
 			normal = tmp_normal;
 		}
 	}//for i < geoms_size
+	//if (351 == pixelx && 217 == pixely && 0 == depth) {//by mid body, campos (EYE) , when hitting first level
+	//	printf("\nt = %f, Normal: %f, %f, %f", t, normal.x, normal.y, normal.z);
+	//}
 
 
 	//set intersections fields depending on whether we hit anything or not
@@ -325,6 +350,10 @@ __global__ void finalGather(const int nPaths, const glm::ivec2 resolution,
 void pathtrace(uchar4 *pbo, int frame, int iter) { //, const int MAXBOUNCES) {
     const int traceDepth = hst_scene->state.traceDepth;
     const Camera &cam = hst_scene->state.camera;
+	//std::cout << "\n\ncam pos: " << cam.position.x << ", " << cam.position.y << ", " << cam.position.z << "\n";
+	//std::cout << "\ncam view: " << cam.view.x << ", " << cam.view.y << ", " << cam.view.z << "\n";
+	//std::cout << "\ncam right: " << cam.right.x << ", " << cam.right.y << ", " << cam.right.z << "\n";
+
     const int pixelcount = cam.resolution.x * cam.resolution.y;
 
 	// 2D block for generating ray from camera
@@ -395,7 +424,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter) { //, const int MAXBOUNCES) {
 		computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
 			iter, depth, num_paths, dev_paths, dev_geoms, hst_scene->geoms.size(), dev_intersections,
 			dev_BVHNodes, dev_TriIndices, dev_TriVertices);
-		checkCUDAError("trace one bounce");
+		checkCUDAError("computeIntersections");
 		//cudaDeviceSynchronize();
 #if 1 == MATERIALSORTING
 	//copy material ids to to two dev material id arrays. 1 needed for sorting paths and 1 for isects.
@@ -419,31 +448,35 @@ void pathtrace(uchar4 *pbo, int frame, int iter) { //, const int MAXBOUNCES) {
 
 #if 0 == PT_TECHNIQUE
 		shadeMaterialNaive << <numblocksPathSegmentTracing, blockSize1d >> > (
-			iter, num_paths, dev_intersections, dev_paths, dev_materials, dev_geoms
+			iter, num_paths, dev_intersections, dev_paths, dev_materials, dev_geoms,
+			dev_BVHNodes, dev_TriIndices, dev_TriVertices
 			);
 		checkCUDAError("shadeMaterial");
 #elif 1 == PT_TECHNIQUE
 		shadeMaterialMIS << <numblocksPathSegmentTracing, blockSize1d >> > (
 			iter, depth, numlights, traceDepth, num_paths, dev_intersections, dev_paths,
-			dev_materials, dev_geomLightIndices, dev_geoms, hst_scene->geoms.size()
-			);
+			dev_materials, dev_geomLightIndices, dev_geoms, hst_scene->geoms.size(),
+			dev_BVHNodes, dev_TriIndices, dev_TriVertices);
 		checkCUDAError("shadeMaterial");
 #elif 2 == PT_TECHNIQUE
 		shadeMaterialMIS_DLlight << <numblocksPathSegmentTracing, blockSize1d >> > (
 			iter, depth, numlights, traceDepth, num_paths, dev_intersections, dev_paths,
-			dev_materials, dev_geomLightIndices, dev_geoms, hst_scene->geoms.size()
+			dev_materials, dev_geomLightIndices, dev_geoms, hst_scene->geoms.size(),
+			dev_BVHNodes, dev_TriVertices, dev_TriVertices
 			);
 		checkCUDAError("shadeMaterial");
 
 		shadeMaterialMIS_DLbxdf << <numblocksPathSegmentTracing, blockSize1d >> > (
 			iter, depth, numlights, traceDepth, num_paths, dev_intersections, dev_paths,
-			dev_materials, dev_geomLightIndices, dev_geoms, hst_scene->geoms.size()
+			dev_materials, dev_geomLightIndices, dev_geoms, hst_scene->geoms.size(),
+			dev_BVHNodes, dev_TriVertices, dev_TriVertices
 			);
 		checkCUDAError("shadeMaterial");
 
 		shadeMaterialMIS_throughput << <numblocksPathSegmentTracing, blockSize1d >> > (
 			iter, depth, numlights, traceDepth, num_paths, dev_intersections, dev_paths,
-			dev_materials, dev_geomLightIndices, dev_geoms, hst_scene->geoms.size()
+			dev_materials, dev_geomLightIndices, dev_geoms, hst_scene->geoms.size(),
+			dev_BVHNodes, dev_TriVertices, dev_TriVertices
 			);
 				//gpuErrchk(cudaPeekAtLastError());
 				//gpuErrchk(cudaDeviceSynchronize());

@@ -5,7 +5,7 @@ FOVY        19.5
 ITERATIONS  20000
 DEPTH       10
 FILE        cornell
-EYE         0.0 5 19
+EYE         -0.35 3.9 5.6
 LOOKAT      0 5 0
 UP          0 1 0
 
@@ -100,12 +100,12 @@ SSS         1
 SIGA        0.0021 0.0041 0.0071
 SIGSPRIME   2.19 2.62 3
 
-// Ceiling light
+// The light
 OBJECT 0
 sphere
 modelpath
 material 0
-TRANS       2.5 2.5 -2
+TRANS       -0.29 5 8
 ROTAT       0 0 0
 SCALE       1 1 1
 
@@ -154,20 +154,11 @@ TRANS       5 5 0
 ROTAT       0 0 0
 SCALE       .01 10 10
 
-// Sphere
-OBJECT 6
-cube
-modelpath
-material 5
-TRANS       -2.5 6 1
-ROTAT       45 45 0
-SCALE       2 2 2
-
 // Model
-OBJECT 7
-sphere
-modelpath ../res/objects/tri1/tri1.obj false 1.0
+OBJECT 6
+model
+modelpath ../res/objects/bunny/bunny.ply false 1.0
 material 2
-TRANS       0 0 0 
+TRANS       0 2 1 
 ROTAT       0 0 0
-SCALE       1 1 1
+SCALE       40 40 40 

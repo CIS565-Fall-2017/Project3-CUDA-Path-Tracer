@@ -24,8 +24,8 @@
 __global__ void shadeMaterialNaive (
   const int iter, const int num_paths, 
 	const ShadeableIntersection * shadeableIntersections, 
-	PathSegment * pathSegments, const Material * materials, const Geom* dev_geoms
-	)
+	PathSegment * pathSegments, const Material * materials, const Geom* dev_geoms,
+	const BVHNode* dev_BVHNodes, const glm::ivec3* dev_TriIndices, const Vertex* dev_TriVertices )
 {
 	const int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -65,7 +65,7 @@ __global__ void shadeMaterialNaive (
 	//Hit Material, generate new ray for the path(wi), get pdf and color for the material, use those to mix with the path's existing color
 	float bxdfPDF; glm::vec3 bxdfColor;
 	thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, path.remainingBounces);
-	scatterRayNaive(path, isect, material, bxdfPDF, bxdfColor, rng, dev_geoms);
+	scatterRayNaive(path, isect, material, bxdfPDF, bxdfColor, rng, dev_geoms, dev_BVHNodes, dev_TriIndices, dev_TriVertices);
 	if (0 >= bxdfPDF || isBlack(bxdfColor)) {
 		path.color = glm::vec3(0.0f);
 		path.remainingBounces = 0;
@@ -82,7 +82,8 @@ __global__ void shadeMaterialMIS_DLlight(const int iter, const int depth,
 	const int numlights, const int MAXBOUNCES,
 	const int num_paths, const ShadeableIntersection* shadeableIntersections,
 	PathSegment* pathSegments, const Material* materials, 
-	const int* dev_geomLightIndices, const Geom* dev_geoms, const int numgeoms) 
+	const int* dev_geomLightIndices, const Geom* dev_geoms, const int numgeoms,
+	const BVHNode* dev_BVHNodes, const glm::ivec3* dev_TriIndices, const Vertex* dev_TriVertices) 
 {
 	const int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	const int terminatenumber = -100;
@@ -163,7 +164,7 @@ __global__ void shadeMaterialMIS_DLlight(const int iter, const int depth,
 
 	//get the closest intersection in scene
 	int hitgeomindex = -1;
-	findClosestIntersection(wiray_direct, dev_geoms, numgeoms, hitgeomindex);
+	findClosestIntersection(wiray_direct, dev_geoms, numgeoms, hitgeomindex, dev_BVHNodes, dev_TriIndices, dev_TriVertices);
 
 	//TODO: prob only need first and last condition
 	if (0 >= pdfdirect || 0 > hitgeomindex || hitgeomindex != randlightindex) {
@@ -186,7 +187,8 @@ __global__ void shadeMaterialMIS_DLbxdf(const int iter, const int depth,
 	const int numlights, const int MAXBOUNCES,
 	const int num_paths, const ShadeableIntersection* shadeableIntersections,
 	PathSegment* pathSegments, const Material* materials,
-	const int* dev_geomLightIndices, const Geom* dev_geoms, const int numgeoms) 
+	const int* dev_geomLightIndices, const Geom* dev_geoms, const int numgeoms,
+	const BVHNode* dev_BVHNodes, const glm::ivec3* dev_TriIndices, const Vertex* dev_TriVertices) 
 {
 	const int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	const int terminatenumber = -100;
@@ -223,15 +225,15 @@ __global__ void shadeMaterialMIS_DLbxdf(const int iter, const int depth,
 	glm::vec3 widirectsample;
 	float pdfdirectsample;
 	PathSegment pathcopy = path;//scatterRayNaive updates the path with isect origin and wi direction
-	scatterRayNaive(pathcopy, isect, m, pdfdirectsample, colordirectsample, rng, dev_geoms);
+	scatterRayNaive(pathcopy, isect, m, pdfdirectsample, colordirectsample, rng, dev_geoms, dev_BVHNodes, dev_TriIndices, dev_TriVertices);
 	widirectsample = pathcopy.ray.direction;
 	if (glm::length2(colordirectsample) > 0 && pdfdirectsample > 0) {
-		float DLPdf_for_directsample = lightPdfLi(randlight, pisect, widirectsample);
+		float DLPdf_for_directsample = lightPdfLi(randlight, pisect, widirectsample, dev_BVHNodes, dev_TriIndices, dev_TriVertices);
 
 		if (DLPdf_for_directsample > 0) {//widirectsample can hit it (might not be closest though)
 			Ray widirectsampleRay; widirectsampleRay.direction = widirectsample; widirectsampleRay.origin = pisect;
 			int posslightindex;//we know a our light is in the widirectsample direction, lets try to hit it, and hopefully its the closest light
-			const glm::vec3 nposslight = findClosestIntersection(widirectsampleRay, dev_geoms, numgeoms, posslightindex);
+			const glm::vec3 nposslight = findClosestIntersection(widirectsampleRay, dev_geoms, numgeoms, posslightindex, dev_BVHNodes, dev_TriIndices, dev_TriVertices);
 
 			if (posslightindex == randlightindex) {//only want one light per direct lighting sample pair(need to sample both a rand light and the material bxdf to cover edge cases of combos of light size/intensity and bxdf)
 				DLPdf_for_directsample /= numlights;
@@ -262,7 +264,8 @@ __global__ void shadeMaterialMIS_throughput(const int iter, const int depth,
 	const int numlights, const int MAXBOUNCES,
 	const int num_paths, const ShadeableIntersection* shadeableIntersections,
 	PathSegment* pathSegments, const Material* materials,
-	const int* dev_geomLightIndices, const Geom* dev_geoms, const int numgeoms) 
+	const int* dev_geomLightIndices, const Geom* dev_geoms, const int numgeoms,
+	const BVHNode* dev_BVHNodes, const glm::ivec3* dev_TriIndices, const Vertex* dev_TriVertices)
 {
 	const int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	const int terminatenumber = -100;
@@ -290,7 +293,7 @@ __global__ void shadeMaterialMIS_throughput(const int iter, const int depth,
 	if (1 == m.hasSubSurface) {
 	const int randlightindex = dev_geomLightIndices[int( u01(rng)*numlights )];
 		path.color += path.throughput*getBSSRDF_DL(path, isect, materials, rng, 
-			randlightindex, numlights, dev_geoms, numgeoms);
+			randlightindex, numlights, dev_geoms, numgeoms, dev_BVHNodes, dev_TriIndices, dev_TriVertices);
 		//global ray will just be cos sampled dir from the last Sd disk sample
 		path.remainingBounces = terminatenumber;
 		return;
@@ -336,7 +339,8 @@ void MIS_BxdfSampleContribuition(glm::vec3& colordirectsample, const glm::vec3& 
 	const PathSegment& path, const Material& m, 
 	const Geom& randlight, const int randlightindex, const int numlights,
 	thrust::default_random_engine& rng, const Material* materials,
-	const Geom* dev_geoms, const int numgeoms
+	const Geom* dev_geoms, const int numgeoms,
+	const BVHNode* dev_BVHNodes, const glm::ivec3* dev_TriIndices, const Vertex* dev_TriVertices
 ) 
 {
 	if (1 == path.specularbounce) { return; }
@@ -344,7 +348,7 @@ void MIS_BxdfSampleContribuition(glm::vec3& colordirectsample, const glm::vec3& 
 	glm::vec3 widirectsample;
 	float pdfdirectsample;
 	PathSegment pathcopy = path;//scatterRayNaive updates the path with isect origin and wi direction, so make copy
-	scatterRayNaive(pathcopy, isect, m, pdfdirectsample, colordirectsample, rng, dev_geoms);
+	scatterRayNaive(pathcopy, isect, m, pdfdirectsample, colordirectsample, rng, dev_geoms, dev_BVHNodes, dev_TriIndices, dev_TriVertices);
 	widirectsample = pathcopy.ray.direction;
 	////////////REMOVE isBlack CHECK///////////////////////
 	if (0 >= glm::length2(colordirectsample) || 0 >= pdfdirectsample || !isBlack(colordirect)) {//only take if we got nothing for surface sampling part
@@ -352,7 +356,7 @@ void MIS_BxdfSampleContribuition(glm::vec3& colordirectsample, const glm::vec3& 
 		return;
 	}
 
-	float DLPdf_for_directsample = lightPdfLi(randlight, pisect, widirectsample);
+	float DLPdf_for_directsample = lightPdfLi(randlight, pisect, widirectsample, dev_BVHNodes, dev_TriIndices, dev_TriVertices);
 
 	//widirectsample can hit it (might not be closest though)
 	if (0 >= DLPdf_for_directsample) {
@@ -362,7 +366,8 @@ void MIS_BxdfSampleContribuition(glm::vec3& colordirectsample, const glm::vec3& 
 
 	Ray widirectsampleRay; widirectsampleRay.direction = widirectsample; widirectsampleRay.origin = pisect;
 	int posslightindex;//we know a our light is in the widirectsample direction, lets try to hit it, and hopefully its the closest light
-	const glm::vec3 nposslight = findClosestIntersection(widirectsampleRay, dev_geoms, numgeoms, posslightindex);
+	const glm::vec3 nposslight = findClosestIntersection(widirectsampleRay, dev_geoms, numgeoms, posslightindex,
+															dev_BVHNodes, dev_TriIndices, dev_TriVertices);
 
 	//only want one light per direct lighting sample pair
 	//need to sample both a rand light and the material bxdf
@@ -387,7 +392,9 @@ void MIS_LightSampleContribution(glm::vec3& colordirect, const ShadeableIntersec
 	const glm::vec3& wo, const PathSegment& path, const Material& m, 
 	const Geom& randlight, const int randlightindex, const int numlights,
 	thrust::default_random_engine& rng, const Material* materials,  
-	const Geom* dev_geoms, const int numgeoms
+	const Geom* dev_geoms, const int numgeoms,
+	const BVHNode* dev_BVHNodes, const glm::ivec3* dev_TriIndices, const Vertex* dev_TriVertices
+
 ) 
 {
 	if (1 == path.specularbounce) { return; }
@@ -398,7 +405,7 @@ void MIS_LightSampleContribution(glm::vec3& colordirect, const ShadeableIntersec
 	//if BSSRDF then need xi and ni, xo and no is where our ray first hit
 	if (1 == m.hasSubSurface) {
 		//just do single and multi scatter direct lighting here
-		colordirect = getBSSRDF_DL(path, isect, materials, rng, randlightindex, numlights, dev_geoms, numgeoms);
+		colordirect = getBSSRDF_DL(path, isect, materials, rng, randlightindex, numlights, dev_geoms, numgeoms, dev_BVHNodes, dev_TriIndices, dev_TriVertices);
 		return;
 	}
 	glm::vec3 plightsamp; glm::vec3 nlightsamp;
@@ -414,7 +421,7 @@ void MIS_LightSampleContribution(glm::vec3& colordirect, const ShadeableIntersec
 
 	//get the closest intersection in scene
 	int hitgeomindex = -1;
-	findClosestIntersection(wiray_direct, dev_geoms, numgeoms, hitgeomindex);
+	findClosestIntersection(wiray_direct, dev_geoms, numgeoms, hitgeomindex, dev_BVHNodes, dev_TriIndices, dev_TriVertices);
 	if (hitgeomindex != randlightindex) { 
 		colordirect = glm::vec3(0); 
 		return; 
@@ -435,7 +442,9 @@ __global__ void shadeMaterialMIS(const int iter, const int depth,
 	const int numlights, const int MAXBOUNCES,
 	const int num_paths, const ShadeableIntersection* shadeableIntersections,
 	PathSegment* pathSegments, const Material* materials, 
-	const int* dev_geomLightIndices, const Geom* dev_geoms, const int numgeoms) 
+	const int* dev_geomLightIndices, const Geom* dev_geoms, const int numgeoms,
+	const BVHNode* dev_BVHNodes, const glm::ivec3* dev_TriIndices, const Vertex* dev_TriVertices
+	) 
 {
 	const int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	const int terminatenumber = -100;
@@ -500,12 +509,13 @@ __global__ void shadeMaterialMIS(const int iter, const int depth,
 	glm::vec3 colordirect(0.f);
 	MIS_LightSampleContribution(colordirect, isect, pisect, nisect, 
 		wo, path, m, randlight, randlightindex, 
-		numlights, rng, materials, dev_geoms, numgeoms);
+		numlights, rng, materials, dev_geoms, numgeoms,
+		dev_BVHNodes, dev_TriIndices, dev_TriVertices);
 
 	glm::vec3 colordirectsample(0.f);
 	MIS_BxdfSampleContribuition(colordirectsample, colordirect,
 		pisect, isect, path, m, randlight, randlightindex, numlights, rng, materials,
-		dev_geoms, numgeoms);
+		dev_geoms, numgeoms, dev_BVHNodes, dev_TriIndices, dev_TriVertices);
 
 	//IF SPECULARBOUNCE, PROB SHOULDNT DO ANY OF THE DIRECT LIGHTING SINCE WE WILL DOUBLE COUNT IT IF IT WAS HEADING TOWARDS A LIGHT ANYWAY
 	//taken care of in the direct light importance sampling functions, these components get skipped if specbounce
@@ -521,7 +531,7 @@ __global__ void shadeMaterialMIS(const int iter, const int depth,
 	//get global illum ray from bxdf and loop
 	//do a normal samplef to get wi pdf and color
 	float bxdfPDF; glm::vec3 bxdfColor;
-	scatterRayNaive(path, isect, m, bxdfPDF, bxdfColor, rng, dev_geoms);
+	scatterRayNaive(path, isect, m, bxdfPDF, bxdfColor, rng, dev_geoms, dev_BVHNodes, dev_TriIndices, dev_TriVertices);
 	const glm::vec3 bxdfWi = path.ray.direction;
 	const glm::vec3 normal = isect.surfaceNormal;
 

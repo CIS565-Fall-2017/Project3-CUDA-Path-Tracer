@@ -46,9 +46,10 @@ void AABB::GrowAABB(const AABB& aabb) {
 }
 
 void AABB::AddMargin() {
-	constexpr float margin = 0.005;
-	min -= glm::vec3( margin,  margin,  margin);
-	max += glm::vec3( margin,  margin,  margin);
+	constexpr float halfPercent = 0.00f;
+	const glm::vec3 margin = (max - min) * halfPercent;
+	min -= margin;
+	max += margin;
 }
 
 void AABB::GrowAABBFromCentroid(const glm::vec3& centroid) {
@@ -285,7 +286,7 @@ uint32_t BVH::RecurseBuildBVH(std::vector<TriangleBVHData>& triangleBvhData, con
 	uint32_t& allocIdx, const uint32_t currentDepth, uint32_t& totalInnerNodes, uint32_t& totalLeafNodes)
 {
 	//NOTE: Should all uint32_t's be uint64_t's to handle several million triangle meshes??? Does CUDA handle uint64_t addresses?
-	constexpr uint32_t maxTrianglesPerNode = 4;
+	constexpr uint32_t maxTrianglesPerNode = 2;//8//didn't see all the triangles on the bunny (1 on top of tail) even though I tested pushing all tris to top node, assimp issues?
 	constexpr uint32_t numBinsPerNode = 16;//paper said 16 was as high as you need to go, however if this is too large and the mesh is also very large could get __chkstk() failure since we allocate a std::array (goes on stack) for each recursion call
 	constexpr uint32_t lastBinIdx = numBinsPerNode - 1;
 
@@ -471,13 +472,18 @@ uint32_t BVH::RecurseBuildBVH(std::vector<TriangleBVHData>& triangleBvhData, con
 	//TriangleBVHData is partitioned, make a BVHNode, save it to the array and recurse on the children
 	++totalInnerNodes;
 	BVHNode innerNode;
-	innerNode.leftAABB = binInfoSAH[partitionWithMinSAH].aabbLeft;
-	innerNode.rightAABB = binInfoSAH[partitionWithMinSAH].aabbRight;
+	innerNode.leftAABB = binInfoSAH[partitionWithMinSAH].aabbLeft;   innerNode.leftAABB.AddMargin();
+	innerNode.rightAABB = binInfoSAH[partitionWithMinSAH].aabbRight; innerNode.rightAABB.AddMargin();
 	innerNode.payload.inner.leftIdx = ++allocIdx;
 	innerNode.payload.inner.rightIdx = ++allocIdx;
 	mBVHNodes[nodeAllocIdx] = innerNode;
 
+	//DEBUG INFO: TODO: REMOVE WHEN DONE
+	//DEBUG INFO: TODO: REMOVE WHEN DONE
 
+	if (startIdx == 20067 && 20169) {
+		int itWasY = 1;//check and see if the centroid aabb has a neg comp too
+	}
 	const uint32_t leftDepth = RecurseBuildBVH(triangleBvhData, startIdx, onePastLeftPartition,
 		binInfoSAH[partitionWithMinSAH].centroidAABBLeft, innerNode.payload.inner.leftIdx,
 		allocIdx, currentDepth+1, totalInnerNodes, totalLeafNodes);

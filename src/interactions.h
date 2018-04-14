@@ -196,14 +196,14 @@ float powerHeuristic3(const int nf, const float fPdf,
 
 __host__ __device__
 float lightPdfLi(const Geom& randlight, const glm::vec3& pisect, 
-	const glm::vec3& wi) 
+	const glm::vec3& wi, const BVHNode* dev_BVHNodes, const glm::ivec3* dev_TriIndices, const Vertex* dev_TriVertices
+	) 
 {
 	glm::vec3 pisect_thislight; glm::vec3 nisect_thislight;
 	Ray wiWray; wiWray.origin = pisect; wiWray.direction = wi;
 
-
 	bool outside;
-    if(0.f > shapeIntersectionTest(randlight, wiWray, pisect_thislight, nisect_thislight,outside, nullptr, nullptr, nullptr)) {
+    if(0.f > shapeIntersectionTest(randlight, wiWray, pisect_thislight, nisect_thislight,outside, dev_BVHNodes, dev_TriIndices, dev_TriVertices)) {
         return 0.f;
     }
 
@@ -507,7 +507,8 @@ glm::vec3 getL_S1(const Ray& pathray,
 	const ShadeableIntersection& isect,  const int randlightindex, 
 	const int numlights, thrust::default_random_engine& rng,
 	const Material* materials,
-	const Geom* dev_geoms, const int numgeoms, const int NUMSPLITS) 
+	const Geom* dev_geoms, const int numgeoms, const int NUMSPLITS,
+	const BVHNode* dev_BVHNodes, const glm::ivec3* dev_TriIndices, const Vertex* dev_TriVertices)
 {
 	////single scattering 
  //   //L(1) (integrating S(1)) jensen page 6
@@ -562,7 +563,7 @@ glm::vec3 getL_S1(const Ray& pathray,
 			//poke through first
 			const Geom& thisgeom = dev_geoms[isect.geomId];
 			bool outside;
-			const float tsurface = shapeIntersectionTest(thisgeom, wiray_direct, psurface, nsurface, outside, nullptr, nullptr, nullptr);
+			const float tsurface = shapeIntersectionTest(thisgeom, wiray_direct, psurface, nsurface, outside, dev_BVHNodes, dev_TriIndices, dev_TriVertices);
 			if (thisgeom.type == GeomType::CUBE && glm::dot(nsurface, widirect) < 0.f)	nsurface *= -1;//cube is flipping the normal other shapes aren't
 			psurface += nsurface*0.005f;//need a little more umf than EPSILON
 			//if (0 > tsurface || outside == true) { continue; }//if our scatter length is outside? prob set a point below the surface and shoot in the direction of refracted and see what tmax is
@@ -577,7 +578,7 @@ glm::vec3 getL_S1(const Ray& pathray,
 		//we want to see if light can see this point on the surface
 		Ray surfaceray; surfaceray.direction = glm::normalize((plightsamp - nlightsamp*0.05f) - psurface); surfaceray.origin = psurface;
 		int hitgeomindex = -1;
-		findClosestIntersection(surfaceray, dev_geoms, numgeoms, hitgeomindex);
+		findClosestIntersection(surfaceray, dev_geoms, numgeoms, hitgeomindex, dev_BVHNodes, dev_TriIndices, dev_TriVertices);
 
 		//TODO: prob only need first and last condition
 		if (hitgeomindex != randlightindex) { continue; }
@@ -617,7 +618,8 @@ __host__ __device__
 glm::vec3 getL_Sd(const Ray& pathray, const ShadeableIntersection& isect, 
 	const int randlightindex, const int numlights, 
 	thrust::default_random_engine& rng, const Material* materials, 
-	const Geom* dev_geoms, const int numgeoms, const int NUMSPLITS) 
+	const Geom* dev_geoms, const int numgeoms, const int NUMSPLITS,
+	const BVHNode* dev_BVHNodes, const glm::ivec3* dev_TriIndices, const Vertex* dev_TriVertices)
 {
 	//Sd jensen page 3
 	//we may want to perform splitting if the frame time isnt too bad,
@@ -651,7 +653,7 @@ glm::vec3 getL_Sd(const Ray& pathray, const ShadeableIntersection& isect,
 
 			const Geom& thisgeom = dev_geoms[isect.geomId];
 			bool outside;
-			const float t = shapeIntersectionTest(thisgeom, discRay, pPHit, nPHit, outside, nullptr, nullptr, nullptr);
+			const float t = shapeIntersectionTest(thisgeom, discRay, pPHit, nPHit, outside, dev_BVHNodes, dev_TriIndices, dev_TriVertices);
 			if (thisgeom.type == GeomType::CUBE && !outside) { nPHit *= -1.f; } //cube's flipping the normal, other shapes aren't
 			pPHit += nPHit*EPSILON;
 
@@ -681,7 +683,7 @@ glm::vec3 getL_Sd(const Ray& pathray, const ShadeableIntersection& isect,
 		Ray wiray_direct; wiray_direct.direction = glm::normalize((plightsamp-nlightsamp*0.05f) - pPHit); wiray_direct.origin = pPHit;
 		//get the closest intersection in scene
 		int hitgeomindex = -1;
-		findClosestIntersection(wiray_direct, dev_geoms, numgeoms, hitgeomindex);
+		findClosestIntersection(wiray_direct, dev_geoms, numgeoms, hitgeomindex, dev_BVHNodes, dev_TriIndices, dev_TriVertices);
 
 		if (hitgeomindex != randlightindex) { continue; }
 		const float absdotdirect = absDot(widirect, nPHit);
@@ -705,16 +707,17 @@ __host__ __device__
 glm::vec3 getBSSRDF_DL(const PathSegment& path, 
 	const ShadeableIntersection& isect, const Material* materials, 
 	thrust::default_random_engine& rng, const int randlightindex,
-	const int numlights, const Geom* dev_geoms, const int numgeoms
+	const int numlights, const Geom* dev_geoms, const int numgeoms,
+	const BVHNode* dev_BVHNodes, const glm::ivec3* dev_TriIndices, const Vertex* dev_TriVertices
 ) 
 {
 	const int NUMSPLITS = 10; 
 
 	const glm::vec3 multiscatterTerm = getL_Sd(path.ray, isect, randlightindex,
-		numlights, rng, materials, dev_geoms, numgeoms, NUMSPLITS);
+		numlights, rng, materials, dev_geoms, numgeoms, NUMSPLITS, dev_BVHNodes, dev_TriIndices, dev_TriVertices);
 	
 	const glm::vec3 singlescatterTerm = getL_S1(path.ray, isect, randlightindex,
-		numlights, rng, materials, dev_geoms, numgeoms, NUMSPLITS);
+		numlights, rng, materials, dev_geoms, numgeoms, NUMSPLITS, dev_BVHNodes, dev_TriIndices, dev_TriVertices);
 
 	return multiscatterTerm + singlescatterTerm;
 	//return multiscatterTerm;
@@ -723,8 +726,8 @@ glm::vec3 getBSSRDF_DL(const PathSegment& path,
 
 __host__ __device__
 void chooseSubSurface(PathSegment& path, ShadeableIntersection& isect, const Material& m,
-	float& bxdfPDF, glm::vec3& bxdfColor, thrust::default_random_engine& rng,
-    const Geom* dev_geoms)
+	float& bxdfPDF, glm::vec3& bxdfColor, thrust::default_random_engine& rng, const Geom* dev_geoms, 
+	const BVHNode* dev_BVHNodes, const glm::ivec3* dev_TriIndices, const Vertex* dev_TriVertices )
 {
 	//disk sample until we get a hit
 	const glm::vec3 wo = -path.ray.direction;
@@ -752,7 +755,7 @@ void chooseSubSurface(PathSegment& path, ShadeableIntersection& isect, const Mat
 		//intersection should return a new intersection within max_t with a pos and normal
 		const Geom& thisgeom = dev_geoms[isect.geomId];
 		bool outside;
-		const float t = shapeIntersectionTest(thisgeom, discRay, pPHit, nPHit, outside, nullptr, nullptr, nullptr);
+		const float t = shapeIntersectionTest(thisgeom, discRay, pPHit, nPHit, outside, dev_BVHNodes, dev_TriIndices, dev_TriVertices);
 		if (thisgeom.type == GeomType::CUBE && !outside) { nPHit *= -1.f; } //cube's flipping the normal, other shapes aren't
 		pPHit += nPHit*0.005f;
 
@@ -821,7 +824,9 @@ void scatterRayNaive(
 	const Material& m,
 	float& bxdfPDF,
 	glm::vec3& bxdfColor,
-	thrust::default_random_engine &rng, const Geom* dev_geoms) {
+	thrust::default_random_engine &rng, const Geom* dev_geoms, 
+	const BVHNode* dev_BVHNodes, const glm::ivec3* dev_TriIndices, const Vertex* dev_TriVertices )
+{
 	// TODO: implement this.
 	// A basic implementation of pure-diffuse shading will just call the
 	// calculateRandomDirectionInHemisphere defined above.
@@ -840,7 +845,7 @@ void scatterRayNaive(
 	 if (1 == m.hasSubSurface) {//subsurface
 		thrust::uniform_real_distribution<float> u01(0, 1);
 
-		//BAD
+		//BAD, fireflies galore
 		//float SchlickR = 0.f;
 		//if (1 == m.hasReflective) { 
 		//	float SchlickR0 = (1.f - m.indexOfRefraction) / (1.f + m.indexOfRefraction);
@@ -864,7 +869,8 @@ void scatterRayNaive(
 			chooseReflection(path, isect, m, bxdfPDF, bxdfColor, rng, true, prob);
 			path.specularbounce = true;
 		} else {
-			chooseSubSurface(path, isect, m, bxdfPDF, bxdfColor, rng, dev_geoms);
+			chooseSubSurface(path, isect, m, bxdfPDF, bxdfColor, rng, dev_geoms, 
+				dev_BVHNodes, dev_TriIndices, dev_TriVertices);
 			bxdfPDF *= (1.f - prob);
 		}
      } else if (0 == m.hasReflective && 0 == m.hasRefractive) {//just diffuse

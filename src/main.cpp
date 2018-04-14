@@ -14,7 +14,7 @@ static bool middleMousePressed = false;
 static double lastX;
 static double lastY;
 
-static bool camchanged = true;
+static bool camchanged = false;
 static float dtheta = 0, dphi = 0;
 static glm::vec3 cammove;
 
@@ -162,6 +162,10 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
         break;
       case GLFW_KEY_S:
         saveImage();
+        break;
+      case GLFW_KEY_P:
+        renderState = &scene->state;
+		std::cout << "\nCam Pos: " << renderState->camera.position.x << ", " << renderState->camera.position.y << ", " << renderState->camera.position.z;
         break;
       case GLFW_KEY_SPACE:
         camchanged = true;
