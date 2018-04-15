@@ -281,6 +281,7 @@ __host__ __device__ float modelIntersectionTest(const Geom& model, const Ray& r,
 			const float tLeft = isectAABB(nodeData.leftAABB, rloc, dir_inv);
 			const float tRight = isectAABB(nodeData.rightAABB, rloc, dir_inv);
 
+
 			if (tLeft != -1.f && tRight != -1.f) {//both hit by ray
 				fullTraversal = true;
 				if (tLeft < tRight) {//left is closest, push last

@@ -46,10 +46,10 @@ void AABB::GrowAABB(const AABB& aabb) {
 }
 
 void AABB::AddMargin() {
-	constexpr float halfPercent = 0.00f;
-	const glm::vec3 margin = (max - min) * halfPercent;
-	min -= margin;
-	max += margin;
+	//constexpr float halfPercent = 0.00f;
+	//const glm::vec3 margin = (max - min) * halfPercent;
+	//min -= margin;
+	//max += margin;
 }
 
 void AABB::GrowAABBFromCentroid(const glm::vec3& centroid) {

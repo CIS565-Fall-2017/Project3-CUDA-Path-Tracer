@@ -105,7 +105,7 @@ OBJECT 0
 sphere
 modelpath
 material 0
-TRANS       -2.5 6 -2.5
+TRANS       2.5 5 5
 ROTAT       0 0 0
 SCALE       1 1 1
 
@@ -161,4 +161,4 @@ modelpath ../res/objects/bunny/bunny.ply false 1.0
 material 2
 TRANS       0 1 0 
 ROTAT       0 0 0
-SCALE       30 30 30 
+SCALE       40 40 40 
