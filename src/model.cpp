@@ -71,8 +71,9 @@ Model::Model(const std::string& path, const bool mirrored, const float unifscale
 
 void Model::loadModel(const std::string& path) {
 	Assimp::Importer importer;
-	const aiScene* scene = importer.ReadFile(path, aiProcess_Triangulate | aiProcess_FlipUVs | 
-		aiProcess_CalcTangentSpace | aiProcess_GenSmoothNormals | aiProcess_JoinIdenticalVertices | aiProcess_GenUVCoords);
+	//const aiScene* scene = importer.ReadFile(path, aiProcess_Triangulate | aiProcess_FlipUVs | 
+	//	aiProcess_CalcTangentSpace | aiProcess_GenSmoothNormals | aiProcess_JoinIdenticalVertices | aiProcess_GenUVCoords);
+	const aiScene* scene = importer.ReadFile(path, aiProcess_GenSmoothNormals | aiProcess_JoinIdenticalVertices);
 	if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {
 		std::cout << "ERROR::ASSIMP:: " << importer.GetErrorString() << std::endl;
 		return;
