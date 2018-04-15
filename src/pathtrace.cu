@@ -26,7 +26,7 @@
 #define COMPACT				0 //removes dead rays. Important for expensive things like AS traversal or costly materials; 0 NONE, 1 THRUST, 2 CUSTOM(breaks render, just use for timing compare)
 #define PT_TECHNIQUE		1 //0 NAIVE, 1 MIS, 2 Multikern MIS(currently faster but obviously broken, prob 1 iter then done and thats why faster)
 #define TIMER				0
-#define MATERIALSORTING		1 //should extend the idea of a material to discriminate between models
+#define MATERIALSORTING		0 //should extend the idea of a material to discriminate between models
 //https://thrust.1ithub.io/doc/group__stream__compaction.html#ga5fa8f86717696de88ab484410b43829b
 //https://stackoverflow.com/questions/34103410/glmvec3-and-epsilon-comparison
 struct isDead { //needed for thrust's predicate, the last arg in remove_if

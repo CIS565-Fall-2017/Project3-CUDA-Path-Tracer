@@ -74,7 +74,7 @@ SSS         0
 SIGA        0 0 0
 SIGSPRIME   0 0 0
 
-// Refractive white
+// Refractive green
 MATERIAL 5
 RGB         0.90 0.9 1 
 SPECEX      0
@@ -100,12 +100,25 @@ SSS         1
 SIGA        0.0021 0.0041 0.0071
 SIGSPRIME   2.19 2.62 3
 
+// Refractive 
+MATERIAL 7
+RGB         1.0 0.9 0.9 
+SPECEX      0
+SPECRGB     0.9 0.9 1.0
+REFL        1
+REFR        1
+REFRIOR     1.49
+EMITTANCE   0
+SSS         0
+SIGA        0 0 0
+SIGSPRIME   0 0 0
+
 // Ceiling light
 OBJECT 0
 sphere
 modelpath
 material 0
-TRANS       2.5 5 5
+TRANS       2.5 7.5 -2.5
 ROTAT       0 0 0
 SCALE       1 1 1
 
@@ -154,11 +167,38 @@ TRANS       5 5 0
 ROTAT       0 0 0
 SCALE       .01 10 10
 
+//// cube
+//OBJECT 6
+//cube
+//modelpath 
+//material 5
+//TRANS       -2.5 6.5 0 
+//ROTAT       45 45 0
+//SCALE       2 2 2 
+
+//// Model
+//OBJECT 6
+//model
+//modelpath ../res/objects/dragon/dragon.ply false 1.0
+//material 5
+//TRANS       -0.8 -1.6 1 
+//ROTAT       0 20 0
+//SCALE       40 40 40 
+
 // Model
 OBJECT 6
 model
+modelpath ../res/objects/dragon/dragon.obj false 1.0
+material 5
+TRANS       -0.9 0.3 1.0 
+ROTAT       0 20 0
+SCALE       0.6 0.6 0.6 
+
+// Model
+OBJECT 7
+model
 modelpath ../res/objects/bunny/bunny.ply false 1.0
-material 2
-TRANS       0 1 0 
-ROTAT       0 0 0
-SCALE       40 40 40 
+material 7
+TRANS       3.9 -0.4 3.5 
+ROTAT       0 -10 0
+SCALE       17 17 17

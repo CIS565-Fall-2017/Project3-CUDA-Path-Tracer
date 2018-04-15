@@ -542,8 +542,8 @@ __global__ void shadeMaterialMIS(const int iter, const int depth,
 	path.throughput *= current_throughput;
 	
 	//russian roulette terminate low-energy rays
-	//if(depth > MAXBOUNCES) {//glass can look dimmer if you start terminating earlier (vs the naive)
-	if(depth > 3) {
+	if(depth > MAXBOUNCES) {//glass can look dimmer if you start terminating earlier (vs the naive)
+	//if(depth > 3) {
 		//in the off chance this ray is still going after a long time
 		//scale it up to reduce noise 
 		//i.e. make it more like the rays in its pixel who terminated earlier
