@@ -127,9 +127,9 @@ SSS         1
 SIGA        0.013 0.07 0.145
 SIGSPRIME   1.09 1.59 1.79
 
-// SSS ketchup rMax=2.08
+// SSS skimmilk rMax=
 MATERIAL 9
-RGB         .16 .01 .00
+RGB         0.81 0.81 0.69
 SPECEX      0
 SPECRGB     0 0 0
 REFL        1
@@ -137,8 +137,60 @@ REFR        0
 REFRIOR     1.3
 EMITTANCE   0
 SSS         1
-SIGA        0.061 0.97 1.45
-SIGSPRIME   0.18 0.01 0.03
+SIGA        0.0014 0.0025 0.0142
+SIGSPRIME   0.70 1.22 1.90
+
+// SSS potato rMax=
+MATERIAL 10
+RGB         0.77 0.62 0.21
+SPECEX      0
+SPECRGB     0 0 0
+REFL        1
+REFR        0
+REFRIOR     1.3
+EMITTANCE   0
+SSS         1
+SIGA        0.0024 0.0090 0.12
+SIGSPRIME   0.68 0.70 0.55
+
+// SSS chicken1 rMax=
+MATERIAL 11
+RGB         0.31 0.15 0.10
+SPECEX      0
+SPECRGB     0 0 0
+REFL        1
+REFR        0
+REFRIOR     1.3
+EMITTANCE   0
+SSS         1
+SIGA        0.015 0.077 0.19
+SIGSPRIME   0.15 0.21 0.38 
+
+// SSS chicken2 rMax=
+MATERIAL 12
+RGB         0.32 0.16 0.10
+SPECEX      0
+SPECRGB     0 0 0
+REFL        1
+REFR        0
+REFRIOR     1.3
+EMITTANCE   0
+SSS         1
+SIGA        0.018 0.088 0.20
+SIGSPRIME   0.19 0.25 0.32 
+
+// SSS apple rMax=
+MATERIAL 13
+RGB         0.85 0.84 0.53
+SPECEX      0
+SPECRGB     0 0 0
+REFL        1
+REFR        0
+REFRIOR     1.3
+EMITTANCE   0
+SSS         1
+SIGA        0.0030 0.0034 0.046
+SIGSPRIME   2.29 2.39 1.97 
 
 // Ceiling light
 OBJECT 0
@@ -149,25 +201,23 @@ TRANS       0 200 0
 ROTAT       0 0 0
 SCALE       20 20 20 
 
-
 // Model
-OBJECT 1
-model
-modelpath ../res/objects/dragon/dragon.obj false 1.0
-material 8
-TRANS       0 -1 0 
-ROTAT       0 0 0
-SCALE       1.15 1.15 1.15
-
-
-//// Model
 //OBJECT 1
 //model
-//modelpath ../res/objects/bunny/bunny.ply false 1.0
-//material 8
-//TRANS       1 -5 0
+//modelpath ../res/objects/dragon/dragon.obj false 1.0
+//material 9
+//TRANS       0 -1 0 
 //ROTAT       0 0 0
-//SCALE       80 80 80 
+//SCALE       1.15 1.15 1.15
+
+//// Model
+OBJECT 1
+model
+modelpath ../res/objects/bunny/bunny.ply false 1.0
+material 11
+TRANS       1 -5 0
+ROTAT       0 0 0
+SCALE       80 80 80 
 
 //// Model
 //OBJECT 1
@@ -177,12 +227,3 @@ SCALE       1.15 1.15 1.15
 //TRANS       -1 0 0
 //ROTAT       0 0 0
 //SCALE       0.04 0.04 0.04
-
-//// prim
-//OBJECT 1
-//sphere
-//modelpath 
-//material 6
-//TRANS       0.0 4.0 0.0 
-//ROTAT       0 0 0
-//SCALE       1 1 1
