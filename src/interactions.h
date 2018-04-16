@@ -712,7 +712,7 @@ glm::vec3 getBSSRDF_DL(const PathSegment& path,
 	const BVHNode* dev_BVHNodes, const glm::ivec3* dev_TriIndices, const Vertex* dev_TriVertices
 ) 
 {
-	const int NUMSPLITS = 50; 
+	const int NUMSPLITS = 10; 
 
 	const glm::vec3 multiscatterTerm = getL_Sd(path.ray, isect, randlightindex,
 		numlights, rng, materials, dev_geoms, numgeoms, NUMSPLITS, dev_BVHNodes, dev_TriIndices, dev_TriVertices);

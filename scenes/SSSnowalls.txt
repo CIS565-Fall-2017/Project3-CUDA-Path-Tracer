@@ -3,7 +3,7 @@ CAMERA
 RES         800 800
 FOVY        19.5
 ITERATIONS  20000
-DEPTH       10
+DEPTH       2
 FILE        cornell
 EYE         0 5 25
 LOOKAT      0 5 0
@@ -151,31 +151,23 @@ SCALE       20 20 20
 
 
 // Model
-//OBJECT 1
-//model
-//modelpath ../res/objects/dragon/dragon.obj false 1.0
-//material 8
-//TRANS       0 -1 0 
-//ROTAT       0 0 0
-//SCALE       1.15 1.15 1.15
-
-// Model
-//OBJECT 1
-//model
-//modelpath ../res/objects/dragon/dragon.ply false 1.0
-//material 1
-//TRANS       0.3 0 0
-//ROTAT       0 0 0
-//SCALE       80 80 80 
-
-//// Model
 OBJECT 1
 model
-modelpath ../res/objects/bunny/bunny.ply false 1.0
-material 1
-TRANS       1 -5 0
+modelpath ../res/objects/dragon/dragon.obj false 1.0
+material 8
+TRANS       0 -1 0 
 ROTAT       0 0 0
-SCALE       80 80 80 
+SCALE       1.15 1.15 1.15
+
+
+//// Model
+//OBJECT 1
+//model
+//modelpath ../res/objects/bunny/bunny.ply false 1.0
+//material 8
+//TRANS       1 -5 0
+//ROTAT       0 0 0
+//SCALE       80 80 80 
 
 //// Model
 //OBJECT 1
