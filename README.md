@@ -37,33 +37,27 @@ http://www.pbrt.org/
 **http://www.graphics.stanford.edu/papers/bssrdf/bssrdf.pdf**<br />
 **King13 paper: **<br />
 **http://library.imageworks.com/pdfs/imageworks-library-BSSRDF-sampling.pdf**<br />
+
+**Left: Lambert Diffuse, Right: Jensen01 BSSRDF, skin2**<br />
+**800x800 100spp/50 Splits**<br />
+![](img/BunnyCompare.png)
+
+**Left: Lambert Diffuse, Right: Jensen01 BSSRDF, marble**<br />
+**800x800 100spp/50 Splits**<br />
+![](img/DragonsCompare.png)
+
 **800x800 5000spp**<br />
 ![](img/FL10_DiffuseVsMarbleMIS5k.png)
 
-**Just a Light and the Material, Diffuse vs Jensen01 BSSRDF, Marble**<br />
-**800x800 500spp**<br />
-![](img/JustLight_DiffuseVsMarble.png)
-
-**Just a Light and the Material, Jensen01 BSSRDF, Marble Cube**<br />
-**800x800 500spp**<br />
-![](img/JustLight_MarbleCube.png)
-
-**Just a Light and the Material, Jensen01 BSSRDF, Marble**<br />
-**800x800 100spp**<br />
-![](img/JustSi_wrefl2.png)
-
 **MIS with Fresnel Reflection and Transmission**<br />
+**MIS 1080x1080 5000spp**<br />
+![](img/dragonbunny.png)
+
 **MIS 1080x1080 5000spp**<br />
 ![](img/cornellGlassCubeMIS5000.png)
 
 **MIS 1080x1080 5000spp**<br />
 ![](img/cornellGlassMIS5000.png)
-
-**MIS 1080x1080 5000spp**<br />
-![](img/cornellGlassYellowMIS5000.png)
-
-**MIS 1080x1080 5000spp**<br />
-![](img/cornellDiffuseMIS5000.png)
 
 **MIS VS Naive**<br />
 **1080x1080 100**<br />
