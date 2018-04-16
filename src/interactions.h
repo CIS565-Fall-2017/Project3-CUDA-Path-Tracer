@@ -636,6 +636,7 @@ glm::vec3 getL_Sd(const Ray& pathray, const ShadeableIntersection& isect,
 	const float sigTrLum = getLuminance(sigTr);//could do max but lum is a better metric, should prob do all 3 channels in future
 	const float v = 1.f / (2.f * sigTrLum);//sigTr = 1/(2v)//looking at king13 vs jensen01 notation
 	const float rMax = glm::sqrt(v * 12.46f);//Rm from King13, but we dont divide basically we dont care about the outskirts of the gaussian disk
+	//printf("\n\nrMax: %f", rMax);
 	const float rMax2 = rMax*rMax;
 
 	thrust::uniform_real_distribution<float> u01(0, 1);
@@ -711,7 +712,7 @@ glm::vec3 getBSSRDF_DL(const PathSegment& path,
 	const BVHNode* dev_BVHNodes, const glm::ivec3* dev_TriIndices, const Vertex* dev_TriVertices
 ) 
 {
-	const int NUMSPLITS = 10; 
+	const int NUMSPLITS = 50; 
 
 	const glm::vec3 multiscatterTerm = getL_Sd(path.ray, isect, randlightindex,
 		numlights, rng, materials, dev_geoms, numgeoms, NUMSPLITS, dev_BVHNodes, dev_TriIndices, dev_TriVertices);

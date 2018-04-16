@@ -167,38 +167,21 @@ TRANS       5 5 0
 ROTAT       0 0 0
 SCALE       .01 10 10
 
-//// cube
-//OBJECT 6
-//cube
-//modelpath 
-//material 5
-//TRANS       -2.5 6.5 0 
-//ROTAT       45 45 0
-//SCALE       2 2 2 
+// wtf
+OBJECT 6
+sphere
+modelpath
+material 1
+TRANS       0 0 0
+ROTAT       0 0 0
+SCALE       2 2 2
 
-//// Model
+
+// Model
 //OBJECT 6
 //model
-//modelpath ../res/objects/dragon/dragon.ply false 1.0
-//material 5
-//TRANS       -0.8 -1.6 1 
+//modelpath ../res/objects/dragon/dragon.obj false 1.0
+//material 1
+//TRANS       -0.9 0.3 1.0 
 //ROTAT       0 20 0
-//SCALE       40 40 40 
-
-// Model
-OBJECT 6
-model
-modelpath ../res/objects/dragon/dragon.obj false 1.0
-material 5
-TRANS       -0.9 0.3 1.0 
-ROTAT       0 20 0
-SCALE       0.6 0.6 0.6 
-
-// Model
-OBJECT 7
-model
-modelpath ../res/objects/bunny/bunny.ply false 1.0
-material 7
-TRANS       3.9 -0.4 3.5 
-ROTAT       0 -10 0
-SCALE       17 17 17
+//SCALE       0.6 0.6 0.6 

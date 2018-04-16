@@ -71,10 +71,10 @@ __host__ __device__ float boxIntersectionTest(const Geom& box, const Ray& r,
             tmin_n = tmax_n;
             outside = false;
         }
-        //intersectionPoint = multiplyMV(box.transform, glm::vec4(getPointOnRay(q, tmin), 1.0f));
-		tmin -= 0.0001f; intersectionPoint = r.origin + tmin*r.direction;
         normal = glm::normalize(multiplyMV(box.transform, glm::vec4(tmin_n, 0.0f)));
+        //intersectionPoint = multiplyMV(box.transform, glm::vec4(getPointOnRay(q, tmin), 1.0f));
         //return glm::length(r.origin - intersectionPoint);
+		tmin -= 0.0001f; intersectionPoint = r.origin + tmin*r.direction;
 		return tmin;
     }
     return -1;
@@ -98,8 +98,8 @@ __host__ __device__ float sphereIntersectionTest(const Geom& sphere, const Ray& 
 
     Ray rt;
     rt.origin = multiplyMV(sphere.inverseTransform, glm::vec4(r.origin, 1.0f));
-    //rt.direction = glm::normalize(multiplyMV(sphere.inverseTransform, glm::vec4(r.direction, 0.0f)));
-	rt.direction = multiplyMV(sphere.inverseTransform, glm::vec4(r.direction, 0.0f));
+    rt.direction = glm::normalize(multiplyMV(sphere.inverseTransform, glm::vec4(r.direction, 0.0f)));
+	//rt.direction = multiplyMV(sphere.inverseTransform, glm::vec4(r.direction, 0.0f));
 
     const float vDotDirection = glm::dot(rt.origin, rt.direction);
 	const float radicand = vDotDirection * vDotDirection - (glm::dot(rt.origin, rt.origin) - rSqrd);
@@ -126,12 +126,11 @@ __host__ __device__ float sphereIntersectionTest(const Geom& sphere, const Ray& 
     const glm::vec3 objspaceIntersection = getPointOnRay(rt, t);
 
 
-    //intersectionPoint = multiplyMV(sphere.transform, glm::vec4(objspaceIntersection, 1.f));
-	t -= 0.0001f; intersectionPoint = r.origin + t*r.direction;
     normal = glm::normalize(multiplyMV(glm::mat4(sphere.invTranspose), glm::vec4(objspaceIntersection, 0.f)));
-
-    //return glm::length(r.origin - intersectionPoint);
-	return t;
+    intersectionPoint = multiplyMV(sphere.transform, glm::vec4(objspaceIntersection, 1.f));
+    return glm::length(r.origin - intersectionPoint);
+	//t -= 0.001f; intersectionPoint = r.origin + t*r.direction;
+	//return t;
 }
 
 //plane is 1x1 centered at 0
