@@ -2,3 +2,6 @@ BVH: sbvh, parallel simd construction, nvidia traversal 1dtexture, persistant th
 
 possible bugs:
 subsurface fireflies with large maxDepth but converges with low maxdepth. maybe artificially add number of passes to iter count when a path touches a subsurface material. the fireflies likely due to many iterations jumping all over the model and getting a spec highlight
+
+add a function to grab n closest intersections (maybe 2 or 3) so that you can deal with very thin parts of the model and get transparency
+Need a good test case, i.e. first hit is a spec highlight that shouldnt be there
