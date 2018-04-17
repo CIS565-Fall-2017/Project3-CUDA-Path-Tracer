@@ -151,9 +151,6 @@ REFRIOR     1.3
 EMITTANCE   0
 SSS         1
 SIGA        0.015 0.077 0.19
-<<<<<<< HEAD
-SIGSPRIME   0.15 0.21 0.38 
-=======
 SIGSPRIME   0.15 0.21 0.38
 
 // SSS cream rMax=
@@ -168,7 +165,6 @@ EMITTANCE   0
 SSS         1
 SIGA        0.0002 0.0028 0.0163
 SIGSPRIME   7.38 5.47 3.15
->>>>>>> e9630f7c28e022e6061be3a847a45ca2f01278c5
 
 // Ceiling light
 OBJECT 0
@@ -182,35 +178,53 @@ SCALE       20 20 20
 //// Model
 //OBJECT 1
 //model
-//modelpath ../res/objects/dragon/dragon.obj false 1.0
+//modelpath ../res/objects/frank/source/frank.blend false 1.0
+//material 9
+//TRANS       0 3 0 
+//ROTAT       160 -30 0
+//SCALE       0.5 0.5 0.5
+
+//// Model
+//OBJECT 1
+//model
+//modelpath ../res/objects/statuary/source/statuary.blend false 1.0
 //material 8
-//TRANS       0 -1 0 
-//ROTAT       0 0 0
-//SCALE       1.15 1.15 1.15
+//TRANS       0 2 0
+//ROTAT       -90 0 0
+//SCALE       10 10 10
+
+// Model
+OBJECT 1
+model
+modelpath ../res/objects/angel-miller/source/angel-miller.blend false 1.0
+material 9
+TRANS       0 -13 4
+ROTAT       -90 0 0
+SCALE       10 10 10
 
 //// Model
 //OBJECT 1
 //model
 //modelpath ../res/objects/dragon/dragon.ply false 1.0
-//material 8
+//material 1
 //TRANS       0.5 -5 0 
 //ROTAT       0 0 0
 //SCALE       80 80 80
 
-//// Model
-OBJECT 1
-model
-modelpath ../res/objects/bunny/bunny.ply false 1.0
-material 10
-TRANS       1 -5 0
-ROTAT       0 0 0
-SCALE       80 80 80 
-
 ////// Model
 //OBJECT 1
 //model
-//modelpath ../res/objects/xyzrgbstatuette/xyzrgbstatuette.ply false 1.0
-//material 8
-//TRANS       0 5 0
+//modelpath ../res/objects/bunny/bunny.ply false 1.0
+//material 10
+//TRANS       1 -5 0
 //ROTAT       0 0 0
-//SCALE       0.04 0.04 0.04
+//SCALE       80 80 80 
+
+//// Model
+//OBJECT 1
+//model
+//modelpath ../res/objects/emp-trajan/emp-trajan.obj false 1.0
+//material 9
+//TRANS       -120 50 -570
+//ROTAT       0 0 0
+//SCALE       50 50 50
