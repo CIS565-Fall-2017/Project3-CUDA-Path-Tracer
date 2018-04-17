@@ -151,7 +151,24 @@ REFRIOR     1.3
 EMITTANCE   0
 SSS         1
 SIGA        0.015 0.077 0.19
+<<<<<<< HEAD
 SIGSPRIME   0.15 0.21 0.38 
+=======
+SIGSPRIME   0.15 0.21 0.38
+
+// SSS cream rMax=
+MATERIAL 11
+RGB         0.98 0.90 0.73
+SPECEX      0
+SPECRGB     0 0 0
+REFL        1
+REFR        0
+REFRIOR     1.3
+EMITTANCE   0
+SSS         1
+SIGA        0.0002 0.0028 0.0163
+SIGSPRIME   7.38 5.47 3.15
+>>>>>>> e9630f7c28e022e6061be3a847a45ca2f01278c5
 
 // Ceiling light
 OBJECT 0
