@@ -38,13 +38,27 @@ http://www.pbrt.org/
 **King13 paper: **<br />
 **http://library.imageworks.com/pdfs/imageworks-library-BSSRDF-sampling.pdf**<br />
 
-**Left: Lambert Diffuse, Right: Jensen01 BSSRDF, skin2**<br />
-**800x800 100spp/50 Splits**<br />
-![](img/BunnyCompare.png)
+**Jensen01 BSSRDF, Stanford Bunny: skim milk, skin1, chicken1, skin2, marble**<br />
+**10 Splits**<br />
+![](img/ssbunny_skimmilk_2k.png)
+![](img/ssbunny_skin1_500.png)
+![](img/ssbunny_chicken1_500.png)
+![](img/ssbunny_skin2_500.png)
+![](img/ssbunny_marble_2k.png)
 
-**Left: Lambert Diffuse, Right: Jensen01 BSSRDF, marble**<br />
-**800x800 100spp/50 Splits**<br />
-![](img/DragonsCompare.png)
+
+**Jensen01 BSSRDF, Stanford Dragon: skim milk, skin1, skin2**<br />
+**10 Splits**<br />
+![](img/ssdragon_skimmilk_2k.png)
+![](img/ssdragon_skin1_500.png)
+![](img/ssdragon_skin2_2k.png)
+
+
+**Jensen01 BSSRDF, angel-miller(sketchfab): skim milk**<br />
+**https://sketchfab.com/models/3b7e4e4a84f94f0d876e21e853eb8db8**<br />
+**10 Splits**<br />
+![](img/ssangelmiller_skimmilk_2k.png)
+
 
 **800x800 5000spp**<br />
 ![](img/FL10_DiffuseVsMarbleMIS5k.png)
