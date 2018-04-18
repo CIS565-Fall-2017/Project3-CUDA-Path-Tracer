@@ -747,6 +747,7 @@ void chooseSubSurface(PathSegment& path, ShadeableIntersection& isect, const Mat
 	int chosenAxis; glm::mat3 tanToWorld;
 	glm::vec3 pPHit(FLT_MAX); glm::vec3 nPHit; 
 	bool foundSample = false; int count = 0;
+	const Geom& thisgeom = dev_geoms[isect.geomId];
 	while (!foundSample) {
 		Ray discRay;
 		const float max_t = getDiscSampleRay(discRay, tanToWorld, nisect, pisect,
@@ -754,7 +755,6 @@ void chooseSubSurface(PathSegment& path, ShadeableIntersection& isect, const Mat
 
 		//testintersection against isect's geometry(store geom index)
 		//intersection should return a new intersection within max_t with a pos and normal
-		const Geom& thisgeom = dev_geoms[isect.geomId];
 		bool outside;
 		const float t = shapeIntersectionTest(thisgeom, discRay, pPHit, nPHit, outside, dev_BVHNodes, dev_TriIndices, dev_TriVertices);
 		if (thisgeom.type == GeomType::CUBE && !outside) { nPHit *= -1.f; } //cube's flipping the normal, other shapes aren't
