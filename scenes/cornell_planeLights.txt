@@ -1,16 +1,27 @@
 // Emissive material (light)
 MATERIAL 0
-RGB         1 1 1
+RGB         1 0.75 0.75
 SPECEX      0
 SPECRGB     0 0 0
 REFL        0
 REFR        0
 REFRIOR     0
-EMITTANCE   5
+EMITTANCE   10
+BXDF        0
+
+// Emissive material (light)
+MATERIAL 1
+RGB         0.75 0.75 1
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   10
 BXDF        0
 
 // Diffuse white
-MATERIAL 1
+MATERIAL 2
 RGB         .98 .98 .98
 SPECEX      0
 SPECRGB     0 0 0
@@ -21,7 +32,7 @@ EMITTANCE   0
 BXDF        1
 
 // Diffuse red
-MATERIAL 2
+MATERIAL 3
 RGB         .85 .35 .35
 SPECEX      0
 SPECRGB     0 0 0
@@ -32,7 +43,7 @@ EMITTANCE   0
 BXDF        1
 
 // Diffuse green
-MATERIAL 3
+MATERIAL 4
 RGB         .35 .85 .35
 SPECEX      0
 SPECRGB     0 0 0
@@ -43,7 +54,7 @@ EMITTANCE   0
 BXDF        1
 
 // Specular white
-MATERIAL 4
+MATERIAL 5
 RGB         .98 .98 .98
 SPECEX      0
 SPECRGB     .98 .98 .98
@@ -55,68 +66,83 @@ BXDF        2
 
 // Camera
 CAMERA
-RES         800 800
+RES         600 600
 FOVY        45
-ITERATIONS  5000
+ITERATIONS  20000
 DEPTH       8
 FILE        cornell
 EYE         0.0 5 10.5
 LOOKAT      0 5 0
 UP          0 1 0
 
-
-// Ceiling light
+// Ceiling light 1
 OBJECT 0
-cube
+plane
+none
 material 0
-TRANS       0 10 0
-ROTAT       0 0 0
-SCALE       3 .3 3
+TRANS       -2 9.95 0
+ROTAT       90 0 0
+SCALE       2 2 1
+
+// Ceiling light 2
+OBJECT 1
+plane
+none
+material 1
+TRANS       2 9.95 0
+ROTAT       90 0 0
+SCALE       2 2 1
 
 // Floor
-OBJECT 1
+OBJECT 2
 cube
-material 1
+none
+material 2
 TRANS       0 0 0
 ROTAT       0 0 0
 SCALE       10 .01 10
 
 // Ceiling
-OBJECT 2
+OBJECT 3
 cube
-material 1
+none
+material 2
 TRANS       0 10 0
 ROTAT       0 0 90
 SCALE       .01 10 10
 
 // Back wall
-OBJECT 3
+OBJECT 4
 cube
-material 1
+none
+material 2
 TRANS       0 5 -5
 ROTAT       0 90 0
 SCALE       .01 10 10
 
 // Left wall
-OBJECT 4
+OBJECT 5
 cube
-material 2
+none
+material 3
 TRANS       -5 5 0
 ROTAT       0 0 0
 SCALE       .01 10 10
 
 // Right wall
-OBJECT 5
+OBJECT 6
 cube
-material 3
+none
+material 4
 TRANS       5 5 0
 ROTAT       0 0 0
 SCALE       .01 10 10
 
 // Sphere
-OBJECT 6
+OBJECT 7
 sphere
-material 1
-TRANS       -1 4 -1
+none
+material 2
+TRANS       0 3 0
 ROTAT       0 0 0
 SCALE       3 3 3

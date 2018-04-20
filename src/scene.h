@@ -20,6 +20,8 @@ public:
     Scene(string filename);
     ~Scene();
 
+    int numLights;
+
     std::vector<Geom> geoms;
     std::vector<Material> materials;
     RenderState state;

@@ -10,6 +10,21 @@
 enum GeomType {
     SPHERE,
     CUBE,
+    PLANE,
+    IMPLICITBOUNDINGVOLUME
+};
+
+enum ImplicitSurfaceType {
+    NONE,
+    SPHERE_IMPLICIT,
+    MANDELBULB
+};
+
+enum BxDFType {
+    EMISSIVE = 0,
+    DIFFUSE = 1,
+    SPECULAR_BRDF = 2,
+    SPECULAR_BTDF = 3
 };
 
 struct Ray {
@@ -19,6 +34,7 @@ struct Ray {
 
 struct Geom {
     enum GeomType type;
+    enum ImplicitSurfaceType implicitType;
     int materialid;
     glm::vec3 translation;
     glm::vec3 rotation;
@@ -34,6 +50,8 @@ struct Material {
         float exponent;
         glm::vec3 color;
     } specular;
+    BxDFType bxdf; /* Later, update this to be an array of BxDFs (a full BSDF)
+                      which will involve implementing sample_f from 561*/
     float hasReflective;
     float hasRefractive;
     float indexOfRefraction;
@@ -60,17 +78,22 @@ struct RenderState {
 };
 
 struct PathSegment {
-	Ray ray;
-	glm::vec3 color;
-	int pixelIndex;
-	int remainingBounces;
+    Ray ray;
+    glm::vec3 color;
+    int pixelIndex;
+    int remainingBounces;
+    
+    // MIS parameters
+    glm::vec3 throughput;
+    glm::vec3 accumColor;
+    bool hitSpecularObject;
 };
 
 // Use with a corresponding PathSegment to do:
 // 1) color contribution computation
 // 2) BSDF evaluation: generate a new ray
 struct ShadeableIntersection {
-  float t;
-  glm::vec3 surfaceNormal;
-  int materialId;
+    float t;
+    glm::vec3 surfaceNormal;
+    int materialId;
 };
