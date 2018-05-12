@@ -3,6 +3,10 @@
 #include "main.h"
 #include "preview.h"
 
+#include <fstream>
+#include <chrono>
+using Clock = std::chrono::high_resolution_clock;
+
 GLuint positionLocation = 0;
 GLuint texcoordsLocation = 1;
 GLuint pbo;
@@ -169,6 +173,9 @@ bool init() {
 }
 
 void mainLoop() {
+
+
+    auto t1 = Clock::now();
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
         runCuda();
@@ -185,6 +192,9 @@ void mainLoop() {
         glDrawElements(GL_TRIANGLES, 6,  GL_UNSIGNED_SHORT, 0);
         glfwSwapBuffers(window);
     }
+    auto t2 = Clock::now();
+	std::cout << "Render: " << "\n\titerations: " << iteration
+		<< "\n\tseconds: " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() * 0.001 << "\n";
     glfwDestroyWindow(window);
     glfwTerminate();
 }

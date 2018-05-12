@@ -18,9 +18,9 @@
 #include "intersections.h"
 #include "interactions.h"
 
-////////////////////////////////////////////////////
-////////////           NAIVE            ////////////
-////////////////////////////////////////////////////
+//////////////////////////////////////
+////////////    NAIVE     ////////////
+//////////////////////////////////////
 __global__ void shadeMaterialNaive (
   const int iter, const int num_paths, 
 	const ShadeableIntersection * shadeableIntersections, 
@@ -75,262 +75,6 @@ __global__ void shadeMaterialNaive (
 }
 
 
-/////////////////////////////////////////////////////////////
-////////////MULTIKERN MULTIPLE IMPORTANCE SAMPLING///////////
-////////////////////////////////////////////////////////////
-__global__ void shadeMaterialMIS_DLlight(const int iter, const int depth,
-	const int numlights, const int MAXBOUNCES,
-	const int num_paths, const ShadeableIntersection* shadeableIntersections,
-	PathSegment* pathSegments, const Material* materials, 
-	const int* dev_geomLightIndices, const Geom* dev_geoms, const int numgeoms,
-	const BVHNode* dev_BVHNodes, const glm::ivec3* dev_TriIndices, const Vertex* dev_TriVertices) 
-{
-	const int idx = blockIdx.x * blockDim.x + threadIdx.x;
-	const int terminatenumber = -100;
-
-	if (idx >= num_paths) { return; }
-	PathSegment& path = pathSegments[idx];
-	const ShadeableIntersection& isect = shadeableIntersections[idx];
-	
-//#if 0 == COMPACT
-	if (terminatenumber >= path.remainingBounces) { return; }
-//#endif
-
-	//Hit Nothing
-	if (0.f >= isect.t) {
-		path.remainingBounces = terminatenumber;
-		return;
-	}
-
-	const Material& m = materials[isect.materialId];
-
-	//First Bounce or Last bounce was specular
-	//NOTE: may want to remove spec bounce check as the matchesflags from 561 didnt work
-	const glm::vec3 wo = -path.ray.direction;
-	if (0 == depth || path.specularbounce) { //what if path color started at 1 and you multiplied as you went along???
-		path.color += path.throughput * Le(m, isect.surfaceNormal, wo); 
-	}
-
-	//Hit Light
-	if (0.f < m.emittance) {
-		path.remainingBounces = terminatenumber;//already accounted for Le above
-		return;
-	}
-
-	path.specularbounce = (m.hasReflective || m.hasRefractive) ? 1 : 0;
-	if (path.specularbounce) { return; } 
-
-	//SKIP IF SSS FOR NOW
-	if (1 == m.hasSubSurface) { return; }
-
-
-	//////////////////////
-	//////  DIRECT  //////
-	//////////////////////
-	thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
-	thrust::uniform_real_distribution<float> u01(0, 1);
-	float pdfdirect = 0;
-	glm::vec3 widirect(0.f);
-	glm::vec3 colordirect(0.f);
-
-	const int randlightindex = dev_geomLightIndices[int( u01(rng)*numlights )];
-	const Geom& randlight = dev_geoms[randlightindex];
-	const Material& mlight = materials[randlight.materialid];
-	const glm::vec3 pisect = getPointOnRay(path.ray, isect.t) + isect.surfaceNormal*EPSILON;
-
-	///////////////////////
-	///////DEBUG///////////
-	//////////////////////
-	//int pixelx = path.MSPaintPixel.x;
-	//int pixely = path.MSPaintPixel.y;
-	//if (400 == pixelx && 580 == pixely && 0 == depth) {//black spec debug mode, top of box 
-	//	printf("\npixelx: %i, pixely: %i, depth: %i, iter: %i", pixelx, pixely, depth, iter);
-	//}
-
-	////////////////////////
-	/////// LIGTH SAMPLE////
-	////////////////////////
-	//sample the light to get widirect, pdfdirect, and colordirect
-	glm::vec3 plightsamp;
-	glm::vec3 nlightsamp;
-	colordirect = sampleLight(randlight, mlight, pisect,
-		isect.surfaceNormal, rng, widirect, pdfdirect, plightsamp, nlightsamp);
-	pdfdirect /= numlights;
-
-	//spawn ray from isect point and use widirect for direction 
-	Ray wiray_direct;
-	wiray_direct.origin = pisect;
-	wiray_direct.direction = widirect;
-
-	//get the closest intersection in scene
-	int hitgeomindex = -1;
-	findClosestIntersection(wiray_direct, dev_geoms, numgeoms, hitgeomindex, dev_BVHNodes, dev_TriIndices, dev_TriVertices);
-
-	//TODO: prob only need first and last condition
-	if (0 >= pdfdirect || 0 > hitgeomindex || hitgeomindex != randlightindex) {
-		return;
-	} else if (0.f < pdfdirect) {//condition needed? is OR async on gpu?
-		glm::vec3 bxdfcolordirect; float bxdfpdfdirect;
-		bxdf_FandPDF(wo, widirect, isect.surfaceNormal, 
-			m, bxdfcolordirect, bxdfpdfdirect); 
-		const float absdotdirect = absDot(widirect, isect.surfaceNormal);
-		const float powerheuristic_direct = powerHeuristic(1,pdfdirect,1,bxdfpdfdirect);
-		colordirect = (bxdfcolordirect * colordirect * absdotdirect * powerheuristic_direct) / pdfdirect;
-	}
-	path.color += path.throughput*colordirect;
-}
-
-/////////////////////////////////////////////////////////////
-////////////MULTIKERN MULTIPLE IMPORTANCE SAMPLING///////////
-////////////////////////////////////////////////////////////
-__global__ void shadeMaterialMIS_DLbxdf(const int iter, const int depth,
-	const int numlights, const int MAXBOUNCES,
-	const int num_paths, const ShadeableIntersection* shadeableIntersections,
-	PathSegment* pathSegments, const Material* materials,
-	const int* dev_geomLightIndices, const Geom* dev_geoms, const int numgeoms,
-	const BVHNode* dev_BVHNodes, const glm::ivec3* dev_TriIndices, const Vertex* dev_TriVertices) 
-{
-	const int idx = blockIdx.x * blockDim.x + threadIdx.x;
-	const int terminatenumber = -100;
-
-	if (idx >= num_paths) { return; }
-	PathSegment& path = pathSegments[idx];
-	if (path.specularbounce) { return; }
-	if (terminatenumber >= path.remainingBounces) { return; }
-	//const ShadeableIntersection& isect = shadeableIntersections[idx];
-	ShadeableIntersection isect = shadeableIntersections[idx];
-	const Material& m = materials[isect.materialId];
-
-	//SKIP IF SSS FOR NOW
-	if (1 == m.hasSubSurface) { return; }
-
-
-	/////////////////////////
-	/////////DEBUG///////////
-	////////////////////////
-	//int pixelx = path.MSPaintPixel.x;
-	//int pixely = path.MSPaintPixel.y;
-	//if (400 == pixelx && 580 == pixely && 0 == depth) {//black spec debug mode, top of box 
-	//	printf("\npixelx: %i, pixely: %i, depth: %i, iter: %i", pixelx, pixely, depth, iter);
-	//}
-	thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
-	thrust::uniform_real_distribution<float> u01(0, 1);
-	const int randlightindex = dev_geomLightIndices[int( u01(rng)*numlights )];
-	const Geom& randlight = dev_geoms[randlightindex];
-	const glm::vec3 pisect = getPointOnRay(path.ray, isect.t) + isect.surfaceNormal*EPSILON;
-	///////////////////////////////////////////////////////////////
-	////////// SAMPLE BXDF, CHECK IF HIT A LIGHT //////////////////
-	///////////////////////////////////////////////////////////////
-	glm::vec3 colordirectsample(0);
-	glm::vec3 widirectsample;
-	float pdfdirectsample;
-	PathSegment pathcopy = path;//scatterRayNaive updates the path with isect origin and wi direction
-	scatterRayNaive(pathcopy, isect, m, pdfdirectsample, colordirectsample, rng, dev_geoms, dev_BVHNodes, dev_TriIndices, dev_TriVertices);
-	widirectsample = pathcopy.ray.direction;
-	if (glm::length2(colordirectsample) > 0 && pdfdirectsample > 0) {
-		float DLPdf_for_directsample = lightPdfLi(randlight, pisect, widirectsample, dev_BVHNodes, dev_TriIndices, dev_TriVertices);
-
-		if (DLPdf_for_directsample > 0) {//widirectsample can hit it (might not be closest though)
-			Ray widirectsampleRay; widirectsampleRay.direction = widirectsample; widirectsampleRay.origin = pisect;
-			int posslightindex;//we know a our light is in the widirectsample direction, lets try to hit it, and hopefully its the closest light
-			const glm::vec3 nposslight = findClosestIntersection(widirectsampleRay, dev_geoms, numgeoms, posslightindex, dev_BVHNodes, dev_TriIndices, dev_TriVertices);
-
-			if (posslightindex == randlightindex) {//only want one light per direct lighting sample pair(need to sample both a rand light and the material bxdf to cover edge cases of combos of light size/intensity and bxdf)
-				DLPdf_for_directsample /= numlights;
-				const float powerheuristic_directsample = powerHeuristic(1, pdfdirectsample, 1, DLPdf_for_directsample);
-				const float absdotdirectsample = absDot(widirectsample, isect.surfaceNormal);
-				const Geom& posslight = dev_geoms[posslightindex];
-				const Material& mposslight = materials[posslight.materialid];
-				const glm::vec3 Li = Le(mposslight, nposslight, -widirectsample);//returns 0 if we don't hit a light(no emmisive)
-				colordirectsample = (colordirectsample * Li * absdotdirectsample * powerheuristic_directsample) / pdfdirectsample;
-			} else {
-				colordirectsample = glm::vec3(0);
-			}
-		} else {
-			colordirectsample = glm::vec3(0);
-		}
-	} else {//prob dont need 
-		colordirectsample = glm::vec3(0);
-	}
-
-	path.color += path.throughput*colordirectsample;
-
-}
-
-/////////////////////////////////////////////////////////////
-////////////MULTIKERN MULTIPLE IMPORTANCE SAMPLING///////////
-////////////////////////////////////////////////////////////
-__global__ void shadeMaterialMIS_throughput(const int iter, const int depth,
-	const int numlights, const int MAXBOUNCES,
-	const int num_paths, const ShadeableIntersection* shadeableIntersections,
-	PathSegment* pathSegments, const Material* materials,
-	const int* dev_geomLightIndices, const Geom* dev_geoms, const int numgeoms,
-	const BVHNode* dev_BVHNodes, const glm::ivec3* dev_TriIndices, const Vertex* dev_TriVertices)
-{
-	const int idx = blockIdx.x * blockDim.x + threadIdx.x;
-	const int terminatenumber = -100;
-
-	if (idx >= num_paths) { return; }
-	PathSegment& path = pathSegments[idx];
-	if (terminatenumber >= path.remainingBounces) { return; }
-	//const ShadeableIntersection& isect = shadeableIntersections[idx];
-	ShadeableIntersection isect = shadeableIntersections[idx];
-	const Material& m = materials[isect.materialId];
-	thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
-	thrust::uniform_real_distribution<float> u01(0, 1);
-
-	////////////////////////////
-	///////////DEBUG////////////
-	////////////////////////////
-	int pixelx = path.MSPaintPixel.x;
-	int pixely = path.MSPaintPixel.y;
-	//if (398 == pixelx && 580 == pixely && 0 == depth) {//black spec debug mode, top of box 
-	//if (400 == pixelx && 580 == pixely && 0 == depth) {//black spec debug mode, top of box 
-	//	printf("\npixelx: %i, pixely: %i, depth: %i, iter: %i", pixelx, pixely, depth, iter);
-	//}
-
-	//DO SSS HERE FOR NOW
-	if (1 == m.hasSubSurface) {
-	const int randlightindex = dev_geomLightIndices[int( u01(rng)*numlights )];
-		path.color += path.throughput*getBSSRDF_DL(path, isect, materials, rng, 
-			randlightindex, numlights, dev_geoms, numgeoms, dev_BVHNodes, dev_TriIndices, dev_TriVertices);
-		//global ray will just be cos sampled dir from the last Sd disk sample
-		path.remainingBounces = terminatenumber;
-		return;
-	}
-
-
-
-	//////////////////////////
-	////////  INDIRECT  //////
-	//////////////////////////
-	////get global illum ray from bxdf and loop
-	////do a normal samplef to get wi pdf and color
-	//float bxdfPDF; glm::vec3 bxdfColor;
-	//scatterRayNaive(path, isect, m, bxdfPDF, bxdfColor, rng, dev_geoms);
-	//const glm::vec3 bxdfWi = path.ray.direction;
-	//const glm::vec3 normal = isect.surfaceNormal;
-
-	//glm::vec3 current_throughput(0.f);
-	//if (!isBlack(bxdfColor) && 0 < bxdfPDF) {
-	//	current_throughput = bxdfColor * absDot(bxdfWi, normal) / bxdfPDF;
-	//}
-	//path.throughput *= current_throughput;
-
-	////russian roulette terminate low-energy rays
-	if (depth > MAXBOUNCES) {
-		const float max = glm::compMax(path.throughput);
-		if (max < u01(rng)) {
-			path.remainingBounces = terminatenumber;
-			return;
-		}
-		//in the off chance this ray is still going after a long time
-		//scale it up to reduce noise 
-		//i.e. make it more like the rays in its pixel who terminated earlier
-		//this one just got lucky presumably
-		path.throughput /= max;
-	}
-}
 
 
 __host__ __device__
@@ -506,12 +250,14 @@ __global__ void shadeMaterialMIS(const int iter, const int depth,
 	glm::vec3 pisect = getPointOnRay(path.ray, isect.t) + isect.surfaceNormal*EPSILON;
 	glm::vec3 nisect = isect.surfaceNormal;
 
+	//LIGHT SAMPLE
 	glm::vec3 colordirect(0.f);
 	MIS_LightSampleContribution(colordirect, isect, pisect, nisect, 
 		wo, path, m, randlight, randlightindex, 
 		numlights, rng, materials, dev_geoms, numgeoms,
 		dev_BVHNodes, dev_TriIndices, dev_TriVertices);
 
+	//BXDF SAMPLE
 	glm::vec3 colordirectsample(0.f);
 	MIS_BxdfSampleContribuition(colordirectsample, colordirect,
 		pisect, isect, path, m, randlight, randlightindex, numlights, rng, materials,
@@ -558,4 +304,259 @@ __global__ void shadeMaterialMIS(const int iter, const int depth,
 	}
 }
 
-
+///////////////////////////////////////////////////////////////
+//////////////MULTIKERN MULTIPLE IMPORTANCE SAMPLING///////////
+//////////////////////////////////////////////////////////////
+//__global__ void shadeMaterialMIS_DLlight(const int iter, const int depth,
+//	const int numlights, const int MAXBOUNCES,
+//	const int num_paths, const ShadeableIntersection* shadeableIntersections,
+//	PathSegment* pathSegments, const Material* materials, 
+//	const int* dev_geomLightIndices, const Geom* dev_geoms, const int numgeoms,
+//	const BVHNode* dev_BVHNodes, const glm::ivec3* dev_TriIndices, const Vertex* dev_TriVertices) 
+//{
+//	const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+//	const int terminatenumber = -100;
+//
+//	if (idx >= num_paths) { return; }
+//	PathSegment& path = pathSegments[idx];
+//	const ShadeableIntersection& isect = shadeableIntersections[idx];
+//	
+////#if 0 == COMPACT
+//	if (terminatenumber >= path.remainingBounces) { return; }
+////#endif
+//
+//	//Hit Nothing
+//	if (0.f >= isect.t) {
+//		path.remainingBounces = terminatenumber;
+//		return;
+//	}
+//
+//	const Material& m = materials[isect.materialId];
+//
+//	//First Bounce or Last bounce was specular
+//	//NOTE: may want to remove spec bounce check as the matchesflags from 561 didnt work
+//	const glm::vec3 wo = -path.ray.direction;
+//	if (0 == depth || path.specularbounce) { //what if path color started at 1 and you multiplied as you went along???
+//		path.color += path.throughput * Le(m, isect.surfaceNormal, wo); 
+//	}
+//
+//	//Hit Light
+//	if (0.f < m.emittance) {
+//		path.remainingBounces = terminatenumber;//already accounted for Le above
+//		return;
+//	}
+//
+//	path.specularbounce = (m.hasReflective || m.hasRefractive) ? 1 : 0;
+//	if (path.specularbounce) { return; } 
+//
+//	//SKIP IF SSS FOR NOW
+//	if (1 == m.hasSubSurface) { return; }
+//
+//
+//	//////////////////////
+//	//////  DIRECT  //////
+//	//////////////////////
+//	thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
+//	thrust::uniform_real_distribution<float> u01(0, 1);
+//	float pdfdirect = 0;
+//	glm::vec3 widirect(0.f);
+//	glm::vec3 colordirect(0.f);
+//
+//	const int randlightindex = dev_geomLightIndices[int( u01(rng)*numlights )];
+//	const Geom& randlight = dev_geoms[randlightindex];
+//	const Material& mlight = materials[randlight.materialid];
+//	const glm::vec3 pisect = getPointOnRay(path.ray, isect.t) + isect.surfaceNormal*EPSILON;
+//
+//	///////////////////////
+//	///////DEBUG///////////
+//	//////////////////////
+//	//int pixelx = path.MSPaintPixel.x;
+//	//int pixely = path.MSPaintPixel.y;
+//	//if (400 == pixelx && 580 == pixely && 0 == depth) {//black spec debug mode, top of box 
+//	//	printf("\npixelx: %i, pixely: %i, depth: %i, iter: %i", pixelx, pixely, depth, iter);
+//	//}
+//
+//	////////////////////////
+//	/////// LIGTH SAMPLE////
+//	////////////////////////
+//	//sample the light to get widirect, pdfdirect, and colordirect
+//	glm::vec3 plightsamp;
+//	glm::vec3 nlightsamp;
+//	colordirect = sampleLight(randlight, mlight, pisect,
+//		isect.surfaceNormal, rng, widirect, pdfdirect, plightsamp, nlightsamp);
+//	pdfdirect /= numlights;
+//
+//	//spawn ray from isect point and use widirect for direction 
+//	Ray wiray_direct;
+//	wiray_direct.origin = pisect;
+//	wiray_direct.direction = widirect;
+//
+//	//get the closest intersection in scene
+//	int hitgeomindex = -1;
+//	findClosestIntersection(wiray_direct, dev_geoms, numgeoms, hitgeomindex, dev_BVHNodes, dev_TriIndices, dev_TriVertices);
+//
+//	//TODO: prob only need first and last condition
+//	if (0 >= pdfdirect || 0 > hitgeomindex || hitgeomindex != randlightindex) {
+//		return;
+//	} else if (0.f < pdfdirect) {//condition needed? is OR async on gpu?
+//		glm::vec3 bxdfcolordirect; float bxdfpdfdirect;
+//		bxdf_FandPDF(wo, widirect, isect.surfaceNormal, 
+//			m, bxdfcolordirect, bxdfpdfdirect); 
+//		const float absdotdirect = absDot(widirect, isect.surfaceNormal);
+//		const float powerheuristic_direct = powerHeuristic(1,pdfdirect,1,bxdfpdfdirect);
+//		colordirect = (bxdfcolordirect * colordirect * absdotdirect * powerheuristic_direct) / pdfdirect;
+//	}
+//	path.color += path.throughput*colordirect;
+//}
+//
+///////////////////////////////////////////////////////////////
+//////////////MULTIKERN MULTIPLE IMPORTANCE SAMPLING///////////
+//////////////////////////////////////////////////////////////
+//__global__ void shadeMaterialMIS_DLbxdf(const int iter, const int depth,
+//	const int numlights, const int MAXBOUNCES,
+//	const int num_paths, const ShadeableIntersection* shadeableIntersections,
+//	PathSegment* pathSegments, const Material* materials,
+//	const int* dev_geomLightIndices, const Geom* dev_geoms, const int numgeoms,
+//	const BVHNode* dev_BVHNodes, const glm::ivec3* dev_TriIndices, const Vertex* dev_TriVertices) 
+//{
+//	const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+//	const int terminatenumber = -100;
+//
+//	if (idx >= num_paths) { return; }
+//	PathSegment& path = pathSegments[idx];
+//	if (path.specularbounce) { return; }
+//	if (terminatenumber >= path.remainingBounces) { return; }
+//	//const ShadeableIntersection& isect = shadeableIntersections[idx];
+//	ShadeableIntersection isect = shadeableIntersections[idx];
+//	const Material& m = materials[isect.materialId];
+//
+//	//SKIP IF SSS FOR NOW
+//	if (1 == m.hasSubSurface) { return; }
+//
+//
+//	/////////////////////////
+//	/////////DEBUG///////////
+//	////////////////////////
+//	//int pixelx = path.MSPaintPixel.x;
+//	//int pixely = path.MSPaintPixel.y;
+//	//if (400 == pixelx && 580 == pixely && 0 == depth) {//black spec debug mode, top of box 
+//	//	printf("\npixelx: %i, pixely: %i, depth: %i, iter: %i", pixelx, pixely, depth, iter);
+//	//}
+//	thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
+//	thrust::uniform_real_distribution<float> u01(0, 1);
+//	const int randlightindex = dev_geomLightIndices[int( u01(rng)*numlights )];
+//	const Geom& randlight = dev_geoms[randlightindex];
+//	const glm::vec3 pisect = getPointOnRay(path.ray, isect.t) + isect.surfaceNormal*EPSILON;
+//	///////////////////////////////////////////////////////////////
+//	////////// SAMPLE BXDF, CHECK IF HIT A LIGHT //////////////////
+//	///////////////////////////////////////////////////////////////
+//	glm::vec3 colordirectsample(0);
+//	glm::vec3 widirectsample;
+//	float pdfdirectsample;
+//	PathSegment pathcopy = path;//scatterRayNaive updates the path with isect origin and wi direction
+//	scatterRayNaive(pathcopy, isect, m, pdfdirectsample, colordirectsample, rng, dev_geoms, dev_BVHNodes, dev_TriIndices, dev_TriVertices);
+//	widirectsample = pathcopy.ray.direction;
+//	if (glm::length2(colordirectsample) > 0 && pdfdirectsample > 0) {
+//		float DLPdf_for_directsample = lightPdfLi(randlight, pisect, widirectsample, dev_BVHNodes, dev_TriIndices, dev_TriVertices);
+//
+//		if (DLPdf_for_directsample > 0) {//widirectsample can hit it (might not be closest though)
+//			Ray widirectsampleRay; widirectsampleRay.direction = widirectsample; widirectsampleRay.origin = pisect;
+//			int posslightindex;//we know a our light is in the widirectsample direction, lets try to hit it, and hopefully its the closest light
+//			const glm::vec3 nposslight = findClosestIntersection(widirectsampleRay, dev_geoms, numgeoms, posslightindex, dev_BVHNodes, dev_TriIndices, dev_TriVertices);
+//
+//			if (posslightindex == randlightindex) {//only want one light per direct lighting sample pair(need to sample both a rand light and the material bxdf to cover edge cases of combos of light size/intensity and bxdf)
+//				DLPdf_for_directsample /= numlights;
+//				const float powerheuristic_directsample = powerHeuristic(1, pdfdirectsample, 1, DLPdf_for_directsample);
+//				const float absdotdirectsample = absDot(widirectsample, isect.surfaceNormal);
+//				const Geom& posslight = dev_geoms[posslightindex];
+//				const Material& mposslight = materials[posslight.materialid];
+//				const glm::vec3 Li = Le(mposslight, nposslight, -widirectsample);//returns 0 if we don't hit a light(no emmisive)
+//				colordirectsample = (colordirectsample * Li * absdotdirectsample * powerheuristic_directsample) / pdfdirectsample;
+//			} else {
+//				colordirectsample = glm::vec3(0);
+//			}
+//		} else {
+//			colordirectsample = glm::vec3(0);
+//		}
+//	} else {//prob dont need 
+//		colordirectsample = glm::vec3(0);
+//	}
+//
+//	path.color += path.throughput*colordirectsample;
+//
+//}
+//
+///////////////////////////////////////////////////////////////
+//////////////MULTIKERN MULTIPLE IMPORTANCE SAMPLING///////////
+//////////////////////////////////////////////////////////////
+//__global__ void shadeMaterialMIS_throughput(const int iter, const int depth,
+//	const int numlights, const int MAXBOUNCES,
+//	const int num_paths, const ShadeableIntersection* shadeableIntersections,
+//	PathSegment* pathSegments, const Material* materials,
+//	const int* dev_geomLightIndices, const Geom* dev_geoms, const int numgeoms,
+//	const BVHNode* dev_BVHNodes, const glm::ivec3* dev_TriIndices, const Vertex* dev_TriVertices)
+//{
+//	const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+//	const int terminatenumber = -100;
+//
+//	if (idx >= num_paths) { return; }
+//	PathSegment& path = pathSegments[idx];
+//	if (terminatenumber >= path.remainingBounces) { return; }
+//	//const ShadeableIntersection& isect = shadeableIntersections[idx];
+//	ShadeableIntersection isect = shadeableIntersections[idx];
+//	const Material& m = materials[isect.materialId];
+//	thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
+//	thrust::uniform_real_distribution<float> u01(0, 1);
+//
+//	////////////////////////////
+//	///////////DEBUG////////////
+//	////////////////////////////
+//	int pixelx = path.MSPaintPixel.x;
+//	int pixely = path.MSPaintPixel.y;
+//	//if (398 == pixelx && 580 == pixely && 0 == depth) {//black spec debug mode, top of box 
+//	//if (400 == pixelx && 580 == pixely && 0 == depth) {//black spec debug mode, top of box 
+//	//	printf("\npixelx: %i, pixely: %i, depth: %i, iter: %i", pixelx, pixely, depth, iter);
+//	//}
+//
+//	//DO SSS HERE FOR NOW
+//	if (1 == m.hasSubSurface) {
+//	const int randlightindex = dev_geomLightIndices[int( u01(rng)*numlights )];
+//		path.color += path.throughput*getBSSRDF_DL(path, isect, materials, rng, 
+//			randlightindex, numlights, dev_geoms, numgeoms, dev_BVHNodes, dev_TriIndices, dev_TriVertices);
+//		//global ray will just be cos sampled dir from the last Sd disk sample
+//		path.remainingBounces = terminatenumber;
+//		return;
+//	}
+//
+//
+//
+//	//////////////////////////
+//	////////  INDIRECT  //////
+//	//////////////////////////
+//	////get global illum ray from bxdf and loop
+//	////do a normal samplef to get wi pdf and color
+//	//float bxdfPDF; glm::vec3 bxdfColor;
+//	//scatterRayNaive(path, isect, m, bxdfPDF, bxdfColor, rng, dev_geoms);
+//	//const glm::vec3 bxdfWi = path.ray.direction;
+//	//const glm::vec3 normal = isect.surfaceNormal;
+//
+//	//glm::vec3 current_throughput(0.f);
+//	//if (!isBlack(bxdfColor) && 0 < bxdfPDF) {
+//	//	current_throughput = bxdfColor * absDot(bxdfWi, normal) / bxdfPDF;
+//	//}
+//	//path.throughput *= current_throughput;
+//
+//	////russian roulette terminate low-energy rays
+//	if (depth > MAXBOUNCES) {
+//		const float max = glm::compMax(path.throughput);
+//		if (max < u01(rng)) {
+//			path.remainingBounces = terminatenumber;
+//			return;
+//		}
+//		//in the off chance this ray is still going after a long time
+//		//scale it up to reduce noise 
+//		//i.e. make it more like the rays in its pixel who terminated earlier
+//		//this one just got lucky presumably
+//		path.throughput /= max;
+//	}
+//}

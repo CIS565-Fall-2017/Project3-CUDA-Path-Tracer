@@ -464,27 +464,27 @@ void pathtrace(uchar4 *pbo, int frame, int iter) { //, const int MAXBOUNCES) {
 			dev_BVHNodes, dev_TriIndices, dev_TriVertices);
 		checkCUDAError("shadeMaterial");
 #elif 2 == PT_TECHNIQUE
-		shadeMaterialMIS_DLlight << <numblocksPathSegmentTracing, blockSize1d >> > (
-			iter, depth, numlights, traceDepth, num_paths, dev_intersections, dev_paths,
-			dev_materials, dev_geomLightIndices, dev_geoms, hst_scene->geoms.size(),
-			dev_BVHNodes, dev_TriVertices, dev_TriVertices
-			);
-		checkCUDAError("shadeMaterial");
+		//shadeMaterialMIS_DLlight << <numblocksPathSegmentTracing, blockSize1d >> > (
+		//	iter, depth, numlights, traceDepth, num_paths, dev_intersections, dev_paths,
+		//	dev_materials, dev_geomLightIndices, dev_geoms, hst_scene->geoms.size(),
+		//	dev_BVHNodes, dev_TriVertices, dev_TriVertices
+		//	);
+		//checkCUDAError("shadeMaterial");
 
-		shadeMaterialMIS_DLbxdf << <numblocksPathSegmentTracing, blockSize1d >> > (
-			iter, depth, numlights, traceDepth, num_paths, dev_intersections, dev_paths,
-			dev_materials, dev_geomLightIndices, dev_geoms, hst_scene->geoms.size(),
-			dev_BVHNodes, dev_TriVertices, dev_TriVertices
-			);
-		checkCUDAError("shadeMaterial");
+		//shadeMaterialMIS_DLbxdf << <numblocksPathSegmentTracing, blockSize1d >> > (
+		//	iter, depth, numlights, traceDepth, num_paths, dev_intersections, dev_paths,
+		//	dev_materials, dev_geomLightIndices, dev_geoms, hst_scene->geoms.size(),
+		//	dev_BVHNodes, dev_TriVertices, dev_TriVertices
+		//	);
+		//checkCUDAError("shadeMaterial");
 
-		shadeMaterialMIS_throughput << <numblocksPathSegmentTracing, blockSize1d >> > (
-			iter, depth, numlights, traceDepth, num_paths, dev_intersections, dev_paths,
-			dev_materials, dev_geomLightIndices, dev_geoms, hst_scene->geoms.size(),
-			dev_BVHNodes, dev_TriVertices, dev_TriVertices
-			);
-				//gpuErrchk(cudaPeekAtLastError());
-				//gpuErrchk(cudaDeviceSynchronize());
+		//shadeMaterialMIS_throughput << <numblocksPathSegmentTracing, blockSize1d >> > (
+		//	iter, depth, numlights, traceDepth, num_paths, dev_intersections, dev_paths,
+		//	dev_materials, dev_geomLightIndices, dev_geoms, hst_scene->geoms.size(),
+		//	dev_BVHNodes, dev_TriVertices, dev_TriVertices
+		//	);
+		//		//gpuErrchk(cudaPeekAtLastError());
+		//		//gpuErrchk(cudaDeviceSynchronize());
 		checkCUDAError("shadeMaterial");
 #else
 		printf("\n unknown PT_TECHNIQUE \n");

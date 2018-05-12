@@ -1,6 +1,6 @@
 // Camera
 CAMERA
-RES         1050 1050
+RES         800 800
 FOVY        19.5
 ITERATIONS  20000
 DEPTH       2
@@ -89,9 +89,9 @@ SIGSPRIME   0 0 0
 
 // SSS marble rMax=6.02
 MATERIAL 6
-RGB         .85 .84 .53
+RGB         0 0 0
 SPECEX      0
-SPECRGB     0 0 0
+SPECRGB     .85 .84 .53
 REFL        1
 REFR        0
 REFRIOR     1.5
@@ -103,9 +103,9 @@ SIGSPRIME   2.19 2.62 3.00
 
 // SSS skin1 rMax=3.01
 MATERIAL 7
-RGB         .44 .22 .13
+RGB         0 0 0
 SPECEX      0
-SPECRGB     0 0 0
+SPECRGB     .44 .22 .13
 REFL        1
 REFR        0
 REFRIOR     1.3
@@ -116,9 +116,9 @@ SIGSPRIME   0.74 0.88 1.01
 
 // SSS skin2 rMax=3.42
 MATERIAL 8
-RGB         .63 .44 .34
+RGB         0 0 0
 SPECEX      0
-SPECRGB     0 0 0
+SPECRGB     .63 .44 .34
 REFL        1
 REFR        0
 REFRIOR     1.3
@@ -129,9 +129,9 @@ SIGSPRIME   1.09 1.59 1.79
 
 // SSS skimmilk rMax=
 MATERIAL 9
-RGB         0.81 0.81 0.69
+RGB         0 0 0
 SPECEX      0
-SPECRGB     0 0 0
+SPECRGB     0.81 0.81 0.69
 REFL        1
 REFR        0
 REFRIOR     1.3
@@ -144,7 +144,7 @@ SIGSPRIME   0.70 1.22 1.90
 MATERIAL 10
 RGB         0.31 0.15 0.10
 SPECEX      0
-SPECRGB     0 0 0
+SPECRGB     0.31 0.15 0.10
 REFL        1
 REFR        0
 REFRIOR     1.3
@@ -155,9 +155,9 @@ SIGSPRIME   0.15 0.21 0.38
 
 // SSS cream rMax=
 MATERIAL 11
-RGB         0.98 0.90 0.73
+RGB         0 0 0
 SPECEX      0
-SPECRGB     0 0 0
+SPECRGB     0.98 0.90 0.73
 REFL        1
 REFR        0
 REFRIOR     1.3
@@ -181,7 +181,7 @@ SCALE       20 20 20
 //modelpath ../res/objects/frank/source/frank.blend false 1.0
 //material 9
 //TRANS       0 3 0 
-//ROTAT       160 -30 0
+//ROTAT       160 -10 0
 //SCALE       0.5 0.5 0.5
 
 //// Model
@@ -193,14 +193,14 @@ SCALE       20 20 20
 //ROTAT       -90 0 0
 //SCALE       10 10 10
 
-// Model
-OBJECT 1
-model
-modelpath ../res/objects/angel-miller/source/angel-miller.blend false 1.0
-material 9
-TRANS       0 -13 4
-ROTAT       -90 0 0
-SCALE       10 10 10
+//// Model
+//OBJECT 1
+//model
+//modelpath ../res/objects/angel-miller/source/angel-miller.blend false 1.0
+//material 9
+//TRANS       0 -13 4
+//ROTAT       -90 0 0
+//SCALE       10 10 10
 
 //// Model
 //OBJECT 1
@@ -211,14 +211,14 @@ SCALE       10 10 10
 //ROTAT       0 0 0
 //SCALE       80 80 80
 
-////// Model
-//OBJECT 1
-//model
-//modelpath ../res/objects/bunny/bunny.ply false 1.0
-//material 10
-//TRANS       1 -5 0
-//ROTAT       0 0 0
-//SCALE       80 80 80 
+//// Model
+OBJECT 1
+model
+modelpath ../res/objects/bunny/bunny.ply false 1.0
+material 10
+TRANS       1 -5 0
+ROTAT       0 0 0
+SCALE       80 80 80 
 
 //// Model
 //OBJECT 1

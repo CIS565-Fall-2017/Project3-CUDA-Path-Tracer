@@ -67,15 +67,19 @@ void chooseReflection( PathSegment & path, const ShadeableIntersection& isect, c
 	const bool entering = glm::dot(normal, wo) > 0.f;
 	const float etaI = 1.f;
 	const float etaT = m.indexOfRefraction;
-	const glm::vec3 colorR = m.color;
+	const glm::vec3 colorR = m.specular.color; 
 
 	//get bxdfcolor pdf and set path ray
 	path.ray.direction = glm::reflect(-wo, normal);//glm assumes incoming ray
 	const glm::vec3 wi = path.ray.direction;
+
+
+
 	const bool exiting = glm::dot(normal, wi) > 0.f;
 	path.ray.origin += (exiting ? normal*EPSILON : -normal*EPSILON);
 	if (isDielectric) {//evaluateFresnel will flip for us
-		bxdfColor = evaluateFresnelDielectric(cosTheta(normal, wi), etaI, etaT) * colorR / absCosTheta(normal, wi);
+		//bxdfColor = evaluateFresnelDielectric(cosTheta(normal, wi), etaI, etaT) * colorR / absCosTheta(normal, wi);
+		bxdfColor = colorR * probR / absCosTheta(normal, wi);
 		bxdfPDF = probR;
 	} else {
 		bxdfColor = colorR / absCosTheta(normal, wi);
@@ -125,9 +129,10 @@ void chooseTransmission( PathSegment & path, const ShadeableIntersection& isect,
 	const bool exiting = glm::dot(normal, wi) > 0.f;
 	path.ray.origin += (exiting ? normal*EPSILON : -normal*EPSILON);
 	path.ray.direction = wi;
-	const glm::vec3 colorT = m.specular.color;
+	const glm::vec3 colorT = m.color;
 	if (isDielectric) {//evalfresnel will correct IoR for us
-		bxdfColor = colorT * (1.f - evaluateFresnelDielectric(cosTheta(normal, wi), etaA, etaB)) / absCosTheta(normal, wi);
+		//bxdfColor = colorT * (1.f - evaluateFresnelDielectric(cosTheta(normal, wi), etaA, etaB)) / absCosTheta(normal, wi);
+		bxdfColor = colorT * (1.f - probR) / absCosTheta(normal, wi);
 		bxdfPDF = 1.f - probR;
 	} else {
 		bxdfColor = colorT / absCosTheta(normal, wi);
@@ -839,61 +844,70 @@ void scatterRayNaive(
 	//3. If NOT specular take ave pdf of all bxdf's pdfs and ave color of all bxdf's f(wo,wi) (prob don't need this since everything except glass will have 1 bxdf)
 	//   If the randomly selected bxdf IS specular then our color is just the color of the specular's f(wo,wi) and the pdf if just 1.f / totalbxdfs i.e. 1/2
 
-	float avepdf = 0.f;
-	glm::vec3 avecolor(0.f);
-
-
 	 if (1 == m.hasSubSurface) {//subsurface
 		thrust::uniform_real_distribution<float> u01(0, 1);
 
-		//BAD, fireflies galore
-		//float SchlickR = 0.f;
-		//if (1 == m.hasReflective) { 
-		//	float SchlickR0 = (1.f - m.indexOfRefraction) / (1.f + m.indexOfRefraction);
-		//	SchlickR0 *= SchlickR0;
-		//	const float cosi = cosTheta(isect.surfaceNormal, -path.ray.direction);
-		//	//this will equal 1 when light heads straight into surface
-		//	//in that case should be prob that we do a transmission interaction and not a reflection
-		//	SchlickR = SchlickR0 + (1.f - SchlickR0)*cosi*cosi*cosi*cosi*cosi;
-		//	SchlickR = 1.f - SchlickR;//get refl prob proxy
-		//}
-		//if (u01(rng) < SchlickR) {
-		//	chooseReflection(path, isect, m, bxdfPDF, bxdfColor, rng, true, SchlickR);
-		//	path.specularbounce = true;
-		//} else {
-		//	chooseSubSurface(path, isect, m, bxdfPDF, bxdfColor, rng, dev_geoms);
-		//	bxdfPDF *= (1.f - SchlickR);
-		//}
+		//use fresnel prob
+		const glm::vec3 fr = evaluateFresnelDielectric(cosTheta(isect.surfaceNormal, -path.ray.direction), 1.f, m.indexOfRefraction);
+		const float probR = (1 == m.hasReflective) ? fr.r : 0.f;//all channels the same
 
-		const float prob = (1 == m.hasReflective) ? 0.5f : 0.f;
-		if (u01(rng) < prob) {
-			chooseReflection(path, isect, m, bxdfPDF, bxdfColor, rng, true, prob);
+		//const float probR = (1 == m.hasReflective) ? 0.5f : 0.f;
+		if (u01(rng) < probR) {
+			chooseReflection(path, isect, m, bxdfPDF, bxdfColor, rng, true, probR);
 			path.specularbounce = true;
 		} else {
 			chooseSubSurface(path, isect, m, bxdfPDF, bxdfColor, rng, dev_geoms, 
 				dev_BVHNodes, dev_TriIndices, dev_TriVertices);
-			bxdfPDF *= (1.f - prob);
+			bxdfPDF *= (1.f - probR);
 		}
-     } else if (0 == m.hasReflective && 0 == m.hasRefractive) {//just diffuse
-		 path.ray.origin = getPointOnRay(path.ray, isect.t);
-		const glm::vec3 normal = isect.surfaceNormal;
-		const glm::vec3 wo = -path.ray.direction;
-		path.ray.origin += normal*EPSILON;
-		path.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
-		const glm::vec3 wi = path.ray.direction;
-		bxdfPDF = sameHemisphere(wo, wi,normal) ? cosTheta(normal, wi)*InvPI : 0.f;
-		bxdfColor = m.color * InvPI;
+     } else if (0 == m.hasReflective && 0 == m.hasRefractive ) {//just diffuse
+		 if (m.specular.exponent == 0.f) {
+			 //chooseDiffuse()
+			 path.ray.origin = getPointOnRay(path.ray, isect.t);
+			 const glm::vec3 normal = isect.surfaceNormal;
+			 const glm::vec3 wo = -path.ray.direction;
+			 path.ray.origin += normal*EPSILON;
+			 path.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
+			 const glm::vec3 wi = path.ray.direction;
+			 bxdfPDF = sameHemisphere(wo, wi, normal) ? cosTheta(normal, wi)*InvPI : 0.f;
+			 bxdfColor = m.color * InvPI;
+		 } else { //thin film laquer  material, like a polished pool ball
+			 //had fireflies for sss
+			 const glm::vec3 fr = evaluateFresnelDielectric(cosTheta(isect.surfaceNormal, -path.ray.direction), 1.f, m.indexOfRefraction);
+			 const float probR = fr.r;//all channels the same
+			 thrust::uniform_real_distribution<float> u01(0, 1);
+			 if (u01(rng) < probR) {
+			 	chooseReflection(path, isect, m, bxdfPDF, bxdfColor, rng, true, probR);
+			 	path.specularbounce = true;
+			 } else {
+				 //chooseDiffuse()
+				 path.ray.origin = getPointOnRay(path.ray, isect.t);
+				 const glm::vec3 normal = isect.surfaceNormal;
+				 const glm::vec3 wo = -path.ray.direction;
+				 path.ray.origin += normal*EPSILON;
+				 path.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
+				 const glm::vec3 wi = path.ray.direction;
+				 bxdfPDF = sameHemisphere(wo, wi, normal) ? cosTheta(normal, wi)*InvPI : 0.f;
+				 bxdfColor = m.color * InvPI;
+
+				 bxdfPDF *= (1.f - probR);
+			 }
+		 }
 	} else if (1 == m.hasReflective && 0 == m.hasRefractive) {//just reflective
 		chooseReflection(path, isect, m, bxdfPDF, bxdfColor, rng, false, 1.f);
 	} else if (0 == m.hasReflective &&  1 == m.hasRefractive) {//just transmissive
 		chooseTransmission(path, isect, m, bxdfPDF, bxdfColor, rng, false, 0.f);
 	} else if (1 == m.hasReflective &&  1 == m.hasRefractive) {//relective and transmissive
 		//determine reflect probability based on luminance 
-		const glm::vec3 colorR = m.color;
-		const glm::vec3 colorT = m.specular.color;
-		const float colorRLum = getLuminance(colorR);
-		const float colorTLum = getLuminance(colorT);
-		const float probR = colorRLum / (colorRLum + colorTLum);
+		//much more noisy than the fresnel way
+		//const glm::vec3 colorR = m.specular.color;
+		//const glm::vec3 colorT = m.color;
+		//const float colorRLum = getLuminance(colorR);
+		//const float colorTLum = getLuminance(colorT);
+		//const float probR = colorRLum / (colorRLum + colorTLum);
+
+		const glm::vec3 fr = evaluateFresnelDielectric(cosTheta(isect.surfaceNormal, -path.ray.direction), 1.f, m.indexOfRefraction);
+		const float probR = fr.r;//all channels the same
 
 		thrust::uniform_real_distribution<float> u01(0, 1);
 		if (u01(rng) < probR) {
