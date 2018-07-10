@@ -4,12 +4,15 @@
 #include <vector>
 #include <cuda_runtime.h>
 #include "glm/glm.hpp"
+#include "model.h"
 
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
 
 enum GeomType {
     SPHERE,
     CUBE,
+	PLANE,
+	MODEL,
 };
 
 struct Ray {
@@ -17,15 +20,26 @@ struct Ray {
     glm::vec3 direction;
 };
 
+struct ModelInfo {
+	Model* model = nullptr;
+	//Corresponding Start Index for the 3 contiguous arrays for Model data
+	//NOTE: might be worth normalizing the index pointers as the model data is looped through and compacted into contiguous arrays
+	//then sent to the gpu.This will avoid additional sums with the startIdx's to calculate correct array position 
+	uint32_t startIdxBVHNode = 0;//bvh node array
+	uint32_t startIdxTriIndex = 0;//triangle indices array
+	uint32_t startIdxTriVertex = 0;//triangle vertex array
+};
+
 struct Geom {
     enum GeomType type;
     int materialid;
-    glm::vec3 translation;
-    glm::vec3 rotation;
-    glm::vec3 scale;
+	ModelInfo modelInfo;
+    glm::vec3 translation;//really store this?
+    glm::vec3 rotation;//really store this?
+    glm::vec3 scale;//really store this?
     glm::mat4 transform;
     glm::mat4 inverseTransform;
-    glm::mat4 invTranspose;
+    glm::mat3 invTranspose;//transpose the inverse on the fly or store this? //only transforming normals with this so no need for translation (mat4)
 };
 
 struct Material {
@@ -36,8 +50,18 @@ struct Material {
     } specular;
     float hasReflective;
     float hasRefractive;
+    float hasSubSurface;
     float indexOfRefraction;
     float emittance;
+    glm::vec3 sigA;
+    glm::vec3 sigSPrime;
+
+//jensen page 5 top right
+//marble: sigA(units are per mm) = 0.0021, 0.0041, 0.0071 
+//marble: sigSPrime = 2.19, 2.62, 3
+//marble: eta = 1.5
+//marble: diffuse reflectance should be = 0.83, 0.79, 0.75 
+
 };
 
 struct Camera {
@@ -60,10 +84,13 @@ struct RenderState {
 };
 
 struct PathSegment {
+	int remainingBounces;
 	Ray ray;
 	glm::vec3 color;
 	int pixelIndex;
-	int remainingBounces;
+	glm::ivec2 MSPaintPixel;//debugging
+	glm::vec3 throughput;
+	bool specularbounce;
 };
 
 // Use with a corresponding PathSegment to do:
@@ -73,4 +100,6 @@ struct ShadeableIntersection {
   float t;
   glm::vec3 surfaceNormal;
   int materialId;
+  int geomId;
 };
+

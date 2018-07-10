@@ -2,33 +2,53 @@ cmake_minimum_required(VERSION 3.0)
 
 project(cis565_path_tracer)
 
+
+
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 
+# Crucial magic for CUDA linking
+find_package(Threads REQUIRED)
+find_package(CUDA 8.0 REQUIRED)
+
+
+#USEFUL FOR SEEING WHY STRANGE THINGS ARE HAPPENING
+#set(CUDA_VERBOSE_BUILD ON)
+
 # Set up include and lib paths
-set(EXTERNAL "external")
-include_directories("${EXTERNAL}")
-include_directories("${EXTERNAL}/include")
-if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    set(EXTERNAL_LIB_PATH "${EXTERNAL}/lib/osx")
-elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-    set(EXTERNAL_LIB_PATH "${EXTERNAL}/lib/linux" "/usr/lib64")
-elseif(WIN32)
-    set(EXTERNAL_LIB_PATH "${EXTERNAL}/lib/win")
-endif()
+set(DEPENDENCIES "dependencies")
+#include_directories("${DEPENDENCIES}")
+include_directories("${DEPENDENCIES}/include")
+#if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+#	set(EXTERNAL_LIB_PATH "${DEPENDENCIES}/lib/osx")
+#elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+#	set(EXTERNAL_LIB_PATH "${DEPENDENCIES}/lib/linux" "/usr/lib64")
+#elseif(WIN32)
+#	set(EXTERNAL_LIB_PATH "${DEPENDENCIES}/lib/win")
+#endif()
+set(EXTERNAL_LIB_PATH "${DEPENDENCIES}/lib/x64")
 link_directories(${EXTERNAL_LIB_PATH})
 list(APPEND CMAKE_LIBRARY_PATH "${EXTERNAL_LIB_PATH}")
 
 
 # Find up and set up core dependency libs
 
-set(GLFW_INCLUDE_DIR "${EXTERNAL}/include")
+set(GLFW_INCLUDE_DIR "${DEPENDENCIES}/include")
 set(GLFW_LIBRARY_DIR "${CMAKE_LIBRARY_PATH}")
 find_library(GLFW_LIBRARY "glfw3" HINTS "${GLFW_LIBRARY_DIR}")
 
-set(GLEW_INCLUDE_DIR "${EXTERNAL}/include")
+set(GLEW_INCLUDE_DIR "${DEPENDENCIES}/include")
 set(GLEW_LIBRARY_DIR "${CMAKE_LIBRARY_PATH}")
 add_definitions(-DGLEW_STATIC)
-find_package(GLEW)
+#find_package(GLEW)
+find_library(GLEW_LIBRARY "glew32s" HINTS "${GLEW_LIBRARY_DIR}")
+
+set(ASSIMP_INCLUDE_DIR "${DEPENDENCIES}/include")
+set(ASSIMP_LIBRARY_DIR "${CMAKE_LIBRARY_PATH}")
+find_library(ASSIMP_LIBRARY "assimp-vc140-mt" HINTS "${ASSIMP_LIBRARY_DIR}")
+
+set(SOIL2_INCLUDE_DIR "${DEPENDENCIES}/include")
+set(SOIL2_LIBRARY_DIR "${CMAKE_LIBRARY_PATH}")
+find_library(SOIL2_LIBRARY "SOIL2" HINTS "${SOIL2_LIBRARY_DIR}")
 
 find_package(OpenGL)
 
@@ -36,13 +56,18 @@ set(CORELIBS
     "${GLFW_LIBRARY}"
     "${OPENGL_LIBRARY}"
     "${GLEW_LIBRARY}"
+    "${ASSIMP_LIBRARY}"
+    "${SOIL2_LIBRARY}"
     )
 
 # Enable C++11 for host code
 set(CMAKE_CXX_STANDARD 11)
 
 # Enable CUDA debug info in debug mode builds
+#can build with this
 list(APPEND CUDA_NVCC_FLAGS_DEBUG -G -g)
+#fails to build
+#list(APPEND CUDA_NVCC_FLAGS_DEBUG "-gencode arch=compute_50,code=sm_50")
 
 # OSX-specific hacks/fixes
 if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
@@ -60,9 +85,7 @@ if (WIN32)
 	list(APPEND CORELIBS legacy_stdio_definitions.lib)
 endif()
 
-# Crucial magic for CUDA linking
-find_package(Threads REQUIRED)
-find_package(CUDA 8.0 REQUIRED)
+# Put crucial magice for CUDA linking back here if it doesn't work (find_package(Threads REQUIRED))
 
 set(CUDA_ATTACH_VS_BUILD_RULE_TO_CUDA_FILE ON)
 set(CUDA_SEPARABLE_COMPILATION ON)
@@ -72,7 +95,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 endif()
 
 include_directories(.)
-#add_subdirectory(stream_compaction)  # TODO: uncomment if using your stream compaction
+add_subdirectory(stream_compaction)  # TODO: uncomment if using your stream compaction
 add_subdirectory(src)
 
 cuda_add_executable(${CMAKE_PROJECT_NAME}
@@ -82,7 +105,7 @@ cuda_add_executable(${CMAKE_PROJECT_NAME}
 
 target_link_libraries(${CMAKE_PROJECT_NAME}
     src
-    #stream_compaction  # TODO: uncomment if using your stream compaction
+    stream_compaction  # TODO: uncomment if using your stream compaction
     ${CORELIBS}
     )
 

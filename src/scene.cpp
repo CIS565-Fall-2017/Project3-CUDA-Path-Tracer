@@ -13,6 +13,8 @@ Scene::Scene(string filename) {
         cout << "Error reading from file - aborting!" << endl;
         throw;
     }
+
+	//load materials, objects, and camera
     while (fp_in.good()) {
         string line;
         utilityCore::safeGetline(fp_in, line);
@@ -28,8 +30,9 @@ Scene::Scene(string filename) {
                 loadCamera();
                 cout << " " << endl;
             }
-        }
-    }
+        }//if line exists
+   }//while valid file pointer input
+
 }
 
 int Scene::loadGeom(string objectid) {
@@ -51,7 +54,29 @@ int Scene::loadGeom(string objectid) {
             } else if (strcmp(line.c_str(), "cube") == 0) {
                 cout << "Creating new cube..." << endl;
                 newGeom.type = CUBE;
+            } else if (strcmp(line.c_str(), "plane") == 0) {
+                cout << "Creating new plane..." << endl;
+                newGeom.type = PLANE;
+            } else if (strcmp(line.c_str(), "model") == 0) {
+                cout << "Creating new model..." << endl;
+                newGeom.type = MODEL;
             }
+			//TODO: ADD MORE OBJ TYPES HERE
+        }
+
+		////save mesh path
+        utilityCore::safeGetline(fp_in, line);
+        if (!line.empty() && fp_in.good()) {
+            const std::vector<std::string> tokens = utilityCore::tokenizeString(line);
+			if (tokens.size() > 1 && tokens.size() < 4) {
+				std::cout << "\n If importing model need: path, mirrored flag, scaling" << endl;
+			} else if (tokens.size() == 4) {
+				const std::string modelPath = tokens[1];
+				const bool mirrored = "true" == tokens[2] ? true : false;
+				const float scaling = std::stof(tokens[3]);
+				cout << "loading model " << modelPath << endl;
+				newGeom.modelInfo.model = new Model(modelPath, mirrored, scaling);
+			}
         }
 
         //link material
@@ -82,7 +107,10 @@ int Scene::loadGeom(string objectid) {
         newGeom.transform = utilityCore::buildTransformationMatrix(
                 newGeom.translation, newGeom.rotation, newGeom.scale);
         newGeom.inverseTransform = glm::inverse(newGeom.transform);
-        newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
+        newGeom.invTranspose = glm::mat3(glm::inverseTranspose(newGeom.transform));
+
+		//print to screen to get idea about size in scene
+		if (newGeom.type == GeomType::MODEL) { newGeom.modelInfo.model->bvh.GetWorldRootAABB(newGeom.transform); }
 
         geoms.push_back(newGeom);
         return 1;
@@ -123,7 +151,7 @@ int Scene::loadCamera() {
         } else if (strcmp(tokens[0].c_str(), "LOOKAT") == 0) {
             camera.lookAt = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
         } else if (strcmp(tokens[0].c_str(), "UP") == 0) {
-            camera.up = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+			camera.up = glm::normalize(glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str())));
         }
 
         utilityCore::safeGetline(fp_in, line);
@@ -134,12 +162,19 @@ int Scene::loadCamera() {
     float xscaled = (yscaled * camera.resolution.x) / camera.resolution.y;
     float fovx = (atan(xscaled) * 180) / PI;
     camera.fov = glm::vec2(fovx, fovy);
-
-	camera.right = glm::normalize(glm::cross(camera.view, camera.up));
 	camera.pixelLength = glm::vec2(2 * xscaled / (float)camera.resolution.x
 							, 2 * yscaled / (float)camera.resolution.y);
 
+	//I think this is actually correct:
+ //   float yscaled = tan(fovy/2.f * (PI / 180));
+ //   float xscaled = (yscaled * camera.resolution.x) / camera.resolution.y;
+ //   float fovx = (atan(xscaled) * 180) / PI;
+ //   camera.fov = glm::vec2(fovx, fovy);
+	//camera.pixelLength = glm::vec2(2 * xscaled / (float)camera.resolution.x
+	//						, 2 * yscaled / (float)camera.resolution.y);
+
     camera.view = glm::normalize(camera.lookAt - camera.position);
+	camera.right = glm::normalize(glm::cross(camera.view, camera.up));
 
     //set up render camera stuff
     int arraylen = camera.resolution.x * camera.resolution.y;
@@ -157,10 +192,22 @@ int Scene::loadMaterial(string materialid) {
         return -1;
     } else {
         cout << "Loading Material " << id << "..." << endl;
-        Material newMaterial;
+		Material newMaterial;
+		//newMaterial.color = glm::vec3(0);
+		//newMaterial.emittance = 0;
+		//newMaterial.hasReflective = 0;
+		//newMaterial.hasRefractive = 0;
+		//newMaterial.hasSubSurface = 0;
+		//newMaterial.indexOfRefraction = 1;
+		//newMaterial.sigA = glm::vec3(0);
+		//newMaterial.sigSPrime = glm::vec3(0);
+		//newMaterial.specular.color = glm::vec3(0);
+		//newMaterial.specular.exponent = 0;
 
         //load static properties
-        for (int i = 0; i < 7; i++) {
+		//this should just stop when it hits a blank line
+		const int totalfields = 10;
+        for (int i = 0; i < totalfields; i++) {
             string line;
             utilityCore::safeGetline(fp_in, line);
             vector<string> tokens = utilityCore::tokenizeString(line);
@@ -180,7 +227,16 @@ int Scene::loadMaterial(string materialid) {
                 newMaterial.indexOfRefraction = atof(tokens[1].c_str());
             } else if (strcmp(tokens[0].c_str(), "EMITTANCE") == 0) {
                 newMaterial.emittance = atof(tokens[1].c_str());
-            }
+			//NEW FIELDS HERE
+            } else if (strcmp(tokens[0].c_str(), "SSS") == 0) {
+                newMaterial.hasSubSurface = atof(tokens[1].c_str());
+            } else if (strcmp(tokens[0].c_str(), "SIGA") == 0) {
+                glm::vec3 sigA(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+				newMaterial.sigA = sigA;
+			} else if (strcmp(tokens[0].c_str(), "SIGSPRIME") == 0) {
+				glm::vec3 sigSPrime(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+				newMaterial.sigSPrime = sigSPrime;
+			}
         }
         materials.push_back(newMaterial);
         return 1;

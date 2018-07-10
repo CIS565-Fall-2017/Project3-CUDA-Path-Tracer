@@ -1,6 +1,7 @@
+#pragma once
 #include <iostream>
 #include <string>
-#include <stb_image_write.h>
+#include <stb/stb_image_write.h>
 
 #include "image.h"
 

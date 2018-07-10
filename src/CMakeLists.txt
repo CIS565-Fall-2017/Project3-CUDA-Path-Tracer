@@ -15,9 +15,19 @@ set(SOURCE_FILES
     "preview.cpp"
     "utilities.cpp"
     "utilities.h"
+    "utilkern.h"
+    "warpfunctions.h"
+    "shapefunctions.h"
+    "integrators.h"
+    "mesh.h"
+    "mesh.cpp"
+    "model.h"
+    "model.cpp"
+    "bvh.h"
+    "bvh.cpp"
     )
 
 cuda_add_library(src
     ${SOURCE_FILES}
-    OPTIONS -arch=sm_20
+    OPTIONS -arch=sm_61 -lineinfo
     )

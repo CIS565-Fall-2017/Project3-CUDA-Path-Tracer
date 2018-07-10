@@ -1,0 +1,255 @@
+// Camera
+CAMERA
+RES         800 800
+FOVY        19.5
+ITERATIONS  20000
+DEPTH       10
+FILE        cornell
+EYE         0 5 19
+LOOKAT      0 5 0
+UP          0 1 0
+
+// Emissive material (light)
+MATERIAL 0
+RGB         1 0.95 0.92
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   10
+SSS         0
+SIGA        0 0 0
+SIGSPRIME   0 0 0
+
+// Diffuse white
+MATERIAL 1
+RGB         .98 .98 .98
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+SSS         0
+SIGA        0 0 0
+SIGSPRIME   0 0 0
+
+// Diffuse red
+MATERIAL 2
+RGB         .85 .35 .35
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+SSS         0
+SIGA        0 0 0
+SIGSPRIME   0 0 0
+
+// Diffuse green
+MATERIAL 3
+RGB         .35 .85 .35
+SPECEX      0
+SPECRGB     0 0 0
+REFL        0
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+SSS         0
+SIGA        0 0 0
+SIGSPRIME   0 0 0
+
+// Reflective white
+MATERIAL 4
+RGB         .98 .98 .98
+SPECEX      0
+SPECRGB     .98 .98 .98
+REFL        1
+REFR        0
+REFRIOR     0
+EMITTANCE   0
+SSS         0
+SIGA        0 0 0
+SIGSPRIME   0 0 0
+
+// glass green
+MATERIAL 5
+RGB         0.9 1.0 0.9
+SPECEX      0
+SPECRGB     0.90 0.9 1 
+REFL        1
+REFR        1
+REFRIOR     1.49
+EMITTANCE   0
+SSS         0
+SIGA        0 0 0
+SIGSPRIME   0 0 0
+
+// SSS marble rMax=6.02
+MATERIAL 6
+RGB         0 0 0
+SPECEX      0
+SPECRGB     .85 .84 .53
+REFL        1
+REFR        0
+REFRIOR     1.5
+EMITTANCE   0
+SSS         1
+SIGA        0.0021 0.0041 0.0071
+SIGSPRIME   2.19 2.62 3.00
+
+
+// SSS skin1 rMax=3.01
+MATERIAL 7
+RGB         0 0 0
+SPECEX      0
+SPECRGB     .44 .22 .13
+REFL        1
+REFR        0
+REFRIOR     1.3
+EMITTANCE   0
+SSS         1
+SIGA        0.032 0.17 0.48
+SIGSPRIME   0.74 0.88 1.01
+
+// SSS skin2 rMax=3.42
+MATERIAL 8
+RGB         0 0 0
+SPECEX      0
+SPECRGB     .63 .44 .34
+REFL        1
+REFR        0
+REFRIOR     1.3
+EMITTANCE   0
+SSS         1
+SIGA        0.013 0.07 0.145
+SIGSPRIME   1.09 1.59 1.79
+
+// SSS skimmilk rMax=
+MATERIAL 9
+RGB         0 0 0
+SPECEX      0
+SPECRGB     0.81 0.81 0.69
+REFL        1
+REFR        0
+REFRIOR     1.3
+EMITTANCE   0
+SSS         1
+SIGA        0.0014 0.0025 0.0142
+SIGSPRIME   0.70 1.22 1.90
+
+// SSS chicken1 rMax=
+MATERIAL 10
+RGB         0.31 0.15 0.10
+SPECEX      0
+SPECRGB     0.31 0.15 0.10
+REFL        1
+REFR        0
+REFRIOR     1.3
+EMITTANCE   0
+SSS         1
+SIGA        0.015 0.077 0.19
+SIGSPRIME   0.15 0.21 0.38
+
+// SSS cream rMax=
+MATERIAL 11
+RGB         0 0 0
+SPECEX      0
+SPECRGB     0.98 0.90 0.73
+REFL        1
+REFR        0
+REFRIOR     1.3
+EMITTANCE   0
+SSS         1
+SIGA        0.0002 0.0028 0.0163
+SIGSPRIME   7.38 5.47 3.15
+
+// thin laquer white
+MATERIAL 12
+RGB         .98 .98 .98
+SPECEX      1
+SPECRGB     .98 .98 .98
+REFL        0
+REFR        0
+REFRIOR     1.4
+EMITTANCE   0
+SSS         0
+SIGA        0 0 0
+SIGSPRIME   0 0 0
+
+
+// Ceiling light
+OBJECT 0
+sphere
+modelpath
+material 0
+TRANS       2.5 7.5 2.5
+ROTAT       0 0 0
+SCALE       1 1 1
+
+// Floor
+OBJECT 1
+cube
+modelpath
+material 1
+TRANS       0 0 0
+ROTAT       0 0 0
+SCALE       10 .01 10
+
+// Ceiling
+OBJECT 2
+cube
+modelpath
+material 1
+TRANS       0 10 0
+ROTAT       0 0 90
+SCALE       .01 10 10
+
+// Back wall
+OBJECT 3
+cube
+modelpath
+material 1
+TRANS       0 5 -5
+ROTAT       0 90 0
+SCALE       .01 10 10
+
+// Left wall
+OBJECT 4
+cube
+modelpath
+material 2
+TRANS       -5 5 0
+ROTAT       0 0 0
+SCALE       .01 10 10
+
+// Right wall
+OBJECT 5
+cube
+modelpath
+material 3
+TRANS       5 5 0
+ROTAT       0 0 0
+SCALE       .01 10 10
+
+//// wtf
+//OBJECT 6
+//sphere
+//modelpath
+//material 5
+//TRANS       -2 4 2
+//ROTAT       0 0 0
+//SCALE       2 2 2
+
+//// Model
+OBJECT 6
+model
+modelpath ../res/objects/bunny/bunny.ply false 1.0
+material 5
+TRANS       0 0 0
+ROTAT       0 0 0
+SCALE       20 20 20 
+
+

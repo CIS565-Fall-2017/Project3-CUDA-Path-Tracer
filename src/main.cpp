@@ -1,8 +1,11 @@
+#pragma once
 #include "main.h"
 #include "preview.h"
 #include <cstring>
+//#include <cstdio> //neede for system("pause");
 
 static std::string startTimeString;
+
 
 // For camera controls
 static bool leftMousePressed = false;
@@ -11,7 +14,7 @@ static bool middleMousePressed = false;
 static double lastX;
 static double lastY;
 
-static bool camchanged = true;
+static bool camchanged = false;
 static float dtheta = 0, dphi = 0;
 static glm::vec3 cammove;
 
@@ -33,12 +36,20 @@ int height;
 int main(int argc, char** argv) {
     startTimeString = currentTimeString();
 
-    if (argc < 2) {
-        printf("Usage: %s SCENEFILE.txt\n", argv[0]);
-        return 1;
-    }
 
-    const char *sceneFile = argv[1];
+    //if (argc < 2) {
+    //    printf("Usage: %s SCENEFILE.txt\n", argv[0]);
+    //    return 1;
+    //}
+    //const char *sceneFile = argv[1];
+	//LAPTOP
+	const char *sceneFile = "C:/Users/loshj/Box Sync/UPennCGGT/cis565/Project3-CUDA-Path-Tracer/scenes/cornellspherelight.txt";
+	//const char *sceneFile = "C:/Users/loshj/Box Sync/UPennCGGT/cis565/Project3-CUDA-Path-Tracer/scenes/cornellspherelightSSS.txt";
+	//const char *sceneFile = "C:/Users/loshj/Box Sync/UPennCGGT/cis565/Project3-CUDA-Path-Tracer/scenes/SSSnowalls.txt";
+	//const char *sceneFile = "C:/Users/loshj/Box Sync/UPennCGGT/cis565/Project3-CUDA-Path-Tracer/scenes/cornellplanes.txt";
+	//DESKTOP
+	//const char *sceneFile = "C:/Users/Josh/Desktop/Project3-CUDA-Path-Tracer/scenes/SSSnowalls.txt";
+	//const char *sceneFile = "C:/Users/Josh/Desktop/Project3-CUDA-Path-Tracer/scenes/cornellspherelight.txt";
 
     // Load scene file
     scene = new Scene(sceneFile);
@@ -72,6 +83,7 @@ int main(int argc, char** argv) {
     // GLFW main loop
     mainLoop();
 
+	//system("pause");
     return 0;
 }
 
@@ -90,7 +102,7 @@ void saveImage() {
 
     std::string filename = renderState->imageName;
     std::ostringstream ss;
-    ss << filename << "." << startTimeString << "." << samples << "samp";
+    ss << "..\\img\\" << filename << "." << startTimeString << "." << samples << "samp";
     filename = ss.str();
 
     // CHECKITOUT
@@ -134,7 +146,8 @@ void runCuda() {
 
         // execute the kernel
         int frame = 0;
-        pathtrace(pbo_dptr, frame, iteration);
+		
+		pathtrace(pbo_dptr, frame, iteration);// , renderState->traceDepth);
 
         // unmap buffer object
         cudaGLUnmapBufferObject(pbo);
@@ -155,6 +168,10 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
         break;
       case GLFW_KEY_S:
         saveImage();
+        break;
+      case GLFW_KEY_P:
+        renderState = &scene->state;
+		std::cout << "\nCam Pos: " << renderState->camera.position.x << ", " << renderState->camera.position.y << ", " << renderState->camera.position.z;
         break;
       case GLFW_KEY_SPACE:
         camchanged = true;
@@ -182,7 +199,7 @@ void mousePositionCallback(GLFWwindow* window, double xpos, double ypos) {
     camchanged = true;
   }
   else if (rightMousePressed) {
-    zoom += (ypos - lastY) / height;
+    zoom += 20.f * (ypos - lastY) / height;
     zoom = std::fmax(0.1f, zoom);
     camchanged = true;
   }
