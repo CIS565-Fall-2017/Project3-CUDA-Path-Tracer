@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.1)
 
 project(cis565_path_tracer)
 
@@ -23,7 +23,11 @@ list(APPEND CMAKE_LIBRARY_PATH "${EXTERNAL_LIB_PATH}")
 
 set(GLFW_INCLUDE_DIR "${EXTERNAL}/include")
 set(GLFW_LIBRARY_DIR "${CMAKE_LIBRARY_PATH}")
-find_library(GLFW_LIBRARY "glfw3" HINTS "${GLFW_LIBRARY_DIR}")
+if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+    find_library(GLFW_LIBRARY "glfw" HINTS "${GLFW_LIBRARY_DIR}")
+else()
+    find_library(GLFW_LIBRARY "glfw3" HINTS "${GLFW_LIBRARY_DIR}")
+endif()
 
 set(GLEW_INCLUDE_DIR "${EXTERNAL}/include")
 set(GLEW_LIBRARY_DIR "${CMAKE_LIBRARY_PATH}")
@@ -42,7 +46,7 @@ set(CORELIBS
 set(CMAKE_CXX_STANDARD 11)
 
 # Enable CUDA debug info in debug mode builds
-list(APPEND CUDA_NVCC_FLAGS_DEBUG -G -g)
+list(APPEND CUDA_NVCC_FLAGS_DEBUG -G -g -std=c++11)
 
 # OSX-specific hacks/fixes
 if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")

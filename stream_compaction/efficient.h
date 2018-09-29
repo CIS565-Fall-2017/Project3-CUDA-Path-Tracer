@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include <src\sceneStructs.h>
+#include <src/sceneStructs.h>
 
 namespace StreamCompaction {
     namespace Efficient {
